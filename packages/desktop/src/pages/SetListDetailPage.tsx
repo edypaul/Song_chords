@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Plus, GripVertical, Trash2, Search } from 'lucide-react';
-import { useSetListStore, useSongStore } from '@song-chords/shared';
+import { useSetListStore, useSongStore, transposeKey } from '@song-chords/shared';
 import type { SetListEntry, Song } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import {
@@ -157,8 +157,14 @@ function SortableEntry({
 
   const title = toTitleCase(entry.song.title);
   const artist = entry.song.artist ? toTitleCase(entry.song.artist) : undefined;
-  const displayKey = entry.key ?? entry.song.key;
-  const keyOverridden = entry.key !== undefined && entry.key !== entry.song.key;
+  // Base key for display — an entry-level override wins over the song's key.
+  // Then apply the entry's transpose so the displayed key reflects what the
+  // performer will actually play in this setlist.
+  const baseKey = entry.key ?? entry.song.key;
+  const displayKey = baseKey ? transposeKey(baseKey, entry.transpose ?? 0) : undefined;
+  const keyOverridden =
+    (entry.key !== undefined && entry.key !== entry.song.key) ||
+    ((entry.transpose ?? 0) !== 0);
   const displayTempo = entry.tempo ?? entry.song.tempo;
   const tempoOverridden = entry.tempo !== undefined && entry.tempo !== entry.song.tempo;
   const capoOverridden = entry.capo !== (entry.song.capo ?? 0);
@@ -177,7 +183,7 @@ function SortableEntry({
         <span
           className="text-xs font-mono"
           style={{ color: keyOverridden ? 'var(--accent)' : 'var(--chord-color)' }}
-          title={keyOverridden ? `Overridden (song: ${entry.song.key ?? '—'})` : undefined}
+          title={keyOverridden ? `Transposed from ${entry.song.key ?? '—'}` : undefined}
         >
           {displayKey}
         </span>

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star } from 'lucide-react';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download } from 'lucide-react';
 import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
@@ -8,6 +8,7 @@ import AutoScrollControl from '../components/controls/AutoScrollControl';
 import ChordDiagramBar from '../components/chord-diagram/ChordDiagramBar';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
+import SongExportModal from '../components/song/SongExportModal';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMetronome } from '../hooks/useMetronome';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
@@ -99,6 +100,7 @@ export default function SongViewPage(): React.ReactElement {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   useAutoScroll(scrollRef as React.RefObject<HTMLElement>);
 
@@ -696,6 +698,14 @@ export default function SongViewPage(): React.ReactElement {
             {svs.preset === 'custom' && <option value="custom">Custom</option>}
           </select>
 
+          <button
+            onClick={() => setShowExport(true)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title="Export song"
+          >
+            <Download size={16} style={{ color: 'var(--text-secondary)' }} />
+          </button>
+
           {activeSong.notes && activeSong.notes.trim() && (
             <button
               onClick={() => setShowNotes(true)}
@@ -767,6 +777,11 @@ export default function SongViewPage(): React.ReactElement {
       {/* Song-notes modal */}
       {showNotes && activeSong.notes && (
         <NotesModal title={activeSong.title} notes={activeSong.notes} onClose={() => setShowNotes(false)} />
+      )}
+
+      {/* Export modal */}
+      {showExport && activeSong && (
+        <SongExportModal song={activeSong} onClose={() => setShowExport(false)} />
       )}
     </div>
   );
