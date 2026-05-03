@@ -14,7 +14,7 @@ export function extractUniqueChords(song: ParsedSong): string[] {
           result.push(name);
         }
       }
-      if (token.type === 'chordGrid') {
+      if (token.type === 'chord-grid') {
         const grid = token as ChordGridToken;
         for (const row of grid.rows) {
           for (const bar of row.bars) {

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, SONG_LIST_COLUMNS } from '@song-chords/shared';
+import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, DEFAULT_SHORTCUTS, SONG_LIST_COLUMNS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
-import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, SongListColumn } from '@song-chords/shared';
+import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, SongListColumn, KeyboardShortcuts, ShortcutAction } from '@song-chords/shared';
+import ShortcutRecorder from '../components/common/ShortcutRecorder';
 import { Download, Upload, Trash2 } from 'lucide-react';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import {
   downloadJson, pickJsonFile, timestampSlug,
-  exportLibrary, importLibrary, buildChordsBackup, buildPresetsBackup,
+  exportLibrary, importLibrary, mergeLibrary, buildChordsBackup, buildPresetsBackup,
   type LibraryBackup, type CustomChordsBackup, type CustomPresetsBackup,
 } from '../utils/backup';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
@@ -20,7 +21,15 @@ export default function SettingsPage(): React.ReactElement {
 
   // ─── Backup & restore ──────────────────────────────────────────────────
   const [status, setStatus] = useState<{ kind: 'info' | 'error'; message: string } | null>(null);
-  const [pendingLibraryRestore, setPendingLibraryRestore] = useState<LibraryBackup | null>(null);
+  /** Pending import dialog state. `kind` distinguishes which backup type the
+   *  user picked. The dialog asks them to Replace, Combine, or Cancel before
+   *  any actual write happens. */
+  const [pendingImport, setPendingImport] = useState<
+    | { kind: 'library'; data: LibraryBackup; description: string }
+    | { kind: 'chords'; data: CustomChordsBackup; description: string }
+    | { kind: 'presets'; data: CustomPresetsBackup; description: string }
+    | null
+  >(null);
   const flash = (kind: 'info' | 'error', message: string) => {
     setStatus({ kind, message });
     window.setTimeout(() => setStatus((s) => (s?.message === message ? null : s)), 4000);
@@ -43,21 +52,27 @@ export default function SettingsPage(): React.ReactElement {
       flash('error', 'This file does not look like a library backup.');
       return;
     }
-    setPendingLibraryRestore(data);
+    setPendingImport({
+      kind: 'library',
+      data,
+      description: `${data.songs.length} song${data.songs.length === 1 ? '' : 's'}, ${data.setlists.length} set list${data.setlists.length === 1 ? '' : 's'}`,
+    });
   };
 
-  const confirmLibraryRestore = async () => {
-    const data = pendingLibraryRestore;
-    setPendingLibraryRestore(null);
-    if (!data) return;
+  const runLibraryImport = async (mode: 'replace' | 'combine') => {
+    const pending = pendingImport;
+    if (!pending || pending.kind !== 'library') return;
+    setPendingImport(null);
     try {
-      await importLibrary(db, data);
-      // Reload the song and setlist stores so the UI reflects the restored data.
+      if (mode === 'replace') await importLibrary(db, pending.data);
+      else                    await mergeLibrary(db, pending.data);
       await useSongStore.getState().loadSongs(db);
       await useSetListStore.getState().loadSetLists(db);
-      flash('info', `Restored ${data.songs.length} songs, ${data.setlists.length} set lists.`);
+      flash('info', mode === 'replace'
+        ? `Replaced library with ${pending.description}.`
+        : `Combined backup (${pending.description}) with current library.`);
     } catch (e) {
-      flash('error', `Restore failed: ${String(e)}`);
+      flash('error', `Import failed: ${String(e)}`);
     }
   };
 
@@ -78,13 +93,40 @@ export default function SettingsPage(): React.ReactElement {
       if (data !== null) flash('error', 'This file does not look like a custom chords backup.');
       return;
     }
-    // Merge: imported entries overlay existing ones per chord name.
-    const merged: Record<string, ChordDiagram[]> = { ...(settings.customChords ?? {}) };
-    for (const [name, list] of Object.entries(data.customChords)) {
-      if (Array.isArray(list)) merged[name] = list;
+    const count = Object.values(data.customChords).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+    setPendingImport({
+      kind: 'chords',
+      data,
+      description: `${count} custom chord voicing${count === 1 ? '' : 's'} across ${Object.keys(data.customChords).length} chord${Object.keys(data.customChords).length === 1 ? '' : 's'}`,
+    });
+  };
+
+  const runChordsImport = (mode: 'replace' | 'combine') => {
+    const pending = pendingImport;
+    if (!pending || pending.kind !== 'chords') return;
+    setPendingImport(null);
+    try {
+      let next: Record<string, ChordDiagram[]>;
+      if (mode === 'replace') {
+        // Keep only the imported chords; existing custom chords are wiped.
+        next = {};
+        for (const [name, list] of Object.entries(pending.data.customChords)) {
+          if (Array.isArray(list)) next[name] = list;
+        }
+      } else {
+        // Combine: imported entries overlay existing ones per chord name.
+        next = { ...(settings.customChords ?? {}) };
+        for (const [name, list] of Object.entries(pending.data.customChords)) {
+          if (Array.isArray(list)) next[name] = list;
+        }
+      }
+      set('customChords', next);
+      flash('info', mode === 'replace'
+        ? 'Replaced custom chords with backup.'
+        : 'Combined backup with existing custom chords.');
+    } catch (e) {
+      flash('error', `Import failed: ${String(e)}`);
     }
-    set('customChords', merged);
-    flash('info', 'Custom chords imported.');
   };
 
   const handleExportPresets = () => {
@@ -104,9 +146,29 @@ export default function SettingsPage(): React.ReactElement {
       if (data !== null) flash('error', 'This file does not look like a custom presets backup.');
       return;
     }
-    const merged: Record<string, CustomPreset> = { ...(settings.customPresets ?? {}), ...data.customPresets };
-    set('customPresets', merged);
-    flash('info', 'Custom style presets imported.');
+    const count = Object.keys(data.customPresets).length;
+    setPendingImport({
+      kind: 'presets',
+      data,
+      description: `${count} custom preset${count === 1 ? '' : 's'}`,
+    });
+  };
+
+  const runPresetsImport = (mode: 'replace' | 'combine') => {
+    const pending = pendingImport;
+    if (!pending || pending.kind !== 'presets') return;
+    setPendingImport(null);
+    try {
+      const next: Record<string, CustomPreset> = mode === 'replace'
+        ? { ...pending.data.customPresets }
+        : { ...(settings.customPresets ?? {}), ...pending.data.customPresets };
+      set('customPresets', next);
+      flash('info', mode === 'replace'
+        ? 'Replaced custom presets with backup.'
+        : 'Combined backup with existing custom presets.');
+    } catch (e) {
+      flash('error', `Import failed: ${String(e)}`);
+    }
   };
 
   // ─── Delete data ───────────────────────────────────────────────────────
@@ -183,6 +245,7 @@ export default function SettingsPage(): React.ReactElement {
           >
             <option value="guitar">Guitar</option>
             <option value="ukulele">Ukulele</option>
+            <option value="piano">Piano</option>
           </select>
         </SettingRow>
         <SettingRow label="Accidentals" hint="Flats / Sharps override the automatic key-based spelling; Auto uses the circle of fifths">
@@ -194,6 +257,16 @@ export default function SettingsPage(): React.ReactElement {
             <option value="auto">Auto</option>
             <option value="flats">Flats</option>
             <option value="sharps">Sharps</option>
+          </select>
+        </SettingRow>
+        <SettingRow label="Chord Notation" hint="Letter (A–G) or Latin solfège (DO/RE/MI/FA/SOL/LA/SI). Latin uses uppercase for major and lowercase for minor (e.g. SOL = G, sol = Gm)">
+          <select
+            value={settings.chordNotation ?? 'letter'}
+            onChange={(e) => set('chordNotation', e.target.value as 'letter' | 'latin')}
+            className="setting-select"
+          >
+            <option value="letter">Letter (A–G)</option>
+            <option value="latin">Latin (Do–Si)</option>
           </select>
         </SettingRow>
         <SettingRow label="Show chord diagrams bar" hint="Default visibility of the chord diagrams bar for all songs">
@@ -259,7 +332,7 @@ export default function SettingsPage(): React.ReactElement {
           <div className="grid grid-cols-2 gap-x-6 gap-y-2">
             {SONG_LIST_COLUMNS.map((col) => {
               const current = settings.songListColumns ?? {
-                artist: true, genre: true, key: true, difficulty: true, tempo: true, year: true, language: true,
+                artist: true, genre: true, key: true, difficulty: true, tempo: true, year: true, language: true, chordsCount: true, createdAt: true,
               };
               const checked = current[col] ?? true;
               return (
@@ -274,6 +347,13 @@ export default function SettingsPage(): React.ReactElement {
             })}
           </div>
         </div>
+      </Section>
+
+      <Section title="Keyboard Shortcuts">
+        <KeyboardShortcutsEditor
+          shortcuts={settings.shortcuts ?? DEFAULT_SHORTCUTS}
+          onChange={(next) => set('shortcuts', next)}
+        />
       </Section>
 
       <Section title="Backup & Restore">
@@ -370,20 +450,39 @@ export default function SettingsPage(): React.ReactElement {
         />
       )}
 
-      {pendingLibraryRestore && (
-        <ConfirmDialog
-          title="Replace songs library?"
-          message={
-            <>
-              This will <strong>delete all current songs, set lists, and favorites</strong> and replace them
-              with the backup ({pendingLibraryRestore.songs.length} songs, {pendingLibraryRestore.setlists.length} set lists).
-              This cannot be undone.
-            </>
+      {pendingImport && (
+        <ImportModeDialog
+          title={
+            pendingImport.kind === 'library' ? 'Import songs library'
+            : pendingImport.kind === 'chords' ? 'Import custom chords'
+            : 'Import custom style presets'
           }
-          confirmLabel="Restore"
-          danger
-          onCancel={() => setPendingLibraryRestore(null)}
-          onConfirm={() => { void confirmLibraryRestore(); }}
+          description={pendingImport.description}
+          replaceWarning={
+            pendingImport.kind === 'library'
+              ? 'Deletes all current songs, set lists, and favorites first. Cannot be undone.'
+              : pendingImport.kind === 'chords'
+              ? 'Discards all existing custom chord voicings before loading the backup.'
+              : 'Discards all existing custom style presets before loading the backup.'
+          }
+          combineHint={
+            pendingImport.kind === 'library'
+              ? 'Adds new songs / set lists / favorites; existing items with the same id are kept untouched.'
+              : pendingImport.kind === 'chords'
+              ? 'Imported chord voicings overwrite any locally-defined voicings with the same chord name.'
+              : 'Imported presets overwrite any locally-defined presets with the same name.'
+          }
+          onReplace={() => {
+            if (pendingImport.kind === 'library') void runLibraryImport('replace');
+            else if (pendingImport.kind === 'chords') runChordsImport('replace');
+            else runPresetsImport('replace');
+          }}
+          onCombine={() => {
+            if (pendingImport.kind === 'library') void runLibraryImport('combine');
+            else if (pendingImport.kind === 'chords') runChordsImport('combine');
+            else runPresetsImport('combine');
+          }}
+          onCancel={() => setPendingImport(null)}
         />
       )}
 
@@ -415,14 +514,150 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
+  toggleInlineDiagrams: 'Toggle inline chord diagrams',
+  toggleChordBar:       'Toggle chord diagrams bar',
+  toggleLyricsOnly:     'Toggle lyrics-only mode',
+  toggleMetronome:      'Start / stop metronome',
+  toggleSongNotes:      'Show / hide song notes',
+  toggleAutoScroll:     'Start / pause auto-scroll',
+  transposeUp:          'Transpose up',
+  transposeDown:        'Transpose down',
+  exportSong:           'Open export modal',
+  editSong:             'Enter edit page',
+  zoomIn:               'Zoom in',
+  zoomOut:              'Zoom out',
+  zoomReset:            'Reset zoom',
+};
+
+interface ShortcutGroup {
+  title: string;
+  hint: string;
+  actions: ShortcutAction[];
+  includeCapo?: boolean;
+}
+
+const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: 'View & Display',
+    hint: 'Active in the Song view and Perform pages.',
+    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes'],
+  },
+  {
+    title: 'Playback',
+    hint: 'Metronome and auto-scroll. Active in the Song view and Perform pages.',
+    actions: ['toggleMetronome', 'toggleAutoScroll'],
+  },
+  {
+    title: 'Key & Capo',
+    hint: 'Transpose the song up or down; hold the capo modifier with a digit to set the capo directly. Active in the Song view and Perform pages.',
+    actions: ['transposeUp', 'transposeDown'],
+    includeCapo: true,
+  },
+  {
+    title: 'Song actions',
+    hint: 'Active when a song is open in the Song view.',
+    actions: ['exportSong', 'editSong'],
+  },
+  {
+    title: 'Zoom',
+    hint: 'Zooms the Song view / Perform content when on those pages, otherwise scales the whole interface.',
+    actions: ['zoomIn', 'zoomOut', 'zoomReset'],
+  },
+];
+
+function KeyboardShortcutsEditor({
+  shortcuts, onChange,
+}: {
+  shortcuts: KeyboardShortcuts;
+  onChange: (next: KeyboardShortcuts) => void;
+}): React.ReactElement {
+  const update = <K extends keyof KeyboardShortcuts>(key: K, value: KeyboardShortcuts[K]) => {
+    onChange({ ...shortcuts, [key]: value });
+  };
+
+  return (
+    <div>
+      <div className="p-4 text-xs" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+        Click any binding to record a new key combination. Press Escape while recording to cancel. Use the × button to disable the shortcut.
+      </div>
+      {SHORTCUT_GROUPS.map((group, gi) => (
+        <div key={group.title} style={{ borderTop: gi === 0 ? undefined : '1px solid var(--border)' }}>
+          <div
+            className="px-4 py-2.5 flex flex-col gap-0.5"
+            style={{ background: 'var(--bg-secondary)' }}
+          >
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+              {group.title}
+            </h3>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{group.hint}</p>
+          </div>
+          <div>
+            {group.actions.map((action) => (
+              <div
+                key={action}
+                className="flex items-center gap-4 px-4 py-3"
+                style={{ borderTop: '1px solid var(--border)' }}
+              >
+                <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>
+                  {SHORTCUT_LABELS[action]}
+                </p>
+                <ShortcutRecorder value={shortcuts[action] ?? ''} onChange={(next) => update(action, next)} />
+              </div>
+            ))}
+            {group.includeCapo && (
+              <div
+                className="flex items-center gap-4 px-4 py-3"
+                style={{ borderTop: '1px solid var(--border)' }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>Capo modifier</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Held with a digit 0-9 to set the capo to that fret.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 min-w-[10rem]">
+                  <select
+                    value={shortcuts.capoModifier}
+                    onChange={(e) => update('capoModifier', e.target.value as KeyboardShortcuts['capoModifier'])}
+                    className="px-3 py-1.5 rounded-lg text-sm text-left min-w-[8rem]"
+                    style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                  >
+                    <option value="Alt">Alt</option>
+                    <option value="Ctrl">Ctrl</option>
+                    <option value="Shift">Shift</option>
+                    <option value="Meta">Meta</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+      <div className="p-3 flex justify-center" style={{ borderTop: '1px solid var(--border)' }}>
+        <button
+          onClick={() => onChange({ ...DEFAULT_SHORTCUTS })}
+          className="text-xs px-3 py-1.5 rounded hover:bg-[var(--surface-elevated)]"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Restore defaults
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const COLUMN_LABEL: Record<SongListColumn, string> = {
   artist: 'Artist',
   genre: 'Genre',
   key: 'Key',
   difficulty: 'Difficulty',
   tempo: 'Tempo',
+  duration: 'Duration',
   year: 'Year',
   language: 'Language',
+  chordsCount: 'Chords',
+  createdAt: 'Added',
 };
 
 function DeleteCheck({
@@ -457,6 +692,89 @@ function DeleteCheck({
         {hint && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
       </div>
     </button>
+  );
+}
+
+function ImportModeDialog({
+  title, description, replaceWarning, combineHint,
+  onReplace, onCombine, onCancel,
+}: {
+  title: string;
+  description: string;
+  replaceWarning: string;
+  combineHint: string;
+  onReplace: () => void;
+  onCombine: () => void;
+  onCancel: () => void;
+}): React.ReactElement {
+  React.useEffect(() => {
+    // Capture phase + stopImmediatePropagation so page-level Escape handlers
+    // don't also fire when the user dismisses this dialog.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.5)', zIndex: 300 }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-xl p-5"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+        <p className="text-sm mt-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
+          The backup contains <strong>{description}</strong>. How should it be applied?
+        </p>
+
+        <div className="flex flex-col gap-2 mb-5">
+          <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Replace</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{replaceWarning}</p>
+          </div>
+          <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Combine</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{combineHint}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg text-sm"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onReplace}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ color: 'var(--danger)', background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
+          >
+            Replace
+          </button>
+          <button
+            onClick={onCombine}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--accent)', color: 'white' }}
+          >
+            Combine
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

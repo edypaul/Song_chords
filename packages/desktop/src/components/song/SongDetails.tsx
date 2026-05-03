@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePlayerStore, useSettingsStore, transposeKey } from '@song-chords/shared';
+import { usePlayerStore, useSettingsStore, transposeKey, formatKey } from '@song-chords/shared';
 
 /**
  * Shared song-metadata block (Key / Capo / Tempo / Time-sig) rendered below
@@ -12,6 +12,7 @@ export default function SongDetails({ centered = false }: { centered?: boolean }
   const transposeSteps = usePlayerStore((s) => s.transposeSteps);
   const capo = usePlayerStore((s) => s.capo);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   if (!activeSong) return null;
 
@@ -20,7 +21,7 @@ export default function SongDetails({ centered = false }: { centered?: boolean }
   const value = (text: React.ReactNode) => <span style={{ fontWeight: 400, opacity: 0.85, color }}>{text}</span>;
 
   const items: { key: string; node: React.ReactNode }[] = [];
-  if (activeSong.key) items.push({ key: 'k', node: <span>{label('Key: ')}{value(transposeKey(activeSong.key, transposeSteps))}</span> });
+  if (activeSong.key) items.push({ key: 'k', node: <span>{label('Key: ')}{value(formatKey(transposeKey(activeSong.key, transposeSteps), notation))}</span> });
   if (capo > 0)       items.push({ key: 'c', node: <span>{label('Capo: ')}{value(capo)}</span> });
   if (activeSong.tempo)   items.push({ key: 't',  node: <span>{label('Tempo: ')}{value(`${activeSong.tempo} BPM`)}</span> });
   if (activeSong.timeSig) items.push({ key: 'ts', node: <span>{label('Time: ')}{value(activeSong.timeSig)}</span> });

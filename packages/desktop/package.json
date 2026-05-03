@@ -7,7 +7,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-vite build && electron-builder"
+    "package": "electron-vite build && electron-builder",
+    "package:dir": "electron-vite build && electron-builder --dir"
   },
   "dependencies": {
     "@song-chords/shared": "*",
@@ -40,11 +41,34 @@
     "appId": "com.songchords.desktop",
     "productName": "Song Chords",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/sql.js/**"
+    ],
+    "publish": null,
+    "extraMetadata": {
+      "main": "out/main/index.js"
     },
     "win": {
-      "target": "nsis",
-      "icon": "resources/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Song Chords"
     }
   }
 }

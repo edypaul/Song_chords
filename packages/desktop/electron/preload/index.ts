@@ -18,13 +18,32 @@ const electronAPI = {
       ipcRenderer.invoke('files:readFile', filePath),
     writeFile: (filePath: string, content: string) =>
       ipcRenderer.invoke('files:writeFile', filePath, content),
+    saveSongsFolder: (folderName: string, files: Array<{ filename: string; content: string }>): Promise<{ folder: string | null; error?: string }> =>
+      ipcRenderer.invoke('files:saveSongsFolder', folderName, files),
   },
   shell: {
     openExternal: (url: string) =>
       ipcRenderer.invoke('shell:openExternal', url),
   },
+  pdf: {
+    savePdf: (html: string, defaultName: string, bgColor?: string): Promise<{ canceled: boolean; filePath?: string; error?: string }> =>
+      ipcRenderer.invoke('pdf:savePdf', html, defaultName, bgColor),
+  },
   app: {
     quit: () => ipcRenderer.invoke('app:quit'),
+  },
+  window: {
+    minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
+    toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window:toggleMaximize'),
+    close: (): Promise<void> => ipcRenderer.invoke('window:close'),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized'),
+    /** Subscribe to maximize-state changes pushed from the main process.
+     *  Returns an unsubscribe function. */
+    onMaxStateChange: (cb: (maximized: boolean) => void): (() => void) => {
+      const handler = (_event: unknown, maximized: boolean) => cb(maximized);
+      ipcRenderer.on('window:max-state', handler);
+      return () => ipcRenderer.removeListener('window:max-state', handler);
+    },
   },
   onMenuAction: (callback: (action: string) => void) => {
     const actions = [

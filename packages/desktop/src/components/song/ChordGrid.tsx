@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ChordGridBar, ChordGridToken, ChordGridRow as GridRow } from '@song-chords/shared';
+import { useSettingsStore, formatChord } from '@song-chords/shared';
 import ChordDiagramPopover from '../chord-diagram/ChordDiagramPopover';
 
 // ── Layout constants ──────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ interface StaffRowProps {
 }
 
 function StaffRow({ bars, barW, startRepeat, endRepeat, repeatCount, simple, chordColor, onChordClick }: StaffRowProps): React.ReactElement {
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
   const n      = bars.length;
   const totalW = LEFT_PAD + n * barW + (endRepeat ? 20 : 10);
   const openX  = LEFT_PAD;
@@ -138,7 +140,7 @@ function StaffRow({ bars, barW, startRepeat, endRepeat, repeatCount, simple, cho
                 fontFamily="sans-serif" fill={chordColor || 'var(--chord-color)'}
                 style={onChordClick ? { cursor: 'pointer' } : undefined}
                 onClick={() => bar.beats[0]!.chord && onChordClick?.(bar.beats[0]!.chord)}
-              >{bar.beats[0]!.chord}</text>
+              >{formatChord(bar.beats[0]!.chord ?? '', notation)}</text>
             ) : bar.beats.map((beat, si) =>
               beat.chord ? (
                 <text key={si}
@@ -147,7 +149,7 @@ function StaffRow({ bars, barW, startRepeat, endRepeat, repeatCount, simple, cho
                   fontFamily="sans-serif" fill={chordColor || 'var(--chord-color)'}
                   style={onChordClick ? { cursor: 'pointer' } : undefined}
                   onClick={() => onChordClick?.(beat.chord!)}
-                >{beat.chord}</text>
+                >{formatChord(beat.chord, notation)}</text>
               ) : (
                 <circle key={si}
                   cx={xs[si]} cy={BEAT_DOT_Y}

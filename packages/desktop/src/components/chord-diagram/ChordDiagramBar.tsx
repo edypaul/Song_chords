@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useSettingsStore, getDiagramExact, getDiagramByIndex, extractUniqueChords } from '@song-chords/shared';
+import { useSettingsStore, getDiagramExact, getDiagramByIndex, extractUniqueChords, formatChord } from '@song-chords/shared';
 import type { ParsedSong } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 
@@ -14,18 +14,21 @@ export default React.memo(function ChordDiagramBar({ song, position, chordVariat
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   const chords = useMemo(() => extractUniqueChords(song), [song]);
 
-  const strings = instrument === 'guitar' ? 6 : 4;
+  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
   const diagrams = useMemo(() => chords.map((name) => {
     const varIdx = chordVariations?.[name] ?? 0;
-    return {
-      name,
-      diagram: (varIdx > 0 ? getDiagramByIndex(name, instrument, varIdx, custom) : getDiagramExact(name, instrument, custom)) ?? {
-        name, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[],
-      },
-    };
+    const found = varIdx > 0 ? getDiagramByIndex(name, instrument, varIdx, custom) : getDiagramExact(name, instrument, custom);
+    if (found) return { name, diagram: found };
+    // Fallback empty diagram — different shape per instrument so the
+    // renderer doesn't try to draw a piano as a fretboard.
+    const fallback = instrument === 'piano'
+      ? { name, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
+      : { name, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] };
+    return { name, diagram: fallback };
   }), [chords, chordVariations, instrument, custom, strings]);
 
   if (chords.length === 0) return null;
@@ -61,9 +64,9 @@ export default React.memo(function ChordDiagramBar({ song, position, chordVariat
           key={d.name}
           style={{ flexShrink: 0, textAlign: 'center', cursor: onChordClick ? 'pointer' : undefined }}
           onClick={onChordClick ? () => onChordClick(d.name) : undefined}
-          title={onChordClick ? d.name : undefined}
+          title={onChordClick ? formatChord(d.name, notation) : undefined}
         >
-          <ChordDiagramSVG diagram={d.diagram} width={isRight ? 120 : 110} lineColor={lineColor} chordColor={chordColor} />
+          <ChordDiagramSVG diagram={d.diagram} width={isRight ? 120 : 110} lineColor={lineColor} chordColor={chordColor} displayName={formatChord(d.name, notation)} />
         </div>
       ))}
     </div>

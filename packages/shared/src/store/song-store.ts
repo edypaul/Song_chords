@@ -12,9 +12,21 @@ export type SortField =
   | 'key'
   | 'difficulty'
   | 'tempo'
+  | 'duration'
   | 'year'
   | 'language'
-  | 'updatedAt';
+  | 'updatedAt'
+  | 'createdAt'
+  | 'chordsCount';
+
+function durationToSeconds(d: string | undefined): number {
+  if (!d) return -1;
+  const parts = d.split(':').map((p) => parseInt(p, 10));
+  if (parts.some((n) => Number.isNaN(n))) return -1;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return -1;
+}
 
 interface SongStore {
   songs: Song[];
@@ -34,6 +46,7 @@ interface SongStore {
   addSong: (db: IDatabase, input: SongCreateInput) => Promise<Song>;
   updateSong: (db: IDatabase, id: string, patch: SongUpdateInput) => Promise<void>;
   deleteSong: (db: IDatabase, id: string) => Promise<void>;
+  markSongViewed: (db: IDatabase, id: string) => Promise<void>;
   savePreferences: (db: IDatabase, id: string, prefs: SongPreferences) => Promise<void>;
   toggleFavorite: (db: IDatabase, id: string) => Promise<void>;
   updateFavoriteEntry: (
@@ -79,9 +92,17 @@ function applyFilters(
   result.sort((a, b) => {
     // Numeric fields
     if (sortField === 'updatedAt') return (a.updatedAt - b.updatedAt) * dir;
-    if (sortField === 'difficulty' || sortField === 'tempo' || sortField === 'year') {
+    if (sortField === 'createdAt') return (a.createdAt - b.createdAt) * dir;
+    if (sortField === 'difficulty' || sortField === 'tempo' || sortField === 'year' || sortField === 'chordsCount') {
       const av = (a[sortField] ?? 0) as number;
       const bv = (b[sortField] ?? 0) as number;
+      return (av - bv) * dir;
+    }
+    if (sortField === 'duration') {
+      const av = durationToSeconds(a.duration);
+      const bv = durationToSeconds(b.duration);
+      if (av < 0 && bv >= 0) return 1;
+      if (av >= 0 && bv < 0) return -1;
       return (av - bv) * dir;
     }
     // String fields (title, artist, key, language) — unset sorts last.
@@ -237,6 +258,19 @@ export const useSongStore = create<SongStore>((set, get) => ({
     await repo.delete(id);
     set((state) => {
       const songs = state.songs.filter((s) => s.id !== id);
+      return {
+        songs,
+        filteredSongs: applyFilters(songs, state.searchQuery, state.filterKey, state.filterTags, state.sortField, state.sortDirection),
+      };
+    });
+  },
+
+  markSongViewed: async (db, id) => {
+    const repo = new SongRepository(db);
+    await repo.markViewed(id);
+    const now = Date.now();
+    set((state) => {
+      const songs = state.songs.map((s) => s.id === id ? { ...s, lastViewedAt: now } : s);
       return {
         songs,
         filteredSongs: applyFilters(songs, state.searchQuery, state.filterKey, state.filterTags, state.sortField, state.sortDirection),

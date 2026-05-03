@@ -1,5 +1,10 @@
 import type { Migration } from './db-interface';
 
+// IMPORTANT: these DDLs are the v1 schema — they must match the table shape
+// at the moment migration v1 runs, NOT the latest shape. Later migrations
+// (v2…v10) ALTER / rebuild these tables to reach current form. If you add a
+// column here to reflect a later migration, fresh installs will fail with
+// "duplicate column" when that later ALTER runs.
 export const SONGS_DDL = `
 CREATE TABLE IF NOT EXISTS songs (
   id             TEXT PRIMARY KEY,
@@ -14,7 +19,6 @@ CREATE TABLE IF NOT EXISTS songs (
   content        TEXT NOT NULL,
   content_format TEXT NOT NULL DEFAULT 'chordpro',
   tags           TEXT NOT NULL DEFAULT '[]',
-  favorite       INTEGER NOT NULL DEFAULT 0,
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
   sort_order     INTEGER NOT NULL DEFAULT 0
@@ -41,9 +45,6 @@ CREATE TABLE IF NOT EXISTS setlist_entries (
   position    INTEGER NOT NULL,
   transpose   INTEGER NOT NULL DEFAULT 0,
   capo        INTEGER NOT NULL DEFAULT 0,
-  key         TEXT,
-  tempo       INTEGER,
-  time_sig    TEXT,
   notes       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_setlist_entries_setlist ON setlist_entries(setlist_id);
@@ -118,5 +119,38 @@ ALTER TABLE setlist_entries ADD COLUMN time_sig TEXT;
   {
     version: 9,
     up: FAVORITES_DDL,
+  },
+  {
+    // Allow setlist entries to be either songs or free-form text notes.
+    // SQLite can't loosen NOT NULL on song_id via ALTER, so we rebuild the
+    // table and carry every existing row over as a 'song' entry.
+    version: 10,
+    up: `
+CREATE TABLE setlist_entries_new (
+  id          TEXT PRIMARY KEY,
+  setlist_id  TEXT NOT NULL REFERENCES setlists(id) ON DELETE CASCADE,
+  song_id     TEXT REFERENCES songs(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL DEFAULT 'song',
+  note_title  TEXT,
+  note_body   TEXT,
+  position    INTEGER NOT NULL,
+  transpose   INTEGER NOT NULL DEFAULT 0,
+  capo        INTEGER NOT NULL DEFAULT 0,
+  key         TEXT,
+  tempo       INTEGER,
+  time_sig    TEXT,
+  notes       TEXT
+);
+INSERT INTO setlist_entries_new (id, setlist_id, song_id, type, position, transpose, capo, key, tempo, time_sig, notes)
+  SELECT id, setlist_id, song_id, 'song', position, transpose, capo, key, tempo, time_sig, notes FROM setlist_entries;
+DROP TABLE setlist_entries;
+ALTER TABLE setlist_entries_new RENAME TO setlist_entries;
+CREATE INDEX IF NOT EXISTS idx_setlist_entries_setlist ON setlist_entries(setlist_id);
+CREATE INDEX IF NOT EXISTS idx_setlist_entries_song    ON setlist_entries(song_id);
+`,
+  },
+  {
+    version: 11,
+    up: `ALTER TABLE songs ADD COLUMN last_viewed_at INTEGER;`,
   },
 ];

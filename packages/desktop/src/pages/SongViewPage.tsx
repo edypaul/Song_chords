@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download } from 'lucide-react';
-import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations } from '@song-chords/shared';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp } from 'lucide-react';
+import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations, formatKey, formatChord } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
@@ -9,9 +9,14 @@ import ChordDiagramBar from '../components/chord-diagram/ChordDiagramBar';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
 import SongExportModal from '../components/song/SongExportModal';
+import SetListPickerModal from '../components/song/SetListPickerModal';
+import StickyNotePanel from '../components/song/StickyNotePanel';
+import SectionNavigator from '../components/song/SectionNavigator';
+import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMetronome } from '../hooks/useMetronome';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { db } from '../ipc/ipc-client';
 import type { ViewMode } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
@@ -27,6 +32,14 @@ export default function SongViewPage(): React.ReactElement {
   // This avoids re-rendering when unrelated songs change.
   const songFromStore = useSongStore((s) => s.songs.find((song) => song.id === id));
   const savePreferences = useSongStore((s) => s.savePreferences);
+  const updateSongInStore = useSongStore((s) => s.updateSong);
+  const markSongViewed = useSongStore((s) => s.markSongViewed);
+
+  // Stamp the view timestamp once per song open so the Dashboard's
+  // "Recently viewed" list reflects what the user actually opens.
+  useEffect(() => {
+    if (id) void markSongViewed(db, id);
+  }, [id]);
 
   // Setlist-entry context: when navigated from a setlist, transpose/capo
   // changes must save to the entry, not the song.
@@ -77,8 +90,10 @@ export default function SongViewPage(): React.ReactElement {
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const chordBarPosition = useSettingsStore((s) => s.settings.chordBarPosition ?? 'top');
   const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const accidentalMode = useSettingsStore((s) => s.settings.accidentalMode ?? 'auto');
+  const chordNotation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
   const refreshDisplayed = usePlayerStore((s) => s.refreshDisplayed);
   useEffect(() => { refreshDisplayed(); }, [accidentalMode, refreshDisplayed]);
   const showChordDiagrams = useSettingsStore((s) => s.settings.showChordDiagrams ?? true);
@@ -100,7 +115,44 @@ export default function SongViewPage(): React.ReactElement {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
+  // Auto-open the sticky note when a song that has notes becomes active.
+  // Runs on song change so switching songs refreshes the visibility.
+  useEffect(() => {
+    setShowNotes(!!activeSong?.notes && activeSong.notes.trim().length > 0);
+  }, [activeSong?.id, activeSong?.notes]);
   const [showExport, setShowExport] = useState(false);
+  const [showSetListPicker, setShowSetListPicker] = useState(false);
+  const toggleFavorite = useSongStore((s) => s.toggleFavorite);
+  const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
+
+  // User-configurable keyboard shortcuts. Each handler mirrors what clicking
+  // the equivalent UI control does — transposes, toggles, capo set, export /
+  // edit navigation, and zoom.
+  useKeyboardShortcuts({
+    toggleInlineDiagrams: () => {
+      // Piano can't render inline; ignore the shortcut so the setting
+      // doesn't silently flip on with no visible effect.
+      if (instrument === 'piano') return;
+      void updateSetting(db, 'inlineChordDiagrams', !inlineDiagrams);
+    },
+    toggleChordBar:       () => setChordBarVisible((v) => !v),
+    toggleLyricsOnly:     () => setViewMode(viewMode === 'lyrics-only' ? 'chords' : 'lyrics-only'),
+    toggleMetronome:      () => { if (activeSong?.tempo) metronome.toggle(); },
+    toggleSongNotes:      () => { if (activeSong?.notes?.trim()) setShowNotes((v) => !v); },
+    toggleAutoScroll:     () => toggleAutoScroll(),
+    transposeUp:          () => transposeUp(),
+    transposeDown:        () => transposeDown(),
+    exportSong:           () => setShowExport(true),
+    editSong:             () => { if (id) navigate(`/song/${id}/edit`); },
+    zoomIn:               () => setZoomLevel((z) => Math.min(z + 0.1, 3)),
+    zoomOut:              () => setZoomLevel((z) => Math.max(z - 0.1, 0.5)),
+    zoomReset:            () => setZoomLevel(1),
+    onCapo:               (fret) => setCapo(fret),
+  });
+  // Tracks whether the perf-mode scroll container is at (or very near) the
+  // bottom of the song — drives the visibility of the floating back-to-top
+  // button.
+  const [atBottom, setAtBottom] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   useAutoScroll(scrollRef as React.RefObject<HTMLElement>);
 
@@ -123,12 +175,39 @@ export default function SongViewPage(): React.ReactElement {
   };
 
   const perfStop = () => {
-    // storePerfStop already sets autoScrollActive=false synchronously,
-    // so only stop the metronome and scroll to top here.
+    // Flip the store state — the transition effect below silences the
+    // metronome. The scroll-to-top is scoped to this button so that
+    // auto-scroll hitting the bottom leaves the page where it is (the
+    // floating arrow covers that case).
     storePerfStop();
-    if (metronome.isPlaying) metronome.toggle();
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // When performance mode STOPS (either manually or when auto-scroll hits
+  // the bottom), silence the metronome. Scrolling back to the top is now a
+  // deliberate action via the floating "go to top" button, not automatic.
+  const prevPerfRunningRef = useRef(perfRunning);
+  useEffect(() => {
+    const was = prevPerfRunningRef.current;
+    prevPerfRunningRef.current = perfRunning;
+    if (was && !perfRunning && metronome.isPlaying) metronome.toggle();
+  }, [perfRunning, metronome]);
+
+  // Track whether the scroll container is at the bottom, so the floating
+  // "Back to top" button can appear only when there's actually something
+  // to scroll back up from. Applies to both the normal view and the
+  // full-screen perf view — both branches mount to the same scrollRef.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) { setAtBottom(false); return; }
+    const update = () => {
+      const total = el.scrollHeight - el.clientHeight;
+      setAtBottom(total > 0 && el.scrollTop >= total - 2);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    return () => el.removeEventListener('scroll', update);
+  }, [performanceMode, displayedSong?.rawContent]);
 
   const perfPauseToggle = () => {
     if (perfPaused) {
@@ -181,12 +260,21 @@ export default function SongViewPage(): React.ReactElement {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
+      // Ignore key presses while the user is typing in a form control.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      const editable = (e.target as HTMLElement | null)?.isContentEditable;
+      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!editable;
+
       if (e.key === 'Escape') {
         if (performanceMode) { exitPerformance(); return; }
         navigate(-1);
+        return;
       }
-      if (e.key === 'ArrowUp' && e.ctrlKey) usePlayerStore.getState().transposeUp();
-      if (e.key === 'ArrowDown' && e.ctrlKey) usePlayerStore.getState().transposeDown();
+      if (!inInput && (e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (performanceMode) exitPerformance();
+        else enterFullscreen();
+      }
     };
     const handleFsChange = () => {
       if (!document.fullscreenElement && usePlayerStore.getState().performanceMode) storeExitPerf();
@@ -319,6 +407,13 @@ export default function SongViewPage(): React.ReactElement {
         const latestSong = useSongStore.getState().songs.find((s) => s.id === activeSong.id);
         const existing = latestSong?.preferences ?? {};
         savePreferences(db, activeSong.id, { ...existing, transposeSteps, viewMode });
+        // Capo lives on the song row (not in preferences) — persist it too so
+        // that when the loadSong effect re-runs after savePreferences writes,
+        // it reads the fresh capo instead of overwriting the user's change
+        // with the song's stale original value.
+        if (cChanged && latestSong && latestSong.capo !== capo) {
+          void updateSongInStore(db, activeSong.id, { capo });
+        }
       }
     }, 600);
     return () => { if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current); };
@@ -429,6 +524,7 @@ export default function SongViewPage(): React.ReactElement {
           </div>
           <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={activeSong?.preferences?.chordVariations} />
           </div>
+          <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${perfZoom}|${zoomLevel}|${viewMode}`} />
         </div>
 
         {/* Chord bar right (performance) */}
@@ -441,6 +537,26 @@ export default function SongViewPage(): React.ReactElement {
         {chordBarVisible && chordBarPosition === 'bottom' && displayedSong && (
           <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
+
+        {/* Floating "back to top" button — bottom-right of the perf view,
+            shown only when the user has scrolled all the way down. */}
+        {atBottom && (
+          <button
+            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
+            style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
+            title="Back to top"
+            aria-label="Back to top"
+          >
+            <ArrowUp size={18} />
+          </button>
+        )}
+
+        <SectionNavigator
+          song={displayedSong}
+          scrollRef={scrollRef}
+          recomputeKey={`${perfZoom}|${zoomLevel}|${viewMode}`}
+        />
 
         {selectedChord && <ChordModal chord={selectedChord} onClose={() => setSelectedChord(null)} songId={activeSong?.id} songPrefs={activeSong?.preferences} />}
       </div>
@@ -515,7 +631,7 @@ export default function SongViewPage(): React.ReactElement {
 
           {activeSong.key && (
             <span className="px-2 py-0.5 rounded text-xs font-mono font-semibold shrink-0" style={{ background: 'var(--surface-elevated)', color: 'var(--chord-color)' }}>
-              {activeSong.key}
+              {formatKey(activeSong.key, chordNotation)}
             </span>
           )}
         </div>
@@ -626,9 +742,11 @@ export default function SongViewPage(): React.ReactElement {
             );
           })()}
 
-          {/* Chord bar toggle (disabled when lyrics-only or inline diagrams is on) */}
+          {/* Chord bar toggle (disabled when lyrics-only or inline diagrams
+              is on — but inline-diagrams is force-off for piano). */}
           {(() => {
-            const chordBarDisabled = viewMode === 'lyrics-only' || inlineDiagrams;
+            const inlineEffective = inlineDiagrams && instrument !== 'piano';
+            const chordBarDisabled = viewMode === 'lyrics-only' || inlineEffective;
             const chordBarOn = chordBarVisible && !chordBarDisabled;
             return (
               <button
@@ -647,10 +765,15 @@ export default function SongViewPage(): React.ReactElement {
               </button>
             );
           })()}
-          {/* Inline diagrams toggle (disabled when lyrics-only or chord bar is on) */}
+          {/* Inline diagrams toggle (disabled for piano — keyboard shapes
+              don't fit cleanly inline — and when lyrics-only / chord bar is on). */}
           {(() => {
-            const inlineDisabled = viewMode === 'lyrics-only' || chordBarVisible;
+            const isPiano = instrument === 'piano';
+            const inlineDisabled = viewMode === 'lyrics-only' || chordBarVisible || isPiano;
             const inlineOn = inlineDiagrams && !inlineDisabled;
+            const disabledReason = isPiano
+              ? 'Inline diagrams are unavailable for piano'
+              : 'Unavailable while chord bar or lyrics-only mode is on';
             return (
               <button
                 onClick={() => void updateSetting(db, 'inlineChordDiagrams', !inlineDiagrams)}
@@ -662,7 +785,7 @@ export default function SongViewPage(): React.ReactElement {
                   opacity: inlineDisabled ? 0.4 : 1,
                   cursor: inlineDisabled ? 'not-allowed' : 'pointer',
                 }}
-                title={inlineDisabled ? 'Unavailable while chord bar or lyrics-only mode is on' : (inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams')}
+                title={inlineDisabled ? disabledReason : (inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams')}
               >
                 <LayoutGrid size={14} />
               </button>
@@ -699,6 +822,26 @@ export default function SongViewPage(): React.ReactElement {
           </select>
 
           <button
+            onClick={() => void toggleFavorite(db, activeSong.id)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star
+              size={16}
+              style={{ color: activeSong.favorite ? 'var(--accent)' : 'var(--text-secondary)' }}
+              fill={activeSong.favorite ? 'currentColor' : 'none'}
+            />
+          </button>
+
+          <button
+            onClick={() => setShowSetListPicker(true)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title="Add to set list"
+          >
+            <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
+          </button>
+
+          <button
             onClick={() => setShowExport(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
             title="Export song"
@@ -708,9 +851,10 @@ export default function SongViewPage(): React.ReactElement {
 
           {activeSong.notes && activeSong.notes.trim() && (
             <button
-              onClick={() => setShowNotes(true)}
+              onClick={() => setShowNotes((v) => !v)}
               className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-              title="Song notes"
+              style={{ background: showNotes ? 'var(--surface-elevated)' : undefined }}
+              title={showNotes ? 'Hide song notes' : 'Show song notes'}
             >
               <StickyNote size={16} style={{ color: 'var(--accent)' }} />
             </button>
@@ -756,6 +900,7 @@ export default function SongViewPage(): React.ReactElement {
             chordVariations={activeSong?.preferences?.chordVariations}
           />
           </div>
+          <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${zoomLevel}|${viewMode}`} />
         </div>
 
         {/* Chord bar right */}
@@ -769,59 +914,66 @@ export default function SongViewPage(): React.ReactElement {
         <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
       )}
 
+      {/* Floating "back to top" button — bottom-right of the normal view,
+          shown only when the user has scrolled all the way down. */}
+      {atBottom && (
+        <button
+          onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
+          style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
+          title="Back to top"
+          aria-label="Back to top"
+        >
+          <ArrowUp size={18} />
+        </button>
+      )}
+
+      <SectionNavigator
+        song={displayedSong}
+        scrollRef={scrollRef}
+        recomputeKey={`${zoomLevel}|${viewMode}`}
+      />
+
       {/* Chord diagram panel (shown when chord is selected) */}
       {selectedChord && (
         <ChordModal chord={selectedChord} onClose={() => setSelectedChord(null)} songId={activeSong?.id} songPrefs={activeSong?.preferences} />
       )}
 
-      {/* Song-notes modal */}
-      {showNotes && activeSong.notes && (
-        <NotesModal title={activeSong.title} notes={activeSong.notes} onClose={() => setShowNotes(false)} />
+      {/* Song-notes sticky note — draggable & resizable, not modal */}
+      {showNotes && activeSong && (
+        <StickyNotePanel
+          title={activeSong.title}
+          notes={activeSong.notes ?? ''}
+          onClose={() => setShowNotes(false)}
+          onSave={async (next) => {
+            if (!activeSong.id) return;
+            await updateSongInStore(db, activeSong.id, { notes: next });
+          }}
+        />
       )}
 
       {/* Export modal */}
       {showExport && activeSong && (
-        <SongExportModal song={activeSong} onClose={() => setShowExport(false)} />
+        <SongExportModal songs={[activeSong]} onClose={() => setShowExport(false)} />
+      )}
+
+      {/* Set list picker */}
+      {showSetListPicker && activeSong && (
+        <SetListPickerModal
+          initialSelected={[]}
+          hint={`"${toTitleCase(activeSong.title)}" will be added to the chosen set list${'' /* plural handled by user */}.`}
+          onClose={() => setShowSetListPicker(false)}
+          onConfirm={async (ids) => {
+            for (const slId of ids) {
+              await addSongToSetList(db, slId, activeSong.id);
+            }
+            setShowSetListPicker(false);
+          }}
+        />
       )}
     </div>
   );
 }
-
-function NotesModal({ title, notes, onClose }: { title: string; notes: string; onClose: () => void }): React.ReactElement {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
-      style={{ background: 'rgba(0,0,0,0.5)' }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-xl border flex flex-col max-h-[70vh]"
-        style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between px-5 py-3 border-b"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <div className="flex items-center gap-2">
-            <StickyNote size={16} style={{ color: 'var(--accent)' }} />
-            <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Notes — {title}</h3>
-          </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title="Close">
-            <X size={16} style={{ color: 'var(--text-muted)' }} />
-          </button>
-        </div>
-        <div
-          className="p-5 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          {notes}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 function ChordModal({ chord, onClose, songId, songPrefs }: {
   chord: string; onClose: () => void; songId?: string; songPrefs?: import('@song-chords/shared').SongPreferences;
@@ -829,10 +981,13 @@ function ChordModal({ chord, onClose, songId, songPrefs }: {
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
   const { updateSetting } = useSettingsStore();
   const savePrefs = useSongStore((s) => s.savePreferences);
-  const strings = instrument === 'guitar' ? 6 : 4;
-  const emptyDiag = { name: chord, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] };
+  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
+  const emptyDiag: import('@song-chords/shared').ChordDiagram = instrument === 'piano'
+    ? { name: chord, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
+    : { name: chord, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] };
 
   const variations = getDiagramVariations(chord, instrument, custom);
   const hasDiagram = variations.length > 0;
@@ -880,7 +1035,7 @@ function ChordModal({ chord, onClose, songId, songPrefs }: {
       >
         {/* Header */}
         <div className="relative mb-3">
-          <span className="block text-lg font-bold text-center" style={{ color: 'var(--text-primary)' }}>{chord}</span>
+          <span className="block text-lg font-bold text-center" style={{ color: 'var(--text-primary)' }}>{formatChord(chord, notation)}</span>
           <button onClick={onClose} className="absolute top-0 right-0 text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
         </div>
 

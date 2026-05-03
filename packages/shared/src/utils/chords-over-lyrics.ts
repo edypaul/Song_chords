@@ -1,9 +1,36 @@
-const PLAIN_CHORD_LINE_RE = /^([A-G][#b]?[A-Za-z0-9/]*[\s\-]+)*[A-G][#b]?[A-Za-z0-9/]*\s*$/;
-const CHORD_TOKEN_RE = /[A-G][#b]?[A-Za-z0-9/]*/g;
+// Accepted chord roots: English letter notation (A-G) plus Spanish / Italian
+// solfège (Do, Re, Mi, Fa, Sol, La, Si) in either UPPERCASE or Title Case.
+// Lowercase is left out on purpose so common words like "la", "si", "mi"
+// aren't mistaken for chord roots inside lyrics.
+// Multi-char solfège names come first so `DO` wins over `D`, `RE` over nothing
+// ambiguous but kept for symmetry, `FA` over `F`, etc. The catch-all `[A-G]`
+// matches plain English roots when no solfège prefix fits.
+const CHORD_ROOT = '(?:SOL|Sol|DO|Do|RE|Re|MI|Mi|FA|Fa|LA|La|SI|Si|[A-G])';
+// Chord-name body: either empty OR starts with a character that marks the
+// beginning of a real chord suffix (digit, #/b, slash, m/M for minor/major,
+// s/a/d for sus/add/dim/aug, `(`, `+`, `°`) so plain-letter words like SOLA
+// or SOLAMENTE don't get mistaken for chord extensions.
+const CHORD_BODY = '(?:[0-9#b/mMsad(+°][A-Za-z0-9#b/+°()]*)?';
+const PLAIN_CHORD_LINE_RE = new RegExp(`^(${CHORD_ROOT}[#b]?${CHORD_BODY}[\\s\\-]+)*${CHORD_ROOT}[#b]?${CHORD_BODY}\\s*$`);
+const CHORD_TOKEN_RE = new RegExp(`${CHORD_ROOT}[#b]?${CHORD_BODY}`, 'g');
+const INLINE_CHORD_RE = new RegExp(`\\[${CHORD_ROOT}[#b]?${CHORD_BODY}\\]`);
 
 function isChordLine(line: string): boolean {
   const t = line.trim();
   return t.length > 0 && PLAIN_CHORD_LINE_RE.test(t);
+}
+
+/**
+ * Heuristic: decide whether a block of song text looks like inline ChordPro
+ * (has `[Chord]` markers) or the "chords above lyrics" form (standalone chord
+ * lines). Returns `null` when no chord markers are detected at all.
+ */
+export function detectSongFormat(text: string): 'chordpro' | 'plaintext' | null {
+  if (INLINE_CHORD_RE.test(text)) return 'chordpro';
+  for (const line of text.split('\n')) {
+    if (isChordLine(line)) return 'plaintext';
+  }
+  return null;
 }
 
 function findChordPositions(line: string): { chord: string; col: number }[] {

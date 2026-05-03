@@ -125,10 +125,13 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
 
   for (const e of backup.setlistEntries ?? []) {
     await db.execute(
-      `INSERT INTO setlist_entries (id, setlist_id, song_id, position, transpose, capo, key, tempo, time_sig, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        e.id, e.setlistId, e.songId, e.position,
+        e.id, e.setlistId, e.songId ?? null,
+        e.type ?? 'song',
+        e.noteTitle ?? null, e.noteBody ?? null,
+        e.position,
         e.transpose, e.capo,
         e.key ?? null, e.tempo ?? null, e.timeSig ?? null,
         e.notes ?? null,
@@ -139,6 +142,75 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
   for (const f of backup.favoriteEntries ?? []) {
     await db.execute(
       `INSERT INTO favorite_entries (song_id, transpose, capo, key, tempo, time_sig, added_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        f.songId, f.transpose, f.capo,
+        f.key ?? null, f.tempo ?? null, f.timeSig ?? null,
+        f.addedAt,
+      ],
+    );
+  }
+}
+
+/**
+ * Merges the backup with the existing library: rows whose primary keys match
+ * an existing record are skipped (the user's local copy wins), new rows are
+ * inserted. Foreign-key references in the backup that don't resolve locally
+ * are silently dropped. Use this when the user wants to combine without
+ * losing their current data; use `importLibrary` for a full replace.
+ */
+export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promise<void> {
+  // Songs — skip if id already in use.
+  for (const s of backup.songs ?? []) {
+    await db.execute(
+      `INSERT OR IGNORE INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
+        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        s.id, s.title, s.artist ?? null, s.album ?? null, s.key ?? null,
+        s.tempo ?? null, s.timeSig ?? null, s.capo,
+        s.genre ?? null, s.year ?? null, s.language ?? null,
+        s.duration ?? null, s.notes ?? null,
+        s.content, 'chordpro', JSON.stringify(s.tags ?? []),
+        s.difficulty ?? null,
+        s.favorite ? 1 : 0,
+        JSON.stringify(s.preferences ?? {}),
+        s.createdAt, s.updatedAt, s.sortOrder,
+      ],
+    );
+  }
+
+  // Setlists — skip if id already in use.
+  for (const sl of backup.setlists ?? []) {
+    await db.execute(
+      'INSERT OR IGNORE INTO setlists (id, name, description, date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [sl.id, sl.name, sl.description ?? null, sl.date ?? null, sl.createdAt, sl.updatedAt],
+    );
+  }
+
+  // Setlist entries — skip if entry id already exists. song_id refs are kept
+  // as-is; if the song was skipped above (duplicate id) the FK still resolves.
+  for (const e of backup.setlistEntries ?? []) {
+    await db.execute(
+      `INSERT OR IGNORE INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        e.id, e.setlistId, e.songId ?? null,
+        e.type ?? 'song',
+        e.noteTitle ?? null, e.noteBody ?? null,
+        e.position,
+        e.transpose, e.capo,
+        e.key ?? null, e.tempo ?? null, e.timeSig ?? null,
+        e.notes ?? null,
+      ],
+    );
+  }
+
+  // Favorite entries — keyed by song_id (PK on that table), so OR IGNORE
+  // skips songs that are already favorited locally.
+  for (const f of backup.favoriteEntries ?? []) {
+    await db.execute(
+      `INSERT OR IGNORE INTO favorite_entries (song_id, transpose, capo, key, tempo, time_sig, added_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         f.songId, f.transpose, f.capo,

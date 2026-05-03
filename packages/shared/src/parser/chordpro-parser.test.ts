@@ -1,5 +1,5 @@
 import { parseChordPro, parsePlainText } from './chordpro-parser';
-import type { ChordToken, LyricToken, DirectiveToken, SectionToken, CommentToken, ChordGridToken } from '../types/parser.types';
+import type { ChordToken, LyricToken, SectionToken, CommentToken, ChordGridToken } from '../types/parser.types';
 
 // ---------------------------------------------------------------------------
 // parseChordPro
@@ -132,13 +132,12 @@ describe('parseChordPro', () => {
     expect(result.lines[0]!.sectionType).toBe('verse');
   });
 
-  it('treats {c: text} as a comment, not chorus', () => {
+  it('treats {c: text} as a user-provided section title', () => {
     const result = parseChordPro('{c: Repeat 2x}');
     const line = result.lines[0]!;
-    expect(line.isComment).toBe(true);
-    expect(line.isSection).toBe(false);
-    const token = line.tokens[0] as CommentToken;
-    expect(token.text).toBe('Repeat 2x');
+    expect(line.isSection).toBe(true);
+    expect(line.isComment).toBe(false);
+    expect(line.sectionLabel).toBe('Repeat 2x');
   });
 
   it('treats bare {c} as chorus section', () => {
@@ -177,12 +176,12 @@ describe('parseChordPro', () => {
     expect(token.text).toBe('This is a comment');
   });
 
-  it('parses {comment:} directive', () => {
+  it('treats {comment: text} as a user-provided section title', () => {
     const result = parseChordPro('{comment: Play softly}');
     const line = result.lines[0]!;
-    expect(line.isComment).toBe(true);
-    const token = line.tokens[0] as CommentToken;
-    expect(token.text).toBe('Play softly');
+    expect(line.isSection).toBe(true);
+    expect(line.isComment).toBe(false);
+    expect(line.sectionLabel).toBe('Play softly');
   });
 
   // --- Empty lines -----------------------------------------------------------
@@ -254,15 +253,20 @@ describe('parseChordPro', () => {
     expect(gridToken.rows).toHaveLength(2);
   });
 
-  // --- Unknown directives ----------------------------------------------------
+  // --- Free-form section labels ---------------------------------------------
 
-  it('emits unknown directives as directive tokens', () => {
-    const result = parseChordPro('{custom_directive: value}');
+  it('treats {Section Name} with spaces as a user-provided section title', () => {
+    const result = parseChordPro('{Estrofa I}');
     const line = result.lines[0]!;
-    expect(line.isDirective).toBe(true);
-    const token = line.tokens[0] as DirectiveToken;
-    expect(token.name).toBe('custom_directive');
-    expect(token.value).toBe('value');
+    expect(line.isSection).toBe(true);
+    expect(line.sectionLabel).toBe('Estrofa I');
+  });
+
+  it('treats a bare {Tagname} (no colon) as a section title preserving case', () => {
+    const result = parseChordPro('{MyCustomTag}');
+    const line = result.lines[0]!;
+    expect(line.isSection).toBe(true);
+    expect(line.sectionLabel).toBe('MyCustomTag');
   });
 
   // --- rawContent preservation -----------------------------------------------

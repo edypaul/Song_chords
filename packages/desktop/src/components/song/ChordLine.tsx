@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { ParsedLine, ChordToken, LyricToken, SectionStyle, InstrumentType } from '@song-chords/shared';
-import { getDiagramExact, getDiagramByIndex, useSettingsStore } from '@song-chords/shared';
+import { getDiagramExact, getDiagramByIndex, useSettingsStore, formatChord } from '@song-chords/shared';
 import type { SongViewStyle } from '@song-chords/shared';
 import ChordDiagramSVG from '../chord-diagram/ChordDiagramSVG';
 
@@ -145,6 +145,7 @@ function groupByWords(chunks: Chunk[]): Chunk[][] {
  */
 export default React.memo(function ChordLine({ line, showChords, onChordClick, chordStyle, inlineDiagrams, instrument, svs, chordVariations }: Props): React.ReactElement {
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   // Inline-diagrams: precompute collision-avoided chord positions and the
   // adjusted lyric. Spaces are inserted at word-boundary/existing-whitespace
@@ -222,15 +223,18 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
       for (const chunk of group) {
         if (!chunk.chord || map[chunk.chord]) continue;
         const varIdx = chordVariations?.[chunk.chord] ?? 0;
-        const diag = (varIdx > 0
+        const found = varIdx > 0
           ? getDiagramByIndex(chunk.chord, instrument, varIdx, custom)
-          : getDiagramExact(chunk.chord, instrument, custom)) ?? {
-          name: chunk.chord,
-          instrument,
-          baseFret: 1,
-          strings: instrument === 'guitar' ? 6 : 4,
-          frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
-        };
+          : getDiagramExact(chunk.chord, instrument, custom);
+        const diag = found ?? (instrument === 'piano'
+          ? { name: chunk.chord, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
+          : {
+              name: chunk.chord,
+              instrument,
+              baseFret: 1,
+              strings: instrument === 'guitar' ? 6 : 4,
+              frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
+            });
         map[chunk.chord] = diag;
       }
     }
@@ -249,10 +253,30 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
     if (chords.length === 0) {
       return <div style={{ margin: '2px 0' }}>{lyric || '\u00A0'}</div>;
     }
-    const chordRowHeight = Math.round(diagramW * 1.3);
-    // Leave ~5px between fretboard bottom and lyric top — matches the natural
-    // ~5px gap between prev-lyric descender and next chord name.
-    const PADDING_TOP = chordRowHeight - 18;
+    // Per-instrument SVG height. Each diagram has a different intrinsic
+    // rendered height (a 4-string ukulele draws taller-aspect cells than
+    // a 6-string guitar at the same width), so a single multiplier
+    // either crops shorter instruments or leaves a gap.
+    //
+    //  - guitar: 6 strings → cellH ≈ width × 0.108 → ~93 px @ 80
+    //  - ukulele: 4 strings → cellH ≈ width × 0.18  → ~122 px @ 80
+    //  - piano (vertical): 14 keys + label          → ~190 px @ 80
+    const svgHeight =
+      instrument === 'piano'
+        ? Math.round(diagramW * 2.4)
+        : instrument === 'ukulele'
+          ? Math.round(diagramW * 1.55)
+          : Math.round(diagramW * 1.2);
+    // Visible gap between the diagram's bottom edge and the lyric's
+    // top edge.
+    const VISIBLE_GAP = 3;
+    // The SVG is absolutely positioned `top: -PADDING_TOP` from the
+    // lyric anchor — i.e. PADDING_TOP px above the lyric. Make
+    // PADDING_TOP = svgHeight + VISIBLE_GAP so the SVG's bottom sits
+    // exactly VISIBLE_GAP px above the lyric. The container's
+    // `paddingTop` (below) uses the same value to reserve room above
+    // the lyric line.
+    const PADDING_TOP = svgHeight + VISIBLE_GAP;
     // ChordDiagramSVG has padLeft=16 before its first string. Shift the
     // SVG 16px left so that leftmost string aligns with the marker's
     // character position, not the SVG's outer bounding box.
@@ -271,24 +295,29 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
         lyricIdx = m.pos;
       }
       const varIdx = chordVariations?.[m.name] ?? 0;
-      const diag = (varIdx > 0
+      const found = varIdx > 0
         ? getDiagramByIndex(m.name, instrument!, varIdx, custom)
-        : getDiagramExact(m.name, instrument!, custom)) ?? {
-          name: m.name,
-          instrument: instrument!,
-          baseFret: 1,
-          strings: instrument === 'guitar' ? 6 : 4,
-          frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
-        };
+        : getDiagramExact(m.name, instrument!, custom);
+      const diag = found ?? (instrument === 'piano'
+        ? { name: m.name, instrument: instrument!, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
+        : {
+            name: m.name,
+            instrument: instrument!,
+            baseFret: 1,
+            strings: instrument === 'guitar' ? 6 : 4,
+            frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
+          });
       pieces.push(
         <span key={`m${mi}`} style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', top: -PADDING_TOP, left: SVG_LEFT_OFFSET, lineHeight: 0, whiteSpace: 'nowrap', cursor: onChordClick ? 'pointer' : undefined }} onClick={() => onChordClick?.(m.name)} title={m.name}>
+          <span style={{ position: 'absolute', top: -PADDING_TOP, left: SVG_LEFT_OFFSET, lineHeight: 0, whiteSpace: 'nowrap', cursor: onChordClick ? 'pointer' : undefined }} onClick={() => onChordClick?.(m.name)} title={formatChord(m.name, notation)}>
             <ChordDiagramSVG
               diagram={diag}
               width={diagramW}
               lineColor={svs?.lyrics.color || undefined}
               chordColor={svs?.chords.color || undefined}
               nameColor={svs?.chords.color || undefined}
+              displayName={formatChord(m.name, notation)}
+              vertical={instrument === 'piano'}
             />
           </span>
         </span>
@@ -324,25 +353,53 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
             <span key={ci} style={{ display: 'inline-block', verticalAlign: 'bottom' }}>
               {showChords && (
                 <span style={{
-                  display: 'block',
-                  // Diagrams are far taller than text chords — use the diagram
-                  // aspect (width * 1.3 ≈ square-ish fretboard) for the chord
-                  // row height when inline diagrams are on.
-                  height: inlineDiagrams ? `${Math.round(diagramW * 1.3)}px` : '1.4em',
+                  // Flex container anchored to the row's bottom edge so
+                  // the diagram sits flush against the row's bottom.
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  // Per-instrument height, sized to each diagram's actual
+                  // rendered SVG.
+                  //
+                  //  - guitar: 6 strings → cellH ≈ width × 0.108 → ~93 px @ 80
+                  //  - ukulele: 4 strings → cellH ≈ width × 0.18  → ~122 px @ 80
+                  //  - piano (vertical): 14 keys stacked + label   → ~190 px @ 80
+                  height: inlineDiagrams
+                    ? (instrument === 'piano'
+                        ? `${Math.round(diagramW * 2.4)}px`
+                        : instrument === 'ukulele'
+                          ? `${Math.round(diagramW * 1.55)}px`
+                          : `${Math.round(diagramW * 1.2)}px`)
+                    : '1.4em',
                   lineHeight: inlineDiagrams ? '0' : '1.4em',
                   whiteSpace: 'nowrap',
+                  overflow: 'hidden',
                 }}>
                   {chunk.chord ? (
                     diagramMap && diagramMap[chunk.chord] ? (
                       <span
-                        style={{ cursor: onChordClick ? 'pointer' : undefined, marginRight: 4, marginLeft: -14, display: 'inline-block', verticalAlign: 'bottom' }}
+                        style={{
+                          cursor: onChordClick ? 'pointer' : undefined,
+                          marginRight: 4,
+                          // Fretboards have 14px left padding for muted/open
+                          // markers — pull the wrapper left to compensate.
+                          // Vertical pianos don't have that padding so don't
+                          // need the negative margin.
+                          marginLeft: instrument === 'piano' ? 0 : -14,
+                          display: 'inline-block',
+                          // Bottom-aligned in the chord row's flex container
+                          // (see chord-row span above), so the diagram sits
+                          // flush against the lyric line below.
+                          verticalAlign: 'bottom',
+                        }}
                         onClick={() => onChordClick?.(chunk.chord!)}
-                        title={chunk.chord}
+                        title={formatChord(chunk.chord, notation)}
                       >
                         <ChordDiagramSVG diagram={diagramMap[chunk.chord]!} width={diagramW}
                           lineColor={svs?.lyrics.color || undefined}
                           chordColor={svs?.chords.color || undefined}
-                          nameColor={svs?.chords.color || undefined} />
+                          nameColor={svs?.chords.color || undefined}
+                          displayName={formatChord(chunk.chord, notation)}
+                          vertical={instrument === 'piano'} />
                       </span>
                     ) : (
                       <span
@@ -356,15 +413,24 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
                           cursor: onChordClick ? 'pointer' : undefined,
                         }}
                         onClick={() => onChordClick?.(chunk.chord!)}
-                        title={chunk.chord ? `Click to view ${chunk.chord} diagram` : undefined}
+                        title={chunk.chord ? `Click to view ${formatChord(chunk.chord, notation)} diagram` : undefined}
                       >
-                        {chunk.chord}
+                        {formatChord(chunk.chord, notation)}
                       </span>
                     )
                   ) : (
                     // Zero-width space so the chord row keeps its fixed height.
                     '\u200B'
                   )}
+                </span>
+              )}
+              {/* Explicit gap between the chord row and the lyric.
+                  Empty block element with a fixed height \u2014 guaranteed
+                  to render visible space regardless of how parent
+                  flex / inline contexts collapse margins. */}
+              {inlineDiagrams && (
+                <span style={{ display: 'block', height: '14px', lineHeight: '0' }} aria-hidden="true">
+                  {'\u200B'}
                 </span>
               )}
               <span style={{

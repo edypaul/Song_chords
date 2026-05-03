@@ -23,9 +23,17 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
   const [pending, setPending] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    // Capture phase + stopImmediatePropagation so page-level Escape handlers
+    // don't also fire (otherwise closing the modal also navigates back).
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleKey, { capture: true });
   }, [onClose]);
 
   const refetch = async () => {
@@ -81,7 +89,7 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
       >
         <div className="flex items-start gap-3 p-5 pb-3">
           <div className="flex-1 min-w-0">
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Add to play list</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Add to set list</p>
             <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(song.title)}</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]">
@@ -91,7 +99,7 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
 
         <div className="flex-1 overflow-y-auto px-5 pb-3 flex flex-col gap-1">
           {setlists.length === 0 && !creating && (
-            <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>No play lists yet.</p>
+            <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>No set lists yet.</p>
           )}
           {setlists.map((sl) => {
             const added = !!entries[sl.id];
@@ -103,7 +111,7 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
                 disabled={busy}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left hover:bg-[var(--surface-elevated)] transition-colors disabled:opacity-60"
                 style={{ color: 'var(--text-primary)' }}
-                title={added ? 'In this play list — click to remove' : 'Click to add to this play list'}
+                title={added ? 'In this set list — click to remove' : 'Click to add to this set list'}
               >
                 <ListMusic size={14} style={{ color: 'var(--text-muted)' }} />
                 <span className="flex-1 truncate">{toTitleCase(sl.name)}</span>
@@ -129,7 +137,7 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setCreating(false); }}
-                placeholder="New play list name"
+                placeholder="New set list name"
                 className="flex-1 px-2 py-1.5 rounded text-sm outline-none"
                 style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
               />
@@ -149,7 +157,7 @@ export default function AddToPlaylistModal({ song, onClose }: Props): React.Reac
               style={{ color: 'var(--text-secondary)' }}
             >
               <Plus size={14} />
-              New play list
+              New set list
             </button>
           )}
         </div>

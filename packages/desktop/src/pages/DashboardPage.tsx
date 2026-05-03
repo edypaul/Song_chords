@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music, User, Clock, Tag, Star, Hash, Globe2, Calendar, ListMusic, Play } from 'lucide-react';
+import { Music, User, Tag, Star, Hash, Globe2, Calendar, ListMusic, Play, Eye, Pencil } from 'lucide-react';
 import type { Song } from '@song-chords/shared';
 import { useSongStore, useSetListStore, SetListRepository } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
@@ -31,6 +31,17 @@ export default function DashboardPage(): React.ReactElement {
     () => [...setlists].sort((a, b) => b.updatedAt - a.updatedAt),
     [setlists],
   );
+  const recentlyViewed = useMemo(
+    () => songs
+      .filter((s): s is Song & { lastViewedAt: number } => typeof s.lastViewedAt === 'number')
+      .sort((a, b) => b.lastViewedAt - a.lastViewedAt)
+      .slice(0, 8),
+    [songs],
+  );
+  const recentlyEdited = useMemo(
+    () => [...songs].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8),
+    [songs],
+  );
   const totalSetlistEntries = useMemo(
     () => Object.values(setlistCounts).reduce((sum, c) => sum + c, 0),
     [setlistCounts],
@@ -53,12 +64,12 @@ export default function DashboardPage(): React.ReactElement {
         <div className="p-6 grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
           {/* Top stat cards */}
           <div className="col-span-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <StatCard icon={<Music size={18} />}     label="Total Songs"     value={stats.total.toString()}               onClick={() => navigate('/library')} />
-            <StatCard icon={<Star size={18} />}      label="Favorites"       value={favorites.length.toString()}          onClick={() => navigate('/favorites')} />
-            <StatCard icon={<ListMusic size={18} />} label="Set Lists"       value={setlists.length.toString()}           onClick={() => navigate('/setlists')} />
-            <StatCard icon={<User size={18} />}      label="Unique Artists"  value={stats.uniqueArtists.toString()} />
-            <StatCard icon={<Clock size={18} />}     label="Avg Tempo"       value={stats.avgTempo ? `${stats.avgTempo} BPM` : '—'} />
-            <StatCard icon={<Tag size={18} />}       label="Unique Tags"     value={stats.uniqueTags.toString()} />
+            <StatCard icon={<Music size={18} />}     label="Total Songs"  value={stats.total.toString()}          onClick={() => navigate('/library')} />
+            <StatCard icon={<Star size={18} />}      label="Favorites"    value={favorites.length.toString()}     onClick={() => navigate('/favorites')} />
+            <StatCard icon={<User size={18} />}      label="Artists"      value={stats.uniqueArtists.toString()}  onClick={() => navigate('/categories/artist')} />
+            <StatCard icon={<Music size={18} />}     label="Genres"       value={stats.uniqueGenres.toString()}   onClick={() => navigate('/categories/genre')} />
+            <StatCard icon={<Tag size={18} />}       label="Tags"         value={stats.uniqueTags.toString()}     onClick={() => navigate('/categories/tags')} />
+            <StatCard icon={<ListMusic size={18} />} label="Set Lists"    value={setlists.length.toString()}      onClick={() => navigate('/setlists')} />
           </div>
 
           {/* Favorites and set lists — prominent side-by-side cards */}
@@ -165,6 +176,60 @@ export default function DashboardPage(): React.ReactElement {
             )}
           </Card>
 
+          <Card title="Recently Viewed" icon={<Eye size={16} />}>
+            {recentlyViewed.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Open a song to see it here.
+              </p>
+            ) : (
+              <ul className="flex flex-col">
+                {recentlyViewed.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => navigate(`/song/${s.id}`)}
+                      className="w-full flex items-center gap-2 py-1.5 px-2 rounded text-left hover:bg-[var(--surface-elevated)] transition-colors"
+                    >
+                      <Eye size={12} style={{ color: 'var(--text-muted)' }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                          {s.artist ? toTitleCase(s.artist) : 'Unknown artist'} · {relativeTime(s.lastViewedAt)}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card title="Recently Edited" icon={<Pencil size={16} />}>
+            {recentlyEdited.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                Edit a song to see it here.
+              </p>
+            ) : (
+              <ul className="flex flex-col">
+                {recentlyEdited.map((s) => (
+                  <li key={s.id}>
+                    <button
+                      onClick={() => navigate(`/song/${s.id}`)}
+                      className="w-full flex items-center gap-2 py-1.5 px-2 rounded text-left hover:bg-[var(--surface-elevated)] transition-colors"
+                    >
+                      <Pencil size={12} style={{ color: 'var(--text-muted)' }} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
+                        <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
+                          {s.artist ? toTitleCase(s.artist) : 'Unknown artist'} · {relativeTime(s.updatedAt)}
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
           <BarCard
             title="Difficulty"
             icon={<Star size={16} />}
@@ -256,8 +321,8 @@ type BarItem = { label: string; count: number; value?: string };
 interface Stats {
   total: number;
   uniqueArtists: number;
+  uniqueGenres: number;
   uniqueTags: number;
-  avgTempo: number | null;
   difficulty: BarItem[];
   topKeys: BarItem[];
   topGenres: BarItem[];
@@ -287,8 +352,6 @@ function computeStats(songs: Song[]): Stats {
   const tags = new Map<string, number>();
   const decades = new Map<string, number>();
   const difficultyCounts = new Array<number>(6).fill(0);
-  let tempoSum = 0;
-  let tempoCount = 0;
 
   for (const s of songs) {
     tallyInto(artists, s.artist);
@@ -301,7 +364,6 @@ function computeStats(songs: Song[]): Stats {
       tallyInto(decades, d);
     }
     if (s.difficulty && s.difficulty >= 1 && s.difficulty <= 5) difficultyCounts[s.difficulty]++;
-    if (s.tempo) { tempoSum += s.tempo; tempoCount++; }
   }
 
   const difficulty: BarItem[] = [];
@@ -321,8 +383,8 @@ function computeStats(songs: Song[]): Stats {
   return {
     total: songs.length,
     uniqueArtists: artists.size,
+    uniqueGenres: genres.size,
     uniqueTags: tags.size,
-    avgTempo: tempoCount > 0 ? Math.round(tempoSum / tempoCount) : null,
     difficulty,
     topKeys: toSorted(keys, 8),
     topGenres: toSorted(genres, 8),
@@ -362,6 +424,20 @@ function StatCard({
   ) : (
     <div className={className} style={style}>{content}</div>
   );
+}
+
+function relativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  if (diff < 0) return 'just now';
+  const s = Math.floor(diff / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
 }
 
 function Card({

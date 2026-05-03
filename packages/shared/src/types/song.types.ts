@@ -31,6 +31,9 @@ export interface Song {
   createdAt: number;
   updatedAt: number;
   sortOrder: number;
+  /** Epoch ms of when the song was last opened in the Song View page.
+   *  Undefined for songs never viewed since migration v11. */
+  lastViewedAt?: number;
 }
 
 export type SongCreateInput = Omit<Song, 'id' | 'createdAt' | 'updatedAt'>;

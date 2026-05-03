@@ -26,14 +26,35 @@ export interface ExportOptions {
   /** Map of ParsedLine index → pre-rendered HTML for chord-grid blocks
    *  (produced by the modal via renderToStaticMarkup(<ChordGrid />)). */
   chordGrids?: Record<number, string>;
+  /** App-theme background color to paint behind the song — normally
+   *  `var(--bg)` from the active theme. Lets dark-mode exports match the
+   *  song-view container instead of defaulting to white. */
+  themeBackground?: string;
+  /** App-theme foreground default used when the preset doesn't set a
+   *  lyrics color — ensures dark-mode text stays legible on dark bg. */
+  themeForeground?: string;
+  /** Active `--chord-color` — used when the preset's chord color is empty
+   *  (the "Default" preset relies on theme vars). */
+  themeChord?: string;
+  /** Active `--text-muted` — fallback for the details / artist row color. */
+  themeMuted?: string;
+  /** Active `--accent` — fallback for section chip backgrounds. */
+  themeAccent?: string;
+  /** Active `--section-color` — fallback for section chip text color. */
+  themeSection?: string;
 }
 
 export const EXPORT_FORMATS: { id: ExportFormat; label: string; ext: string; mime: string; hint: string }[] = [
-  { id: 'pdf',       label: 'PDF',        ext: 'pdf',      mime: 'application/pdf',   hint: 'Opens the print dialog — choose "Save as PDF" as the destination.' },
-  { id: 'chordpro',  label: 'ChordPro',   ext: 'chordpro', mime: 'text/plain',        hint: 'Inline [chord] markers — re-importable by this app and most chord editors.' },
-  { id: 'plaintext', label: 'Plain text', ext: 'txt',      mime: 'text/plain',        hint: 'Chords above lyrics, printable and universally readable.' },
-  { id: 'html',      label: 'HTML',       ext: 'html',     mime: 'text/html',         hint: 'Standalone web page, styled to match the song view.' },
-  { id: 'json',      label: 'JSON',       ext: 'json',     mime: 'application/json',  hint: 'Raw song record — handy for backups of a single song.' },
+  { id: 'pdf',       label: 'PDF',        ext: 'pdf',      mime: 'application/pdf',
+    hint: 'Page-formatted document — best for printing or sharing a finished chart.' },
+  { id: 'html',      label: 'HTML',       ext: 'html',     mime: 'text/html',
+    hint: 'Self-contained web page that opens in any browser.' },
+  { id: 'chordpro',  label: 'ChordPro',   ext: 'chordpro', mime: 'text/plain',
+    hint: 'Source with [chord] markers — re-importable here and in most chord editors.' },
+  { id: 'plaintext', label: 'Plain text', ext: 'txt',      mime: 'text/plain',
+    hint: 'Chords above lyrics, no formatting. Opens in any text editor.' },
+  { id: 'json',      label: 'JSON',       ext: 'json',     mime: 'application/json',
+    hint: 'Complete song record — best for backups or moving between installations.' },
 ];
 
 export const EXPORT_LAYOUTS: { id: ExportLayout; label: string; hint: string }[] = [
@@ -444,13 +465,25 @@ export function toHtml(song: Song, options?: ExportOptions): string {
   // set a font; lineHeight 1.8 on the song body; lyrics color/size straight
   // from svs.lyrics.
   const fontFamily = style?.fontFamily || 'monospace';
-  const lyricsColor = style?.lyrics.color || '#111';
-  const lyricsBackground = style?.lyrics.background || '#fff';
+  // Prefer the preset's lyrics color, then the theme's foreground; fall back
+  // to dark grey so light-mode defaults still work when neither is supplied.
+  const lyricsColor = style?.lyrics.color || options?.themeForeground || '#111';
+  // Background: preset > theme bg > white. This is what makes dark-mode
+  // exports match the song-view container instead of printing on white.
+  const lyricsBackground = style?.lyrics.background || options?.themeBackground || '#fff';
   const lyricsFontSize = style?.lyrics.fontSize ? `${style.lyrics.fontSize}px` : '16px';
-  const titleColor = style?.title.color || '#111';
+  const titleColor = style?.title.color || options?.themeForeground || '#111';
   const titleFontSize = style?.title.fontSize ? `${style.title.fontSize}px` : '28px';
-  const detailsColor = style?.details.color || '#555';
+  // Title background is intentionally ignored — many presets set a tinted
+  // title chip (Midnight, Ember, Aurora…) which the user does not want
+  // applied to exported documents. Other title styling (color / size /
+  // font / uppercase) still comes from the preset.
+  const titleBackground = 'transparent';
+  const titleHasBg = false;
+  const detailsColor = style?.details.color || options?.themeMuted || '#555';
   const detailsFontSize = style?.details.fontSize ? `${style.details.fontSize}px` : '14px';
+  const detailsBackground = style?.details.background || 'transparent';
+  const detailsHasBg = !!style?.details.background;
   const titleUppercase = style?.titleUppercase ? 'text-transform:uppercase;' : '';
 
   const transposeSteps = song.preferences?.transposeSteps ?? 0;
@@ -477,12 +510,14 @@ export function toHtml(song: Song, options?: ExportOptions): string {
 
   // Inline CSS variables used by the ChordGrid SVG (stroke="var(--text-primary)"
   // etc.) and as fallbacks in section/comment chip styles when the preset
-  // hasn't filled those slots. Values mirror the theme/index.css defaults.
-  const textPrimary = style?.lyrics.color || '#111';
-  const textSecondary = style?.details.color || '#555';
-  const chordColorVar = style?.chords.color || '#4b73ff';
-  const accent = '#6366f1';         // theme/index.css light-mode --accent
-  const sectionColorVar = '#64748b'; // theme/index.css light-mode --section-color
+  // hasn't filled those slots. Each one prefers the live app theme value
+  // (captured at export time) so the "Default" preset — which intentionally
+  // leaves colors empty so it can adapt — looks correct in dark or light.
+  const textPrimary = style?.lyrics.color || options?.themeForeground || '#111';
+  const textSecondary = style?.details.color || options?.themeMuted || '#555';
+  const chordColorVar = style?.chords.color || options?.themeChord || '#4b73ff';
+  const accent = options?.themeAccent || '#6366f1';
+  const sectionColorVar = options?.themeSection || '#64748b';
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -505,9 +540,12 @@ export function toHtml(song: Song, options?: ExportOptions): string {
   body, .body, * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
   body { font-family: ${fontFamily}; max-width: 860px; margin: 2em auto; padding: 0 1.5em; background: ${lyricsBackground}; color: ${lyricsColor}; font-size: ${lyricsFontSize}; }
-  h1.title { margin: 0 0 0.2em; color: ${titleColor}; font-size: ${titleFontSize}; ${titleUppercase} ${titleAlign} }
-  .artist { color: ${detailsColor}; font-size: ${detailsFontSize}; margin-bottom: 0.35em; ${titleAlign} }
-  .details { color: ${detailsColor}; font-size: ${detailsFontSize}; font-family: ${fontFamily}; margin-bottom: 1.2em; ${titleAlign ? 'display:flex;justify-content:center;flex-wrap:wrap;' : 'display:flex;flex-wrap:wrap;'} }
+  /* Header block (title / artist / details) is always centered in HTML and
+     PDF exports — independent of the song body's centering setting. */
+  .song-header { text-align: center; margin-bottom: 1em; }
+  h1.title { margin: 0 0 0.2em; color: ${titleColor}; font-size: ${titleFontSize}; font-family: ${fontFamily}; font-weight: 700; background: ${titleBackground}; ${titleHasBg ? 'padding:6px 10px;border-radius:6px;display:inline-block;' : ''} ${titleUppercase} }
+  .artist { color: ${detailsColor}; font-size: ${detailsFontSize}; font-family: ${fontFamily}; margin-bottom: 0.35em; }
+  .details { color: ${detailsColor}; font-size: ${detailsFontSize}; font-family: ${fontFamily}; margin-bottom: 0; background: ${detailsBackground}; ${detailsHasBg ? 'padding:6px 10px;border-radius:6px;' : ''} display:inline-flex; flex-wrap:wrap; justify-content:center; }
   /* Direct children only — otherwise the label/value sibling spans inside
      each detail would each get an extra "|" prepended. Use margin (not
      spaces inside content) because browsers collapse whitespace in CSS
@@ -517,16 +555,21 @@ export function toHtml(song: Song, options?: ExportOptions): string {
      picked font-family (monospace when the preset has none). */
   .body { margin-top: 1em; font-size: ${lyricsFontSize}; line-height: 1.8; font-family: ${fontFamily}; color: ${lyricsColor}; }
   @media print {
-    body { max-width: none; margin: 0; padding: 1.2cm; }
-    @page { margin: 1.2cm; }
+    /* Per-page margins via CSS @page so every page (not just first/last)
+       has space on top, bottom, and sides. Chromium's printToPDF honours
+       these when preferCSSPageSize is true. */
+    @page { margin: 2cm 2cm; }
+    body { max-width: none; margin: 0; padding: 0; background: ${lyricsBackground}; }
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   }
 </style>
 </head>
 <body>
-<h1 class="title">${escapeHtml(style?.titleUppercase ? song.title : toTitleCase(song.title))}</h1>
-${song.artist ? `<div class="artist">${escapeHtml(toTitleCase(song.artist))}</div>` : ''}
-${details.length ? `<div class="details">${details.map((d) => `<span>${d}</span>`).join('')}</div>` : ''}
+<div class="song-header">
+  <h1 class="title">${escapeHtml(style?.titleUppercase ? song.title : toTitleCase(song.title))}</h1>
+  ${song.artist ? `<div class="artist">${escapeHtml(toTitleCase(song.artist))}</div>` : ''}
+  ${details.length ? `<div class="details">${details.map((d) => `<span>${d}</span>`).join('')}</div>` : ''}
+</div>
 ${barHtml}
 ${bodyWrapStart}<div class="body">${bodyHtml}</div>${bodyWrapEnd}
 </body>
@@ -553,42 +596,205 @@ export function toJson(song: Song): string {
   return JSON.stringify(song, null, 2);
 }
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'song';
+// Build a filesystem-safe version of the song title in Title Case — spaces
+// stay as spaces, only characters illegal in filenames get stripped.
+function titleCaseFilename(s: string): string {
+  const cased = toTitleCase(s.trim());
+  // Strip characters Windows/macOS disallow in filenames: \ / : * ? " < > |
+  const cleaned = cased.replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+  return cleaned || 'Song';
 }
 
-export function printSongPdf(song: Song, options?: ExportOptions): void {
+/** Per-song layout extras used by binder export — the modal pre-renders
+ * each song's chord-bar SVGs / inline diagrams / chord grids so the binder
+ * pages match the on-screen rendering exactly. */
+export interface PerSongExtras {
+  chordBarHtml?: string;
+  inlineDiagrams?: Record<string, string>;
+  chordGrids?: Record<number, string>;
+}
+
+/** Builds the per-song block (title, artist, details, body) used inside the
+ * binder PDF — everything that would go between `<body>` and `</body>` in
+ * toHtml, but without the outer document / shared styles. */
+function renderSongBlock(song: Song, options?: ExportOptions, extras?: PerSongExtras): string {
+  const parsed = getRenderableSong(song);
+  const style = options?.style;
+  const layout: ExportLayout = options?.layout ?? 'chords';
+  const transposeSteps = song.preferences?.transposeSteps ?? 0;
+  const displayKey = song.key ? transposeKey(song.key, transposeSteps) : undefined;
+  const detailsColor = style?.details.color || '#555';
+  const lbl = (t: string) => `<span style="font-weight:700;color:${detailsColor};">${escapeHtml(t)}</span>`;
+  const val = (t: string | number) => `<span style="font-weight:400;opacity:0.85;color:${detailsColor};">${escapeHtml(String(t))}</span>`;
+  const details: string[] = [];
+  if (displayKey)                  details.push(`${lbl('Key: ')}${val(displayKey)}`);
+  if (song.capo && song.capo > 0)  details.push(`${lbl('Capo: ')}${val(song.capo)}`);
+  if (transposeSteps !== 0)        details.push(`${lbl('Transpose: ')}${val((transposeSteps > 0 ? '+' : '') + transposeSteps)}`);
+  if (song.tempo)                  details.push(`${lbl('Tempo: ')}${val(`${song.tempo} BPM`)}`);
+  if (song.timeSig)                details.push(`${lbl('Time: ')}${val(song.timeSig)}`);
+  const bodyHtml = renderSongBody(
+    parsed,
+    layout,
+    style ?? DEFAULT_FALLBACK_STYLE,
+    layout === 'inline-diagrams' ? extras?.inlineDiagrams : undefined,
+    extras?.chordGrids,
+  );
+  const barHtml = layout === 'chords-with-bar' ? (extras?.chordBarHtml ?? '') : '';
+  return `
+<div class="song-header">
+  <h1 class="title">${escapeHtml(style?.titleUppercase ? song.title : toTitleCase(song.title))}</h1>
+  ${song.artist ? `<div class="artist">${escapeHtml(toTitleCase(song.artist))}</div>` : ''}
+  ${details.length ? `<div class="details">${details.map((d) => `<span>${d}</span>`).join('')}</div>` : ''}
+</div>
+${barHtml}
+<div class="body">${bodyHtml}</div>`;
+}
+
+/** Assemble a single HTML document containing every song, with a page break
+ * between each one, suitable for `savePdf`. Optional front-matter lists the
+ * songs as a simple TOC on the first page. `perSongExtras`, when supplied,
+ * provides each song's chord-bar / inline-diagrams / chord-grid markup
+ * (keyed by `song.id`) so the layout chosen in the export modal renders
+ * identically to the in-app song view. */
+export function toBinderHtml(
+  songs: Song[],
+  bookTitle: string,
+  options?: ExportOptions,
+  perSongExtras?: Record<string, PerSongExtras>,
+): string {
+  const style = options?.style;
+  const fontFamily = style?.fontFamily || 'monospace';
+  const lyricsColor = style?.lyrics.color || options?.themeForeground || '#111';
+  const lyricsBackground = style?.lyrics.background || options?.themeBackground || '#fff';
+  const lyricsFontSize = style?.lyrics.fontSize ? `${style.lyrics.fontSize}px` : '16px';
+  const titleColor = style?.title.color || options?.themeForeground || '#111';
+  const titleFontSize = style?.title.fontSize ? `${style.title.fontSize}px` : '28px';
+  // Title background is intentionally ignored — many presets set a tinted
+  // title chip (Midnight, Ember, Aurora…) which the user does not want
+  // applied to exported documents. Other title styling (color / size /
+  // font / uppercase) still comes from the preset.
+  const titleBackground = 'transparent';
+  const titleHasBg = false;
+  const titleUppercase = style?.titleUppercase ? 'text-transform:uppercase;' : '';
+  const detailsColor = style?.details.color || options?.themeMuted || '#555';
+  const detailsFontSize = style?.details.fontSize ? `${style.details.fontSize}px` : '14px';
+  const detailsBackground = style?.details.background || 'transparent';
+  const detailsHasBg = !!style?.details.background;
+  const textPrimary = style?.lyrics.color || options?.themeForeground || '#111';
+  const textSecondary = style?.details.color || options?.themeMuted || '#555';
+  const chordColorVar = style?.chords.color || options?.themeChord || '#4b73ff';
+  const accent = options?.themeAccent || '#6366f1';
+  const sectionColorVar = options?.themeSection || '#64748b';
+
+  const toc = songs.map((s, i) => {
+    const artist = s.artist ? ` — ${escapeHtml(toTitleCase(s.artist))}` : '';
+    return `<li><span class="toc-num">${i + 1}.</span> ${escapeHtml(toTitleCase(s.title))}${artist}</li>`;
+  }).join('');
+
+  const pages = songs.map((s, i) => {
+    const block = renderSongBlock(s, options, perSongExtras?.[s.id]);
+    const pageBreak = i === 0 ? '' : 'page-break-before: always;';
+    return `<section style="${pageBreak}">${block}</section>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(bookTitle)}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --text-primary: ${textPrimary};
+    --text-secondary: ${textSecondary};
+    --chord-color: ${chordColorVar};
+    --accent: ${accent};
+    --section-color: ${sectionColorVar};
+  }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body, * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: ${fontFamily}; max-width: 860px; margin: 2em auto; padding: 0 1.5em; background: ${lyricsBackground}; color: ${lyricsColor}; font-size: ${lyricsFontSize}; }
+  /* Per-song header block is always centered in the binder. */
+  .song-header { text-align: center; margin-bottom: 1em; }
+  h1.title { margin: 0 0 0.2em; color: ${titleColor}; font-size: ${titleFontSize}; font-family: ${fontFamily}; font-weight: 700; background: ${titleBackground}; ${titleHasBg ? 'padding:6px 10px;border-radius:6px;display:inline-block;' : ''} ${titleUppercase} }
+  .artist { color: ${detailsColor}; font-size: ${detailsFontSize}; font-family: ${fontFamily}; margin-bottom: 0.35em; }
+  .details { color: ${detailsColor}; font-size: ${detailsFontSize}; font-family: ${fontFamily}; margin-bottom: 0; background: ${detailsBackground}; ${detailsHasBg ? 'padding:6px 10px;border-radius:6px;' : ''} display:inline-flex; flex-wrap:wrap; justify-content:center; }
+  .details > span + span::before { content: '|'; margin: 0 8px; color: ${detailsColor}; opacity: 0.5; }
+  .body { margin-top: 1em; font-size: ${lyricsFontSize}; line-height: 1.8; font-family: ${fontFamily}; color: ${lyricsColor}; }
+  .cover { text-align: center; margin-top: 25vh; }
+  .cover h1 { font-size: 36px; color: ${titleColor}; margin-bottom: 0.3em; }
+  .cover p { color: ${detailsColor}; font-size: ${detailsFontSize}; }
+  .toc { page-break-after: always; }
+  .toc h2 { color: ${titleColor}; font-size: 22px; margin-bottom: 0.6em; }
+  .toc ol { list-style: none; padding: 0; margin: 0; }
+  .toc li { padding: 4px 0; border-bottom: 1px solid ${detailsColor}33; color: ${lyricsColor}; font-size: ${lyricsFontSize}; }
+  .toc .toc-num { display: inline-block; width: 2.2em; color: ${detailsColor}; font-variant-numeric: tabular-nums; }
+  @media print {
+    /* Per-page margins via CSS @page so every page (not just first/last)
+       has space on top, bottom, and sides. Chromium's printToPDF honours
+       these when preferCSSPageSize is true. */
+    @page { margin: 2.5cm 2cm; }
+    body { max-width: none; margin: 0; padding: 0; background: ${lyricsBackground}; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+</style>
+</head>
+<body>
+<section class="cover">
+  <h1>${escapeHtml(bookTitle)}</h1>
+  <p>${songs.length} song${songs.length === 1 ? '' : 's'}</p>
+</section>
+<section class="toc" style="page-break-before: always;">
+  <h2>Contents</h2>
+  <ol>${toc}</ol>
+</section>
+${pages}
+</body>
+</html>`;
+}
+
+/** Render a multi-song binder to PDF via the same IPC used for single-song
+ * exports. `bookTitle` becomes both the document title and the file name. */
+export async function printBinderPdf(
+  songs: Song[],
+  bookTitle: string,
+  options?: ExportOptions,
+  perSongExtras?: Record<string, PerSongExtras>,
+): Promise<void> {
+  if (songs.length === 0) return;
+  const html = toBinderHtml(songs, bookTitle, options, perSongExtras);
+  const slug = titleCaseFilename(bookTitle);
+  const bg = options?.style?.lyrics.background || options?.themeBackground;
+  const api = window.electronAPI?.pdf?.savePdf;
+  if (!api) {
+    alert('PDF export requires a full app restart to pick up a new Electron handler. Please close and reopen the app.');
+    return;
+  }
+  const result = await api(html, slug, bg);
+  if (result?.error) alert(`Could not save PDF: ${result.error}`);
+}
+
+export async function printSongPdf(song: Song, options?: ExportOptions): Promise<void> {
   const html = toHtml(song, options);
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.setAttribute('aria-hidden', 'true');
-  iframe.srcdoc = html;
-  document.body.appendChild(iframe);
-
-  const originalTitle = document.title;
-  document.title = slugify(song.title);
-
-  iframe.onload = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-    } finally {
-      window.setTimeout(() => {
-        iframe.remove();
-        document.title = originalTitle;
-      }, 1000);
-    }
-  };
+  const slug = titleCaseFilename(song.title);
+  // The background color from the theme also gets threaded to the main
+  // process so the top/bottom @page margin strips can be painted via
+  // header/footer templates — otherwise they print as white bands.
+  const bg = options?.style?.lyrics.background || options?.themeBackground;
+  const api = window.electronAPI?.pdf?.savePdf;
+  if (!api) {
+    alert('PDF export requires a full app restart to pick up a new Electron handler. Please close and reopen the app.');
+    return;
+  }
+  const result = await api(html, slug, bg);
+  if (result?.error) {
+    alert(`Could not save PDF: ${result.error}`);
+  }
 }
 
 export function exportSong(song: Song, format: ExportFormat, options?: ExportOptions): void {
   if (format === 'pdf') {
-    printSongPdf(song, options);
+    void printSongPdf(song, options);
     return;
   }
   const cfg = EXPORT_FORMATS.find((f) => f.id === format)!;
@@ -599,8 +805,78 @@ export function exportSong(song: Song, format: ExportFormat, options?: ExportOpt
     case 'html':      content = toHtml(song, options); break;
     case 'json':      content = toJson(song); break;
   }
-  const filename = `${slugify(song.title)}.${cfg.ext}`;
+  const filename = `${titleCaseFilename(song.title)}.${cfg.ext}`;
   const blob = new Blob([content], { type: cfg.mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/** Export multiple songs.
+ *  - PDF / HTML: one "binder" document with a title page, TOC, and a page
+ *    per song. The active layout (chord names / chord-bar / inline diagrams
+ *    / lyrics-only) is honoured per song via `perSongExtras`.
+ *  - ChordPro / plain text: writes one file per song into a folder picked
+ *    by the user (a sub-folder named after `bookTitle` is created inside it).
+ *  - JSON: a single file with an array of every song's full record.
+ */
+export async function exportSongs(
+  songs: Song[],
+  format: ExportFormat,
+  bookTitle: string,
+  options?: ExportOptions,
+  perSongExtras?: Record<string, PerSongExtras>,
+): Promise<void> {
+  if (songs.length === 0) return;
+  if (songs.length === 1) {
+    exportSong(songs[0]!, format, options);
+    return;
+  }
+  if (format === 'pdf') {
+    await printBinderPdf(songs, bookTitle, options, perSongExtras);
+    return;
+  }
+  if (format === 'html') {
+    const html = toBinderHtml(songs, bookTitle, options, perSongExtras);
+    const filename = `${titleCaseFilename(bookTitle)}.html`;
+    saveBlob(html, 'text/html', filename);
+    return;
+  }
+  if (format === 'json') {
+    const filename = `${titleCaseFilename(bookTitle)}.json`;
+    saveBlob(JSON.stringify(songs, null, 2), 'application/json', filename);
+    return;
+  }
+  // ChordPro / plain text — one file per song, written into a folder.
+  const cfg = EXPORT_FORMATS.find((f) => f.id === format)!;
+  const used = new Set<string>();
+  const files = songs.map((s) => {
+    let base = titleCaseFilename(s.title);
+    if (used.has(base.toLowerCase())) {
+      let i = 2;
+      while (used.has(`${base} (${i})`.toLowerCase())) i++;
+      base = `${base} (${i})`;
+    }
+    used.add(base.toLowerCase());
+    const content = format === 'chordpro' ? toChordPro(s) : toPlainText(s);
+    return { filename: `${base}.${cfg.ext}`, content };
+  });
+  const api = window.electronAPI?.files?.saveSongsFolder;
+  if (!api) {
+    alert('Folder export requires a full app restart to pick up a new Electron handler. Please close and reopen the app.');
+    return;
+  }
+  const result = await api(titleCaseFilename(bookTitle), files);
+  if (result.error) alert(`Could not save folder: ${result.error}`);
+}
+
+function saveBlob(content: string, mime: string, filename: string): void {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

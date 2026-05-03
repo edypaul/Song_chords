@@ -16,7 +16,10 @@ import type {
 import type { SongMetadata } from '../types/song.types';
 
 const CHORD_ROOT_RE = /^([A-G][#b]?)(.*)/;
-const DIRECTIVE_RE = /^\{(\w+)(?::\s*(.*))?\}$/;
+// Accepts {name}, {name:value}, and {name value}. The space-as-separator form
+// supports free-form section labels like {Estrofa I} or {Section Name} where
+// the user writes the label directly inside braces.
+const DIRECTIVE_RE = /^\{([\w-]+)(?:[:\s]+(.*?))?\s*\}$/;
 const SECTION_DIRECTIVES: Record<string, SectionType> = {
   verse: 'verse', v: 'verse', sov: 'verse',
   chorus: 'chorus', c: 'chorus', soc: 'chorus',
@@ -32,6 +35,7 @@ const END_SECTION_MAP: Partial<Record<string, SectionType>> = {
   eov: 'verse',  end_of_verse: 'verse',
   end_of_bridge: 'bridge',
 };
+
 const METADATA_DIRECTIVES = new Set([
   'title', 't',
   'artist', 'a', 'subtitle', 'st',
@@ -212,7 +216,8 @@ export function parseChordPro(rawContent: string): ParsedSong {
     // Directive line
     const dirMatch = DIRECTIVE_RE.exec(trimmed);
     if (dirMatch) {
-      const name = (dirMatch[1] ?? '').toLowerCase();
+      const originalName = dirMatch[1] ?? '';
+      const name = originalName.toLowerCase();
       const value = dirMatch[2]?.trim();
 
       // Start of chord grid block
@@ -236,10 +241,64 @@ export function parseChordPro(rawContent: string): ParsedSong {
         continue;
       }
 
-      // Section-start directive.
-      // Special case: {c: text} with a value is the comment shorthand, not a chorus start.
-      // Only treat {c} (bare, no value) as a chorus section marker.
-      if (SECTION_DIRECTIVES[name] && !(name === 'c' && value !== undefined)) {
+      // Metadata directive (title, artist, key, tempo, etc.) — handled first
+      // so something like {title: My Song} stays metadata instead of being
+      // turned into a section title.
+      if (METADATA_DIRECTIVES.has(name)) {
+        const metaKey = directiveNameToMetadataKey(name);
+        if (metaKey && value !== undefined) {
+          if (metaKey === 'tempo' || metaKey === 'capo') {
+            (metadata as Record<string, unknown>)[metaKey] = parseInt(value, 10);
+          } else {
+            (metadata as Record<string, unknown>)[metaKey] = value;
+          }
+        }
+        const dirToken: DirectiveToken = { type: 'directive', name, value };
+        lines.push({ tokens: [dirToken], hasChords: false, isDirective: true, isSection: false, isComment: false, isEmpty: false });
+        continue;
+      }
+
+      // {c: X} and {comment: X} are user-provided section titles. Everything
+      // after the colon is the label; we intentionally don't auto-detect a
+      // section type from the label text. Bare {c} / {comment} with no value
+      // are handled by the known-keyword branch below.
+      if ((name === 'c' || name === 'comment') && value !== undefined) {
+        const sectionToken: SectionToken = { type: 'section', sectionType: 'verse', label: value };
+        lines.push({
+          tokens: [sectionToken],
+          hasChords: false,
+          isDirective: true,
+          isSection: true,
+          isComment: false,
+          isEmpty: false,
+          sectionType: 'verse',
+          sectionLabel: value,
+        });
+        continue;
+      }
+
+      // {pause: N} — auto-scroll directive. Emit as a plain DirectiveToken
+      // so the renderer can place a marker the auto-scroll hook reads.
+      // Value is parsed to a non-negative number of seconds; anything
+      // unparseable falls through to a no-op zero.
+      if (name === 'pause') {
+        const seconds = Math.max(0, parseFloat(value ?? '0') || 0);
+        const dirToken: DirectiveToken = { type: 'directive', name: 'pause', value: String(seconds) };
+        lines.push({
+          tokens: [dirToken],
+          hasChords: false,
+          isDirective: true,
+          isSection: false,
+          isComment: false,
+          isEmpty: false,
+        });
+        continue;
+      }
+
+      // Known section keywords ({verse}, {chorus}, {v}, bare {c}, …).
+      // The label is whatever value the user supplied; no default text is
+      // invented when the value is absent.
+      if (SECTION_DIRECTIVES[name]) {
         const sectionType = SECTION_DIRECTIVES[name]!;
         const sectionToken: SectionToken = { type: 'section', sectionType, label: value };
         lines.push({
@@ -255,31 +314,21 @@ export function parseChordPro(rawContent: string): ParsedSong {
         continue;
       }
 
-      // Comment directive → render as italic comment
-      if (name === 'comment' || name === 'c') {
-        const commentToken: CommentToken = { type: 'comment', text: value ?? '' };
-        lines.push({ tokens: [commentToken], hasChords: false, isDirective: true, isSection: false, isComment: true, isEmpty: false });
-        continue;
-      }
-
-      // Metadata directive
-      if (METADATA_DIRECTIVES.has(name)) {
-        const metaKey = directiveNameToMetadataKey(name);
-        if (metaKey && value !== undefined) {
-          if (metaKey === 'tempo' || metaKey === 'capo') {
-            (metadata as Record<string, unknown>)[metaKey] = parseInt(value, 10);
-          } else {
-            (metadata as Record<string, unknown>)[metaKey] = value;
-          }
-        }
-        const dirToken: DirectiveToken = { type: 'directive', name, value };
-        lines.push({ tokens: [dirToken], hasChords: false, isDirective: true, isSection: false, isComment: false, isEmpty: false });
-        continue;
-      }
-
-      // Unknown directive — still emit as directive token
-      const dirToken: DirectiveToken = { type: 'directive', name, value };
-      lines.push({ tokens: [dirToken], hasChords: false, isDirective: true, isSection: false, isComment: false, isEmpty: false });
+      // Free-form {Section Name} — anything else inside braces that isn't a
+      // recognised metadata or structural directive is treated as a
+      // user-provided section title, preserving original casing.
+      const label = value ? `${originalName} ${value}` : originalName;
+      const sectionToken: SectionToken = { type: 'section', sectionType: 'verse', label };
+      lines.push({
+        tokens: [sectionToken],
+        hasChords: false,
+        isDirective: true,
+        isSection: true,
+        isComment: false,
+        isEmpty: false,
+        sectionType: 'verse',
+        sectionLabel: label,
+      });
       continue;
     }
 

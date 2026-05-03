@@ -1,14 +1,20 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Trash2, ArrowLeft } from 'lucide-react';
-import { useSongStore, ALL_KEYS, parseChordPro, extractUniqueChords, chordsOverLyricsToChordPro, chordProToChordsOverLyrics } from '@song-chords/shared';
+import { Save, Trash2, ArrowLeft, Hand, RotateCcw } from 'lucide-react';
+import { useSongStore, ALL_KEYS, parseChordPro, extractUniqueChords, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import type { SongCreateInput } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import { useNavigationGuard } from '../context/NavigationGuard';
 import { toTitleCase } from '../utils/text';
 import { extractChordPattern, applyChordPattern, patternHasChords, type ChordPattern } from '../utils/chord-pattern';
 
 const SECTION_DIRECTIVES = ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Solo', 'Instrumental', 'Outro'];
+const COMMON_GENRES = [
+  'Pop', 'Rock', 'Country', 'Worship', 'Gospel', 'R&B', 'Soul', 'Jazz', 'Blues',
+  'Folk', 'Classical', 'Latin', 'Alternative', 'Indie', 'Hip-Hop', 'Electronic',
+  'Metal', 'Punk', 'Reggae', 'Christian',
+];
 const COMMON_CHORDS = ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'Am', 'Bm', 'Cm', 'Dm', 'Em', 'Fm', 'Gm', 'A7', 'B7', 'C7', 'D7', 'E7', 'G7', 'Cmaj7', 'Dmaj7', 'Fmaj7', 'Gmaj7'];
 
 const EXAMPLE_CHORDPRO = `{c: Verse 1}
@@ -45,10 +51,80 @@ export default function SongEditPage(): React.ReactElement {
   // the context menu on list pages) can send the user back to where they
   // opened the editor from, on save or cancel.
   const returnTo = searchParams.get('return');
+  // "Pending" mode: editing a row from the Import staging list. We read/write
+  // the row's payload directly in sessionStorage and never touch the DB —
+  // actual import is deferred until the user clicks Import in the list.
+  const pendingId = searchParams.get('pending');
+  const isPending = !!pendingId;
   const { songs, addSong, updateSong, deleteSong } = useSongStore();
   const isNew = !id || id === 'new';
 
-  const existing = isNew ? null : songs.find((s) => s.id === id);
+  // Unique artist list (keeping the most-recent casing) so the artist field
+  // can autocomplete against existing library entries.
+  const artistSuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of songs) {
+      const name = s.artist?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, name);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [songs]);
+
+  // Language suggestions: only the languages already used by songs in the
+  // library (mirrors what shows up in Categories → Language). Casing is
+  // preserved on first occurrence and case-insensitively deduped.
+  const languageSuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of songs) {
+      const name = s.language?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, name);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [songs]);
+
+  // Genre + tag suggestions: same shape as language — only values already in
+  // the library, deduped case-insensitively, alphabetically sorted.
+  const genreSuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of songs) {
+      const name = s.genre?.trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (!seen.has(key)) seen.set(key, name);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [songs]);
+  const tagSuggestions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const s of songs) {
+      for (const t of s.tags ?? []) {
+        const trimmed = t.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (!seen.has(key)) seen.set(key, trimmed);
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [songs]);
+
+  const pendingRow = React.useMemo(() => {
+    if (!isPending) return null;
+    try {
+      const raw = window.sessionStorage.getItem('song-chords:import-staging');
+      if (!raw) return null;
+      const list = JSON.parse(raw) as Array<{ id: string; input?: SongCreateInput }>;
+      return list.find((r) => r.id === pendingId) ?? null;
+    } catch { return null; }
+  }, [isPending, pendingId]);
+  const pendingInput = pendingRow?.input;
+
+  const existing = isPending
+    ? (pendingInput ? ({ ...pendingInput, id: 'pending', createdAt: 0, updatedAt: 0 } as unknown as typeof songs[number]) : null)
+    : (isNew ? null : songs.find((s) => s.id === id));
 
   const [title, setTitle] = useState(existing?.title ?? '');
   const [artist, setArtist] = useState(existing?.artist ?? '');
@@ -61,7 +137,7 @@ export default function SongEditPage(): React.ReactElement {
   const [language, setLanguage] = useState(existing?.language ?? '');
   const [duration, setDuration] = useState(existing?.duration ?? '');
   // UI-only toggle for how the user wants to edit; all saves are ChordPro.
-  const [format, setFormat] = useState<'chordpro' | 'plaintext'>('chordpro');
+  const [format, setFormat] = useState<'chordpro' | 'plaintext'>('plaintext');
   const [content, setContent] = useState(existing?.content ?? exampleFor(format));
   const [notes, setNotes] = useState(existing?.notes ?? '');
   const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
@@ -69,6 +145,10 @@ export default function SongEditPage(): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'details' | 'song'>('details');
   const [showDelete, setShowDelete] = useState(false);
+  /** Pending navigation intent shown in the unsaved-changes dialog. When set,
+   *  the user sees three choices (Save / Discard / Cancel). On confirm the
+   *  handler in `.run` performs the actual navigation / close action. */
+  const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Right-click popover state — position in viewport + caret range at click.
   const [chordPopover, setChordPopover] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
@@ -179,6 +259,25 @@ export default function SongEditPage(): React.ReactElement {
     return { chars, lineCount, uniqueChords };
   }, [content, format]);
 
+  // Snapshot of the form's initial values. Compared against the current
+  // state to detect unsaved edits in `isDirty` below.
+  const initialSnapshotRef = useRef({
+    title: existing?.title ?? '',
+    artist: existing?.artist ?? '',
+    key: existing?.key ?? '',
+    tempo: existing?.tempo?.toString() ?? '',
+    timeSig: existing?.timeSig ?? '4/4',
+    capo: existing?.capo ?? 0,
+    genre: existing?.genre ?? '',
+    year: existing?.year?.toString() ?? '',
+    language: existing?.language ?? '',
+    duration: existing?.duration ?? '',
+    content: existing?.content ?? exampleFor('plaintext'),
+    notes: existing?.notes ?? '',
+    tags: existing?.tags ?? [],
+    difficulty: existing?.difficulty ?? 0,
+  });
+
   useEffect(() => {
     if (existing) {
       setTitle(existing.title);
@@ -197,18 +296,93 @@ export default function SongEditPage(): React.ReactElement {
       setTags(existing.tags ?? []);
       setDifficulty(existing.difficulty ?? 0);
       resetHistory(existing.content);
+      // Re-seed the "initial" snapshot when the loaded song changes so
+      // navigating between edits doesn't carry over a stale baseline.
+      initialSnapshotRef.current = {
+        title: existing.title,
+        artist: existing.artist ?? '',
+        key: existing.key ?? '',
+        tempo: existing.tempo?.toString() ?? '',
+        timeSig: existing.timeSig ?? '4/4',
+        capo: existing.capo,
+        genre: existing.genre ?? '',
+        year: existing.year?.toString() ?? '',
+        language: existing.language ?? '',
+        duration: existing.duration ?? '',
+        content: existing.content,
+        notes: existing.notes ?? '',
+        tags: existing.tags ?? [],
+        difficulty: existing.difficulty ?? 0,
+      };
     }
   }, [existing?.id]);
+
+  const isDirty = useMemo(() => {
+    const init = initialSnapshotRef.current;
+    if (title !== init.title) return true;
+    if (artist !== init.artist) return true;
+    if (key !== init.key) return true;
+    if (tempo !== init.tempo) return true;
+    if (timeSig !== init.timeSig) return true;
+    if (capo !== init.capo) return true;
+    if (genre !== init.genre) return true;
+    if (year !== init.year) return true;
+    if (language !== init.language) return true;
+    if (duration !== init.duration) return true;
+    if (content !== init.content) return true;
+    if (notes !== init.notes) return true;
+    if (difficulty !== init.difficulty) return true;
+    if (tags.length !== init.tags.length) return true;
+    for (let i = 0; i < tags.length; i++) if (tags[i] !== init.tags[i]) return true;
+    return false;
+  }, [title, artist, key, tempo, timeSig, capo, genre, year, language, duration, content, notes, difficulty, tags]);
+
+  // Warn on full window close / reload when there are unsaved edits.
+  // Inline navigation (back button) is guarded by guardedLeave below.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  /** Wraps a navigation action so that when the form is dirty, the user
+   *  first sees the Save / Discard / Cancel dialog. */
+  const guardedLeave = (run: () => void) => {
+    if (!isDirty) { run(); return; }
+    setPendingLeave({ run });
+  };
+
+  // Register the guard with the app-wide NavigationGuard context so sidebar
+  // links (and any other consumer of `tryNavigate`) route through the same
+  // Save / Discard / Cancel dialog when leaving with unsaved changes.
+  const { registerGuard } = useNavigationGuard();
+  useEffect(() => {
+    if (!isDirty) { registerGuard(null); return; }
+    registerGuard((run) => setPendingLeave({ run }));
+    return () => registerGuard(null);
+  }, [isDirty, registerGuard]);
 
   const handleSave = async () => {
     if (!title.trim()) { alert('Title is required'); return; }
     setSaving(true);
     try {
+      // Normalize Latin (solfège) chord names back to canonical letter form
+      // before storing — users may have typed `Do` / `Sol` if they prefer
+      // that notation, but storage must stay portable. Both the inline-bracket
+      // and bare-chord-line forms are handled.
+      const normalizedContent = normalizeContentToLetter(
+        format === 'plaintext' ? chordsOverLyricsToChordPro(content) : content,
+      );
       // Defaults applied only when the user leaves a field empty.
       const input: SongCreateInput = {
         title: title.trim(),
         artist: artist.trim() || 'Other',
-        key: key || 'C',
+        // Keys may also be typed in Latin form (e.g. "Sol", "rem" for G minor).
+        key: fromLatin(key || 'C') || 'C',
         tempo: tempo ? parseInt(tempo) : undefined,
         timeSig: timeSig || undefined,
         capo,
@@ -216,19 +390,27 @@ export default function SongEditPage(): React.ReactElement {
         year: year ? parseInt(year) : undefined,
         language: language.trim() || 'Spanish',
         duration: duration.trim() || undefined,
-        // "Chords over lyrics" (plaintext) is an input-only mode: convert to
-        // ChordPro so the chords get parsed and stored inline.
-        content: format === 'plaintext' ? chordsOverLyricsToChordPro(content) : content,
+        content: normalizedContent,
         chordsCount: 0, // recomputed by the repository on write
         notes: notes.trim() || undefined,
         tags,
-        difficulty: difficulty > 0 ? difficulty : 1, // 1 = Basic
+        // 0/undefined = unrated; let the user leave it blank if they prefer.
+        difficulty: difficulty > 0 ? difficulty : undefined,
         favorite: existing?.favorite ?? false,
         preferences: existing?.preferences ?? {},
         sortOrder: existing?.sortOrder ?? 0,
       };
 
-      if (isNew) {
+      if (isPending && pendingId) {
+        // Update the pending row in sessionStorage and return to Import.
+        try {
+          const raw = window.sessionStorage.getItem('song-chords:import-staging');
+          const list = raw ? (JSON.parse(raw) as Array<{ id: string; input?: SongCreateInput; [k: string]: unknown }>) : [];
+          const next = list.map((r) => r.id === pendingId ? { ...r, input } : r);
+          window.sessionStorage.setItem('song-chords:import-staging', JSON.stringify(next));
+        } catch { /* ignore quota errors */ }
+        navigate(returnTo ?? '/import');
+      } else if (isNew) {
         const song = await addSong(db, input);
         navigate(`/song/${song.id}`, { replace: true });
       } else {
@@ -245,19 +427,46 @@ export default function SongEditPage(): React.ReactElement {
     navigate('/library', { replace: true });
   };
 
+  // Ctrl+S / ⌘+S saves the song. We deliberately don't use the global
+  // shortcut hook because that one ignores key events fired from inputs and
+  // textareas — and the user is almost certainly typing in the lyrics
+  // textarea when they hit Save. `capture: true` so we run before any
+  // browser shortcut handling, and we always preventDefault to suppress the
+  // browser's "save page as" dialog. The handler reads `saving` from a ref
+  // so a single keypress can't queue multiple concurrent saves.
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isSave = (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 's' || e.key === 'S');
+      if (!isSave) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (savingRef.current) return;
+      void handleSave();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+    // handleSave closes over a lot of state; rebinding is fine since the
+    // listener is cheap.
+  }, [handleSave]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
         <button
-          onClick={() => returnTo ? navigate(returnTo) : navigate(-1)}
+          onClick={() => guardedLeave(() => returnTo ? navigate(returnTo) : navigate(-1))}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
+          title={isDirty ? 'Leave (unsaved changes)' : 'Back'}
         >
           <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
-        <h1 className="font-semibold" style={{ color: 'var(--text-primary)' }}>{isNew ? 'New Song' : `Edit: ${existing?.title}`}</h1>
+        <h1 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {isPending ? `Editing import: ${existing?.title || 'Untitled'}` : isNew ? 'New Song' : `Edit: ${existing?.title}`}
+        </h1>
         <div className="flex gap-2 ml-auto">
-          {!isNew && (
+          {!isNew && !isPending && (
             <button onClick={() => setShowDelete(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm" style={{ color: 'var(--danger)' }}>
               <Trash2 size={14} />Delete
             </button>
@@ -298,7 +507,7 @@ export default function SongEditPage(): React.ReactElement {
                 <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" placeholder="Song title" />
               </Field>
               <Field label="Artist">
-                <input value={artist} onChange={(e) => setArtist(e.target.value)} className="input-field" placeholder="Artist name" />
+                <SuggestionInput value={artist} onChange={setArtist} suggestions={artistSuggestions} placeholder="Artist name" />
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Key">
@@ -313,7 +522,7 @@ export default function SongEditPage(): React.ReactElement {
                   </select>
                 </Field>
                 <Field label="Tempo (BPM)">
-                  <input type="number" value={tempo} onChange={(e) => setTempo(e.target.value)} className="input-field" placeholder="120" min={40} max={300} />
+                  <TempoInput value={tempo} onChange={setTempo} />
                 </Field>
                 <Field label="Capo">
                   <select value={capo} onChange={(e) => setCapo(Number(e.target.value))} className="input-field">
@@ -321,36 +530,29 @@ export default function SongEditPage(): React.ReactElement {
                   </select>
                 </Field>
               </div>
-              <Field label="Genre">
+              <Field label="Genre" hint="Pick a common genre, or type a custom one below.">
                 <select
-                  value={genre}
+                  value={COMMON_GENRES.includes(genre) ? genre : ''}
                   onChange={(e) => setGenre(e.target.value)}
                   className="input-field"
                 >
-                  <option value="">— Select genre —</option>
-                  {['Pop', 'Rock', 'Country', 'Worship', 'Gospel', 'R&B', 'Soul', 'Jazz', 'Blues',
-                    'Folk', 'Classical', 'Latin', 'Alternative', 'Indie', 'Hip-Hop', 'Electronic',
-                    'Metal', 'Punk', 'Reggae', 'Christian'].map((g) => (
+                  <option value="">— Select common genre —</option>
+                  {COMMON_GENRES.map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
-                <input
-                  value={genre}
-                  onChange={(e) => setGenre(e.target.value)}
-                  className="input-field"
-                  placeholder="Or type a custom genre..."
-                  style={{ marginTop: 6 }}
-                />
+                <div style={{ marginTop: 6 }}>
+                  <SuggestionInput
+                    value={genre}
+                    onChange={setGenre}
+                    suggestions={genreSuggestions}
+                    placeholder="Or type a custom genre…"
+                  />
+                </div>
               </Field>
               <div className="grid grid-cols-4 gap-4">
-                <Field label="Duration (m:ss)">
-                  <input
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                    className="input-field"
-                    placeholder="3:45"
-                    pattern="[0-9]+:[0-5][0-9]"
-                  />
+                <Field label="Duration (mm:ss)">
+                  <DurationInput value={duration} onChange={setDuration} />
                 </Field>
                 <Field label="Year">
                   <input
@@ -364,16 +566,11 @@ export default function SongEditPage(): React.ReactElement {
                   />
                 </Field>
                 <Field label="Language">
-                  <input
-                    value={language}
-                    onChange={(e) => setLanguage(e.target.value)}
-                    className="input-field"
-                    placeholder="English"
-                  />
+                  <SuggestionInput value={language} onChange={setLanguage} suggestions={languageSuggestions} placeholder="English" />
                 </Field>
               </div>
               <Field label="Tags" hint="Type a keyword and press Enter or comma to add.">
-                <TagsInput value={tags} onChange={setTags} />
+                <TagsInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
               </Field>
               <Field label="Difficulty">
                 <DifficultyStars value={difficulty} onChange={setDifficulty} />
@@ -393,17 +590,17 @@ export default function SongEditPage(): React.ReactElement {
                 <FormatToggle
                   format={format}
                   onChange={(next) => {
-                    if (next === format) return;
                     setFormat(next);
-                    // Swap built-in example as the user hasn't started typing.
+                    // Swap built-in example when the user hasn't edited yet.
                     if (content === EXAMPLE_CHORDPRO || content === EXAMPLE_PLAINTEXT) {
                       const swapped = exampleFor(next);
                       setContent(swapped);
                       commitHistory(swapped);
                       return;
                     }
-                    // Otherwise convert the current content so the user sees
-                    // their song reformatted in the newly-selected layout.
+                    // Normalize to the target format regardless of the current
+                    // label — the user may have pasted content whose actual
+                    // format doesn't match the previous toggle state.
                     const converted = next === 'plaintext'
                       ? chordProToChordsOverLyrics(content)
                       : chordsOverLyricsToChordPro(content);
@@ -471,6 +668,19 @@ export default function SongEditPage(): React.ReactElement {
                 const v = e.target.value;
                 setContent(v);
                 scheduleTypingCommit(v);
+              }}
+              onPaste={(e) => {
+                // After the browser applies the paste, look at the resulting
+                // text and align the toggle with whichever format the pasted
+                // song actually uses. This way the user can paste either
+                // format into either mode and the toggle becomes accurate.
+                const pasted = e.clipboardData?.getData('text') ?? '';
+                if (!pasted.trim()) return;
+                const detected = detectSongFormat(pasted);
+                if (detected && detected !== format) {
+                  // Defer to next tick so React sees the textarea's final value.
+                  requestAnimationFrame(() => setFormat(detected));
+                }
               }}
               onKeyDown={(e) => {
                 const ctrl = e.ctrlKey || e.metaKey;
@@ -547,6 +757,101 @@ export default function SongEditPage(): React.ReactElement {
           }}
         />
       )}
+
+      {pendingLeave && (
+        <UnsavedChangesDialog
+          onSave={async () => {
+            const run = pendingLeave.run;
+            setPendingLeave(null);
+            // handleSave already navigates on success, so we don't invoke
+            // `run` after it. If the save fails, the user stays on the
+            // page with their edits intact.
+            await handleSave();
+            // If handleSave didn't navigate (e.g. title missing), still run
+            // the requested navigation only when the form is now clean.
+            // The alert() in handleSave returns early so we use saving flag
+            // to infer success. Simpler: just no-op here; the user can
+            // try the navigation again.
+            void run;
+          }}
+          onDiscard={() => {
+            const run = pendingLeave.run;
+            setPendingLeave(null);
+            run();
+          }}
+          onCancel={() => setPendingLeave(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function UnsavedChangesDialog({
+  onSave, onDiscard, onCancel,
+}: {
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+}): React.ReactElement {
+  useEffect(() => {
+    // Capture + stopImmediatePropagation so page-level Escape handlers
+    // don't also fire.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onCancel();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onSave();
+      }
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
+  }, [onSave, onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.5)', zIndex: 300 }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-xl p-5"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Unsaved changes</h3>
+        <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
+          You've made changes that haven't been saved. What would you like to do?
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 rounded-lg text-sm"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onDiscard}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ color: 'var(--danger)', background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
+          >
+            Discard
+          </button>
+          <button
+            onClick={onSave}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium"
+            style={{ background: 'var(--accent)', color: 'white' }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -564,21 +869,21 @@ function FormatToggle({ format, onChange }: {
     <div className="inline-flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
       <button
         type="button"
-        onClick={() => onChange('chordpro')}
-        className="px-2 py-1 text-xs font-medium"
-        style={btnStyle(format === 'chordpro')}
-        title="Inline ChordPro format: [G]Amazing [C]grace"
-      >
-        ChordPro
-      </button>
-      <button
-        type="button"
         onClick={() => onChange('plaintext')}
         className="px-2 py-1 text-xs font-medium"
         style={btnStyle(format === 'plaintext')}
         title="Chord names on one line, lyric directly below. Converted to ChordPro on save."
       >
         Chords over lyrics
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('chordpro')}
+        className="px-2 py-1 text-xs font-medium"
+        style={btnStyle(format === 'chordpro')}
+        title="Inline ChordPro format: [G]Amazing [C]grace"
+      >
+        ChordPro
       </button>
     </div>
   );
@@ -613,12 +918,20 @@ function ChordPopover({ x, y, inSong, onPick, onClose }: {
     const onDocClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      // Capture + stopImmediatePropagation so page-level Escape handlers
+      // don't also fire — otherwise closing the chord picker would navigate.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
     document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onKey, { capture: true });
     return () => {
       document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onKey, { capture: true });
     };
   }, [onClose]);
 
@@ -664,6 +977,216 @@ function ChordPopover({ x, y, inSong, onPick, onClose }: {
   );
 }
 
+/** Text input that shows a dropdown of suggestions filtered by what the
+ * user has typed so far. Clicking (or pressing Enter on) a suggestion fills
+ * the field with that suggestion's canonical casing. Used by both the
+ * Artist and Language fields. */
+function SuggestionInput({
+  value, onChange, suggestions, placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+}): React.ReactElement {
+  const [focused, setFocused] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const filtered = useMemo(() => {
+    const q = value.trim().toLowerCase();
+    if (!q) return suggestions.slice(0, 8);
+    return suggestions
+      .filter((a) => a.toLowerCase().includes(q) && a.toLowerCase() !== q)
+      .slice(0, 8);
+  }, [suggestions, value]);
+
+  const showDropdown = focused && filtered.length > 0;
+
+  const pick = (choice: string) => {
+    onChange(choice);
+    setFocused(false);
+  };
+
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, filtered.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter' && filtered[activeIdx]) { e.preventDefault(); pick(filtered[activeIdx]); }
+    else if (e.key === 'Escape') { setFocused(false); }
+  };
+
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setActiveIdx(0); }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setTimeout(() => setFocused(false), 120); }}
+        onKeyDown={handleKey}
+        className="input-field w-full"
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {showDropdown && (
+        <ul
+          className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden shadow-lg max-h-56 overflow-y-auto"
+          style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
+        >
+          {filtered.map((s, i) => (
+            <li
+              key={s}
+              onMouseDown={(e) => { e.preventDefault(); pick(s); }}
+              onMouseEnter={() => setActiveIdx(i)}
+              className="px-3 py-2 cursor-pointer text-sm"
+              style={{
+                background: i === activeIdx ? 'var(--accent)' : 'transparent',
+                color: i === activeIdx ? 'white' : 'var(--text-primary)',
+              }}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Numeric BPM input with a tap-tempo button. Each click (or Space/Enter
+ * press) records a beat timestamp; the displayed BPM is the mean interval
+ * across the most recent taps. Taps that arrive after a long pause are
+ * treated as the start of a fresh sequence instead of a huge outlier. */
+function TempoInput({
+  value, onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}): React.ReactElement {
+  const tapsRef = useRef<number[]>([]);
+  const [flash, setFlash] = useState(false);
+
+  const reset = () => {
+    tapsRef.current = [];
+    onChange('');
+  };
+
+  const handleTap = () => {
+    const now = Date.now();
+    const taps = tapsRef.current;
+    // If the gap since the last tap is > 2s, start over — the user is probably
+    // re-tapping rather than continuing the same sequence.
+    const last = taps[taps.length - 1];
+    if (last !== undefined && now - last > 2000) {
+      tapsRef.current = [now];
+    } else {
+      tapsRef.current = [...taps, now];
+      // Keep only the last 8 taps so old timings don't skew the average.
+      if (tapsRef.current.length > 8) tapsRef.current = tapsRef.current.slice(-8);
+    }
+    const arr = tapsRef.current;
+    if (arr.length >= 2) {
+      const intervals: number[] = [];
+      for (let i = 1; i < arr.length; i++) intervals.push(arr[i]! - arr[i - 1]!);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const bpm = Math.round(60000 / avg);
+      if (bpm >= 40 && bpm <= 300) onChange(String(bpm));
+    }
+    setFlash(true);
+    setTimeout(() => setFlash(false), 120);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => { tapsRef.current = []; onChange(e.target.value); }}
+        className="input-field flex-1"
+        placeholder="120"
+        min={40}
+        max={300}
+      />
+      <button
+        type="button"
+        onClick={handleTap}
+        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); handleTap(); } }}
+        title="Tap to set tempo"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+        style={{
+          background: flash ? 'var(--accent)' : 'var(--surface-elevated)',
+          color: flash ? 'white' : 'var(--text-secondary)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <Hand size={14} />Tap
+      </button>
+      <button
+        type="button"
+        onClick={reset}
+        title="Clear tempo"
+        className="p-2 rounded-lg transition-colors"
+        style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+      >
+        <RotateCcw size={14} />
+      </button>
+    </div>
+  );
+}
+
+/** Sanitise a duration string typed by the user. Keeps only digits + a single
+ * colon, caps minutes at 3 digits (~999 minutes), and restricts seconds so
+ * the first digit is 0-5 and the value is at most 2 digits. */
+function sanitizeDurationInput(raw: string): string {
+  const cleaned = raw.replace(/[^\d:]/g, '');
+  const colonIdx = cleaned.indexOf(':');
+  if (colonIdx === -1) {
+    return cleaned.slice(0, 3);
+  }
+  const before = cleaned.slice(0, colonIdx).slice(0, 3);
+  let after = cleaned.slice(colonIdx + 1).replace(/[^\d]/g, '').slice(0, 2);
+  if (after.length >= 1 && parseInt(after[0]!, 10) > 5) {
+    after = after.slice(1);
+  }
+  return `${before}:${after}`;
+}
+
+/** Normalise on blur: pad seconds, reject standalone bare values to enforce
+ * the mm:ss shape. Empty stays empty (duration is optional). */
+function normaliseDurationOnBlur(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  const colonIdx = trimmed.indexOf(':');
+  if (colonIdx === -1) {
+    // Bare number — treat as minutes.
+    const m = trimmed.replace(/[^\d]/g, '');
+    return m ? `${parseInt(m, 10)}:00` : '';
+  }
+  const before = trimmed.slice(0, colonIdx).replace(/[^\d]/g, '');
+  const after = trimmed.slice(colonIdx + 1).replace(/[^\d]/g, '');
+  if (!before) return '';
+  const m = parseInt(before, 10);
+  const s = after === '' ? 0 : parseInt(after, 10);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+const DURATION_RE = /^\d+:[0-5]\d$/;
+
+function DurationInput({ value, onChange }: { value: string; onChange: (v: string) => void }): React.ReactElement {
+  const isInvalid = value.trim() !== '' && !DURATION_RE.test(value);
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(sanitizeDurationInput(e.target.value))}
+      onBlur={(e) => onChange(normaliseDurationOnBlur(e.target.value))}
+      className="input-field"
+      placeholder="3:45"
+      inputMode="numeric"
+      style={isInvalid ? { borderColor: 'var(--danger)' } : undefined}
+      title="Format: mm:ss (e.g. 3:45)"
+    />
+  );
+}
+
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }): React.ReactElement {
   return (
     <div className="flex flex-col gap-1">
@@ -674,65 +1197,121 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
-function TagsInput({ value, onChange }: { value: string[]; onChange: (tags: string[]) => void }): React.ReactElement {
+function TagsInput({
+  value, onChange, suggestions = [],
+}: {
+  value: string[];
+  onChange: (tags: string[]) => void;
+  suggestions?: string[];
+}): React.ReactElement {
   const [draft, setDraft] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   const addTag = (raw: string) => {
     const trimmed = raw.trim().replace(/,+$/, '').trim();
     if (!trimmed) return;
-    if (value.includes(trimmed)) { setDraft(''); return; }
+    if (value.some((t) => t.toLowerCase() === trimmed.toLowerCase())) { setDraft(''); return; }
     onChange([...value, trimmed]);
     setDraft('');
+    setActiveIdx(0);
   };
 
   const removeTag = (i: number) => onChange(value.filter((_, idx) => idx !== i));
 
+  // Filtered suggestions: omit anything already added; prefix-tolerant match
+  // on the current draft. Empty draft shows the first 8 alphabetically.
+  const filtered = useMemo(() => {
+    const taken = new Set(value.map((t) => t.toLowerCase()));
+    const q = draft.trim().toLowerCase();
+    const pool = suggestions.filter((s) => !taken.has(s.toLowerCase()));
+    if (!q) return pool.slice(0, 8);
+    return pool.filter((s) => s.toLowerCase().includes(q) && s.toLowerCase() !== q).slice(0, 8);
+  }, [suggestions, value, draft]);
+
+  const showDropdown = focused && filtered.length > 0;
+
   return (
-    <div
-      className="input-field flex flex-wrap items-center gap-1.5 min-h-[40px]"
-      onClick={(e) => {
-        // Focus the inline input when the user clicks the chip container
-        const input = (e.currentTarget as HTMLDivElement).querySelector('input');
-        input?.focus();
-      }}
-    >
-      {value.map((tag, i) => (
-        <span
-          key={`${tag}-${i}`}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-          style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-        >
-          {tag}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); removeTag(i); }}
-            className="ml-0.5 rounded-full w-4 h-4 flex items-center justify-center leading-none hover:opacity-80"
-            style={{ color: 'var(--text-muted)' }}
-            title={`Remove ${tag}`}
+    <div className="relative">
+      <div
+        className="input-field flex flex-wrap items-center gap-1.5 min-h-[40px]"
+        onClick={(e) => {
+          const input = (e.currentTarget as HTMLDivElement).querySelector('input');
+          input?.focus();
+        }}
+      >
+        {value.map((tag, i) => (
+          <span
+            key={`${tag}-${i}`}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+            style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           >
-            ×
-          </button>
-        </span>
-      ))}
-      <input
-        value={draft}
-        onChange={(e) => {
-          const v = e.target.value;
-          // Typing a comma commits the tag
-          if (v.endsWith(',')) addTag(v.slice(0, -1));
-          else setDraft(v);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); addTag(draft); }
-          else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
-            removeTag(value.length - 1);
-          }
-        }}
-        onBlur={() => { if (draft.trim()) addTag(draft); }}
-        placeholder={value.length === 0 ? 'Add a tag…' : ''}
-        className="flex-1 min-w-[80px] bg-transparent outline-none text-sm"
-        style={{ color: 'var(--text-primary)' }}
-      />
+            {tag}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); removeTag(i); }}
+              className="ml-0.5 rounded-full w-4 h-4 flex items-center justify-center leading-none hover:opacity-80"
+              style={{ color: 'var(--text-muted)' }}
+              title={`Remove ${tag}`}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={draft}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v.endsWith(',')) addTag(v.slice(0, -1));
+            else { setDraft(v); setActiveIdx(0); }
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            // Slight delay so a click on a suggestion item still registers.
+            setTimeout(() => setFocused(false), 120);
+            if (draft.trim()) addTag(draft);
+          }}
+          onKeyDown={(e) => {
+            if (showDropdown && e.key === 'ArrowDown') {
+              e.preventDefault(); setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+            } else if (showDropdown && e.key === 'ArrowUp') {
+              e.preventDefault(); setActiveIdx((i) => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (showDropdown && filtered[activeIdx]) addTag(filtered[activeIdx]);
+              else addTag(draft);
+            } else if (e.key === 'Escape') {
+              setFocused(false);
+            } else if (e.key === 'Backspace' && draft === '' && value.length > 0) {
+              removeTag(value.length - 1);
+            }
+          }}
+          placeholder={value.length === 0 ? 'Add a tag…' : ''}
+          className="flex-1 min-w-[80px] bg-transparent outline-none text-sm"
+          style={{ color: 'var(--text-primary)' }}
+        />
+      </div>
+      {showDropdown && (
+        <ul
+          className="absolute left-0 right-0 top-full mt-1 z-10 rounded-lg overflow-hidden shadow-lg max-h-56 overflow-y-auto"
+          style={{ background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
+        >
+          {filtered.map((s, i) => (
+            <li
+              key={s}
+              onMouseDown={(e) => { e.preventDefault(); addTag(s); }}
+              onMouseEnter={() => setActiveIdx(i)}
+              className="px-3 py-2 cursor-pointer text-sm"
+              style={{
+                background: i === activeIdx ? 'var(--accent)' : 'transparent',
+                color: i === activeIdx ? 'white' : 'var(--text-primary)',
+              }}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

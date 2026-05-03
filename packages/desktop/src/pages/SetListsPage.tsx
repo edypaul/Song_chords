@@ -1,19 +1,60 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Trash2, Calendar, Pencil, Check, X, Play } from 'lucide-react';
-import { useSetListStore } from '@song-chords/shared';
+import { Plus, ListMusic, Trash2, Calendar, Pencil, Check, X, Play, FileText, Music, Clock, Copy, Download } from 'lucide-react';
+import { useSetListStore, useSongStore, SetListRepository } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
-import type { SetList } from '@song-chords/shared';
+import type { SetList, Song } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import SongExportModal from '../components/song/SongExportModal';
 
 export default function SetListsPage(): React.ReactElement {
   const navigate = useNavigate();
-  const { setlists, createSetList, updateSetList, deleteSetList, isLoading } = useSetListStore();
+  const { setlists, createSetList, updateSetList, deleteSetList, duplicateSetList, isLoading } = useSetListStore();
+  const songs = useSongStore((s) => s.songs);
+  const [pendingExport, setPendingExport] = useState<{ songs: Song[]; title: string } | null>(null);
+
+  // Build the song list for a setlist with each entry's transpose / capo /
+  // key / tempo / time-sig override applied on top of the underlying song,
+  // then open the unified Export modal.
+  const openExportForSetlist = async (sl: SetList) => {
+    const repo = new SetListRepository(db);
+    const entries = await repo.getEntries(sl.id);
+    const songsForExport = entries
+      .filter((e) => (e.type ?? 'song') === 'song' && e.songId)
+      .map((e) => {
+        const base = songs.find((s) => s.id === e.songId);
+        if (!base) return null;
+        return {
+          ...base,
+          key: e.key ?? base.key,
+          tempo: e.tempo ?? base.tempo,
+          timeSig: e.timeSig ?? base.timeSig,
+          capo: e.capo ?? base.capo ?? 0,
+          preferences: {
+            ...(base.preferences ?? {}),
+            transposeSteps: e.transpose ?? base.preferences?.transposeSteps ?? 0,
+          },
+        };
+      })
+      .filter((s): s is NonNullable<typeof s> => s !== null);
+    if (songsForExport.length === 0) return;
+    setPendingExport({ songs: songsForExport, title: sl.name });
+  };
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDate, setNewDate] = useState('');
+  const [counts, setCounts] = useState<Record<string, { songs: number; notes: number }>>({});
+  const [durations, setDurations] = useState<Record<string, number>>({});
+
+  // Reload songs/notes counts whenever the setlist collection changes (new
+  // list, deleted list, entries added from elsewhere in the app).
+  useEffect(() => {
+    const repo = new SetListRepository(db);
+    void repo.getEntryCountsByType().then(setCounts).catch(() => setCounts({}));
+    void repo.getSetlistDurations().then(setDurations).catch(() => setDurations({}));
+  }, [setlists]);
 
   const resetCreateForm = () => {
     setNewName('');
@@ -52,7 +93,11 @@ export default function SetListsPage(): React.ReactElement {
       </div>
 
       {showCreate && (
-        <div className="grid gap-2 px-6 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', gridTemplateColumns: '2fr 2fr 1fr auto' }}>
+        <div className="grid gap-x-2 gap-y-1 px-6 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', gridTemplateColumns: '2fr 2fr 1fr auto' }}>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Name</label>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Description</label>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Performance date (optional)</label>
+          <span />
           <input
             autoFocus
             value={newName}
@@ -65,7 +110,7 @@ export default function SetListsPage(): React.ReactElement {
           <input
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
-            placeholder="Description (optional)"
+            placeholder="Short note, event, etc."
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           />
@@ -73,6 +118,7 @@ export default function SetListsPage(): React.ReactElement {
             type="date"
             value={newDate}
             onChange={(e) => setNewDate(e.target.value)}
+            title="Date you'll perform this set list (optional)"
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           />
@@ -102,28 +148,54 @@ export default function SetListsPage(): React.ReactElement {
               <SetListCard
                 key={sl.id}
                 setlist={sl}
+                songCount={counts[sl.id]?.songs ?? 0}
+                noteCount={counts[sl.id]?.notes ?? 0}
+                durationSeconds={durations[sl.id] ?? 0}
                 onOpen={() => navigate(`/setlists/${sl.id}`)}
                 onPerform={() => navigate(`/setlists/${sl.id}/player`)}
                 onUpdate={(patch) => updateSetList(db, sl.id, patch)}
                 onDelete={() => deleteSetList(db, sl.id)}
+                onDuplicate={() => duplicateSetList(db, sl.id)}
+                onExport={() => openExportForSetlist(sl)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {pendingExport && (
+        <SongExportModal
+          songs={pendingExport.songs}
+          bookTitle={pendingExport.title}
+          onClose={() => setPendingExport(null)}
+        />
+      )}
     </div>
   );
 }
 
 interface SetListCardProps {
   setlist: SetList;
+  songCount: number;
+  noteCount: number;
+  durationSeconds: number;
   onOpen: () => void;
   onPerform: () => void;
   onUpdate: (patch: Partial<Pick<SetList, 'name' | 'description' | 'date'>>) => Promise<void>;
   onDelete: () => void;
+  onDuplicate: () => Promise<unknown>;
+  onExport: () => void | Promise<void>;
 }
 
-function SetListCard({ setlist, onOpen, onPerform, onUpdate, onDelete }: SetListCardProps): React.ReactElement {
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return '';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, onPerform, onUpdate, onDelete, onDuplicate, onExport }: SetListCardProps): React.ReactElement {
   const [editing, setEditing] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [name, setName] = useState(setlist.name);
@@ -200,8 +272,7 @@ function SetListCard({ setlist, onOpen, onPerform, onUpdate, onDelete }: SetList
   return (
     <div
       onClick={onOpen}
-      className="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-colors group"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+      className="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-colors group bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--accent)]"
     >
       <div className="p-2 rounded-lg" style={{ background: 'var(--surface-elevated)' }}>
         <ListMusic size={20} style={{ color: 'var(--accent)' }} />
@@ -209,11 +280,24 @@ function SetListCard({ setlist, onOpen, onPerform, onUpdate, onDelete }: SetList
       <div className="flex-1 min-w-0">
         <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{setlist.name}</p>
         {setlist.description && <p className="text-sm truncate" style={{ color: 'var(--text-muted)' }}>{setlist.description}</p>}
-        {setlist.date && (
-          <p className="text-xs flex items-center gap-1 mt-1" style={{ color: 'var(--text-muted)' }}>
-            <Calendar size={11} />{new Date(setlist.date).toLocaleDateString()}
-          </p>
-        )}
+        <div className="flex items-center gap-3 text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+          <span className="flex items-center gap-1" title={`${songCount} song${songCount === 1 ? '' : 's'}`}>
+            <Music size={11} />{songCount} song{songCount === 1 ? '' : 's'}
+          </span>
+          <span className="flex items-center gap-1" title={`${noteCount} note${noteCount === 1 ? '' : 's'}`}>
+            <FileText size={11} />{noteCount} note{noteCount === 1 ? '' : 's'}
+          </span>
+          {durationSeconds > 0 && (
+            <span className="flex items-center gap-1" title="Approximate total runtime based on song durations">
+              <Clock size={11} />~{formatDuration(durationSeconds)}
+            </span>
+          )}
+          {setlist.date && (
+            <span className="flex items-center gap-1">
+              <Calendar size={11} />{new Date(setlist.date).toLocaleDateString()}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex items-center gap-1">
         <button
@@ -225,14 +309,30 @@ function SetListCard({ setlist, onOpen, onPerform, onUpdate, onDelete }: SetList
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-          className="p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--surface-elevated)]"
+          className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
           title="Edit set list"
         >
           <Pencil size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <button
+          onClick={(e) => { e.stopPropagation(); void onDuplicate(); }}
+          className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
+          title="Duplicate this set list"
+        >
+          <Copy size={16} style={{ color: 'var(--text-secondary)' }} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); void onExport(); }}
+          className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
+          title="Export set list"
+          disabled={songCount === 0}
+          style={{ opacity: songCount === 0 ? 0.4 : 1 }}
+        >
+          <Download size={16} style={{ color: 'var(--text-secondary)' }} />
+        </button>
+        <button
           onClick={(e) => { e.stopPropagation(); setShowDelete(true); }}
-          className="p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--surface-elevated)]"
+          className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
           title="Delete set list"
         >
           <Trash2 size={16} style={{ color: 'var(--danger)' }} />

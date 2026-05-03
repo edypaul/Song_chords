@@ -1,6 +1,7 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Library, ListMusic, Upload, Settings, Menu, Guitar, Tags, LayoutDashboard, LogOut, Star } from 'lucide-react';
+import { useNavigationGuard } from '../../context/NavigationGuard';
 
 const NAV_ITEMS = [
   { to: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
@@ -18,7 +19,27 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.ReactElement {
-  const w = collapsed ? 48 : 220;
+  // 160px is just wide enough for the longest label ("Categories") with the
+  // icon, gap, and surrounding padding, leaving a small margin for comfort.
+  const w = collapsed ? 48 : 180;
+  const { tryNavigate } = useNavigationGuard();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Intercept clicks so active navigation guards (e.g. unsaved changes on
+  // the Song Edit page) can prompt before the route actually changes.
+  const handleNavClick = (to: string) => (e: React.MouseEvent) => {
+    // Don't interfere with non-primary clicks (middle-click, Ctrl+click).
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (location.pathname === to) return;
+    e.preventDefault();
+    tryNavigate(() => navigate(to));
+  };
+
+  const handleQuit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    tryNavigate(() => { void window.electronAPI?.app?.quit?.(); });
+  };
 
   return (
     <nav
@@ -46,6 +67,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
         <NavLink
           key={to}
           to={to}
+          onClick={handleNavClick(to)}
           title={collapsed ? label : undefined}
           className={({ isActive }) =>
             `flex items-center rounded-lg mx-2 transition-colors ${
@@ -65,6 +87,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
 
       <NavLink
         to="/settings"
+        onClick={handleNavClick('/settings')}
         title={collapsed ? 'Settings' : undefined}
         className={({ isActive }) =>
           `flex items-center rounded-lg mx-2 transition-colors ${
@@ -80,7 +103,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps): React.Re
       </NavLink>
 
       <button
-        onClick={() => { void window.electronAPI?.app?.quit?.(); }}
+        onClick={handleQuit}
         title={collapsed ? 'Quit' : undefined}
         className="flex items-center rounded-lg mx-2 transition-colors text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]"
         style={{ gap: 12, padding: collapsed ? '8px 0' : '8px 12px', justifyContent: collapsed ? 'center' : 'flex-start' }}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, X, Star } from 'lucide-react';
 import { useSongStore, useSettingsStore } from '@song-chords/shared';
@@ -6,6 +6,7 @@ import { db } from '../ipc/ipc-client';
 import type { Song, SongListColumn } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
+import SongSelectionBar from '../components/song/SongSelectionBar';
 
 export default function LibraryPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -17,11 +18,28 @@ export default function LibraryPage(): React.ReactElement {
   const columns = useSettingsStore((s) => s.settings.songListColumns);
   const show = (c: SongListColumn) => columns?.[c] ?? true;
   const [menu, setMenu] = useState<{ song: Song; x: number; y: number } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const handleSort = (field: Parameters<typeof setSortField>[0]) => {
     if (sortField === field) toggleSortDirection();
     else setSortField(field);
   };
+
+  const toggleRow = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    setSelected((prev) => prev.size === filteredSongs.length ? new Set() : new Set(filteredSongs.map((s) => s.id)));
+  };
+  const selectedSongs = useMemo(
+    () => filteredSongs.filter((s) => selected.has(s.id)),
+    [filteredSongs, selected],
+  );
+  const allChecked = filteredSongs.length > 0 && selected.size === filteredSongs.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -47,16 +65,16 @@ export default function LibraryPage(): React.ReactElement {
           )}
         </div>
 
+        <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
           onClick={() => navigate('/song/new')}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{ background: 'var(--accent)', color: 'white' }}
         >
           <Plus size={16} />
           New Song
         </button>
       </div>
-
 
       {/* Song list */}
       <div className="flex-1 overflow-y-auto">
@@ -71,14 +89,25 @@ export default function LibraryPage(): React.ReactElement {
           <table className="w-full text-sm">
             <thead>
               <tr className="sticky top-0" style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
+                <th className="w-10 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={toggleAll}
+                    aria-label="Select all songs"
+                  />
+                </th>
                 <SortTh field="title"      label="Title"      align="left"  extra="px-6" active={sortField} dir={sortDirection} onClick={handleSort} />
                 {show('artist')     && <SortTh field="artist"     label="Artist"     align="left"  active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('genre')      && <SortTh field="genre"      label="Genre"      align="left"  width="w-28" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('key')        && <SortTh field="key"        label="Key"        align="left"  width="w-16" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('difficulty') && <SortTh field="difficulty" label="Difficulty" align="left"  width="w-32" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('tempo')      && <SortTh field="tempo"      label="Tempo"      align="right" width="w-24" extra="whitespace-nowrap" active={sortField} dir={sortDirection} onClick={handleSort} />}
+                {show('duration')   && <SortTh field="duration"   label="Duration"   align="right" width="w-20" extra="whitespace-nowrap" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('year')       && <SortTh field="year"       label="Year"       align="left"  width="w-20" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('language')   && <SortTh field="language"   label="Language"   align="left"  width="w-28" active={sortField} dir={sortDirection} onClick={handleSort} />}
+                {show('chordsCount')&& <SortTh field="chordsCount" label="Chords"     align="right" width="w-20" active={sortField} dir={sortDirection} onClick={handleSort} />}
+                {show('createdAt')  && <SortTh field="createdAt"   label="Added"      align="left"  width="w-28" active={sortField} dir={sortDirection} onClick={handleSort} />}
               </tr>
             </thead>
             <tbody>
@@ -87,8 +116,17 @@ export default function LibraryPage(): React.ReactElement {
                   key={song.id}
                   song={song}
                   show={show}
+                  selected={selected.has(song.id)}
+                  menuOpen={menu?.song.id === song.id}
+                  onToggle={() => toggleRow(song.id)}
                   onClick={() => navigate(`/song/${song.id}`)}
-                  onContextMenu={(e) => { e.preventDefault(); setMenu({ song, x: e.clientX, y: e.clientY }); }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    // Selection mode: suppress the per-song context menu so
+                    // the bulk-action pill is the only affordance.
+                    if (selected.size > 0) return;
+                    setMenu({ song, x: e.clientX, y: e.clientY });
+                  }}
                 />
               ))}
             </tbody>
@@ -109,10 +147,13 @@ export default function LibraryPage(): React.ReactElement {
 }
 
 function SongRow({
-  song, show, onClick, onContextMenu,
+  song, show, selected, menuOpen, onToggle, onClick, onContextMenu,
 }: {
   song: Song;
   show: (c: SongListColumn) => boolean;
+  selected: boolean;
+  menuOpen: boolean;
+  onToggle: () => void;
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }): React.ReactElement {
@@ -121,8 +162,11 @@ function SongRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
       className="cursor-pointer border-b transition-colors hover:bg-[var(--surface-elevated)]"
-      style={{ borderColor: 'var(--border)' }}
+      style={{ borderColor: 'var(--border)', background: selected || menuOpen ? 'var(--surface-elevated)' : undefined }}
     >
+      <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+        <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Select ${song.title}`} />
+      </td>
       <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>
         <span className="inline-flex items-center gap-2">
           {song.favorite && <Star size={12} style={{ color: 'var(--accent)' }} fill="currentColor" />}
@@ -134,15 +178,18 @@ function SongRow({
       {show('key')        && <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--chord-color)' }}>{song.key ?? '—'}</td>}
       {show('difficulty') && <td className="px-4 py-3"><DifficultyCell value={song.difficulty} /></td>}
       {show('tempo')      && <td className="px-4 py-3 text-xs whitespace-nowrap text-right font-mono" style={{ color: 'var(--text-muted)' }}>{song.tempo ? `${song.tempo} BPM` : '—'}</td>}
+      {show('duration')   && <td className="px-4 py-3 text-xs whitespace-nowrap text-right font-mono" style={{ color: 'var(--text-muted)' }}>{song.duration ?? '—'}</td>}
       {show('year')       && <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{song.year ?? '—'}</td>}
       {show('language')   && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.language ? toTitleCase(song.language) : '—'}</td>}
+      {show('chordsCount')&& <td className="px-4 py-3 text-xs font-mono text-right" style={{ color: 'var(--text-muted)' }}>{song.chordsCount ?? 0}</td>}
+      {show('createdAt')  && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(song.createdAt).toLocaleDateString()}</td>}
     </tr>
   );
 }
 
 const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
 
-type SortableField = 'title' | 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'year' | 'language';
+type SortableField = 'title' | 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'duration' | 'year' | 'language' | 'chordsCount' | 'createdAt';
 
 function SortTh({
   field, label, align, width, extra, active, dir, onClick,

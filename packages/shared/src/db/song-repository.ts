@@ -33,6 +33,7 @@ interface SongRow {
   updated_at: number;
   sort_order: number;
   preferences: string;
+  last_viewed_at: number | null;
 }
 
 function rowToSong(row: SongRow): Song {
@@ -64,6 +65,7 @@ function rowToSong(row: SongRow): Song {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sortOrder: row.sort_order,
+    lastViewedAt: row.last_viewed_at ?? undefined,
   };
 }
 
@@ -171,6 +173,15 @@ export class SongRepository {
 
   async delete(id: string): Promise<void> {
     await this.db.execute('DELETE FROM songs WHERE id=?', [id]);
+  }
+
+  /** Stamp the song as viewed right now. Does not touch updated_at so
+   * "recently edited" and "recently viewed" remain independent signals. */
+  async markViewed(id: string): Promise<void> {
+    await this.db.execute(
+      'UPDATE songs SET last_viewed_at=? WHERE id=?',
+      [Date.now(), id],
+    );
   }
 
   async getByKey(key: string): Promise<Song[]> {

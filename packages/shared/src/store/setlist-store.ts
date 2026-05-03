@@ -14,9 +14,12 @@ interface SetListStore {
   createSetList: (db: IDatabase, input: SetListCreateInput) => Promise<SetList>;
   updateSetList: (db: IDatabase, id: string, patch: Partial<Pick<SetList, 'name' | 'description' | 'date'>>) => Promise<void>;
   deleteSetList: (db: IDatabase, id: string) => Promise<void>;
+  duplicateSetList: (db: IDatabase, id: string) => Promise<SetList | null>;
   openSetList: (db: IDatabase, id: string) => Promise<void>;
   closeSetList: () => void;
   addSongToSetList: (db: IDatabase, setlistId: string, songId: string) => Promise<void>;
+  addNoteToSetList: (db: IDatabase, setlistId: string, title: string, body: string) => Promise<void>;
+  updateNoteEntry: (db: IDatabase, entryId: string, title: string, body: string) => Promise<void>;
   removeSongFromSetList: (db: IDatabase, entryId: string) => Promise<void>;
   reorderSetList: (db: IDatabase, setlistId: string, orderedEntryIds: string[]) => Promise<void>;
   updateEntry: (
@@ -64,6 +67,41 @@ export const useSetListStore = create<SetListStore>((set, get) => ({
     set((s) => ({ setlists: s.setlists.filter((sl) => sl.id !== id) }));
   },
 
+  /** Clone a set list — copies name (with " (copy)" suffix), description,
+   * date, and every entry (song + note) in order, preserving the per-entry
+   * transpose/capo/key/tempo/time-sig/notes overrides. Nothing on the
+   * original is modified. */
+  duplicateSetList: async (db, id) => {
+    const repo = new SetListRepository(db);
+    const source = await repo.getById(id);
+    if (!source) return null;
+
+    const copy = await repo.create({
+      name: `${source.name} (copy)`,
+      description: source.description,
+      date: source.date,
+    });
+
+    const entries = await repo.getEntries(id);
+    for (const e of entries) {
+      if (e.type === 'note') {
+        await repo.addNoteEntry(copy.id, e.noteTitle ?? '', e.noteBody ?? '');
+      } else if (e.songId) {
+        const snapshot = {
+          transpose: e.transpose,
+          capo: e.capo,
+          key: e.key,
+          tempo: e.tempo,
+          timeSig: e.timeSig,
+        };
+        await repo.addEntry(copy.id, e.songId, snapshot);
+      }
+    }
+
+    set((s) => ({ setlists: [copy, ...s.setlists] }));
+    return copy;
+  },
+
   openSetList: async (db, id) => {
     set({ isLoading: true });
     const slRepo = new SetListRepository(db);
@@ -74,6 +112,8 @@ export const useSetListStore = create<SetListStore>((set, get) => ({
     const entries = await slRepo.getEntries(id);
     const entriesWithSongs = await Promise.all(
       entries.map(async (entry) => {
+        if (entry.type === 'note') return { ...entry, song: undefined };
+        if (!entry.songId) return null;
         const song = await songRepo.getById(entry.songId);
         return song ? { ...entry, song } : null;
       }),
@@ -81,7 +121,7 @@ export const useSetListStore = create<SetListStore>((set, get) => ({
 
     const activeSetList: SetListWithSongs = {
       ...setlist,
-      entries: entriesWithSongs.filter(Boolean) as SetListWithSongs['entries'],
+      entries: entriesWithSongs.filter((e): e is SetListWithSongs['entries'][number] => e !== null),
     };
 
     set({ activeSetList, activeEntryIndex: 0, isLoading: false });
@@ -110,6 +150,30 @@ export const useSetListStore = create<SetListStore>((set, get) => ({
     if (activeSetList && activeSetList.id === setlistId) {
       await get().openSetList(db, setlistId);
     }
+  },
+
+  addNoteToSetList: async (db, setlistId, title, body) => {
+    const repo = new SetListRepository(db);
+    await repo.addNoteEntry(setlistId, title, body);
+    const { activeSetList } = get();
+    if (activeSetList && activeSetList.id === setlistId) {
+      await get().openSetList(db, setlistId);
+    }
+  },
+
+  updateNoteEntry: async (db, entryId, title, body) => {
+    const repo = new SetListRepository(db);
+    await repo.updateNoteEntry(entryId, title, body);
+    const { activeSetList } = get();
+    if (!activeSetList) return;
+    set({
+      activeSetList: {
+        ...activeSetList,
+        entries: activeSetList.entries.map((e) =>
+          e.id === entryId ? { ...e, noteTitle: title, noteBody: body } : e,
+        ),
+      },
+    });
   },
 
   removeSongFromSetList: async (db, entryId) => {

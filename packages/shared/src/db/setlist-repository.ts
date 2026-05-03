@@ -14,7 +14,10 @@ interface SetListRow {
 interface SetListEntryRow {
   id: string;
   setlist_id: string;
-  song_id: string;
+  song_id: string | null;
+  type: string | null;
+  note_title: string | null;
+  note_body: string | null;
   position: number;
   transpose: number;
   capo: number;
@@ -43,11 +46,23 @@ function rowToSetList(row: SetListRow): SetList {
   };
 }
 
+function parseDurationSeconds(d: string | null): number {
+  if (!d) return 0;
+  const parts = d.split(':').map((p) => parseInt(p, 10));
+  if (parts.some((n) => Number.isNaN(n))) return 0;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return 0;
+}
+
 function rowToEntry(row: SetListEntryRow): SetListEntry {
   return {
     id: row.id,
     setlistId: row.setlist_id,
-    songId: row.song_id,
+    type: (row.type as SetListEntry['type']) ?? 'song',
+    songId: row.song_id ?? undefined,
+    noteTitle: row.note_title ?? undefined,
+    noteBody: row.note_body ?? undefined,
     position: row.position,
     transpose: row.transpose,
     capo: row.capo,
@@ -115,6 +130,39 @@ export class SetListRepository {
     return map;
   }
 
+  /** Songs vs notes breakdown per setlist — used on the Set Lists page. */
+  async getEntryCountsByType(): Promise<Record<string, { songs: number; notes: number }>> {
+    const rows = await this.db.query<{ setlist_id: string; type: string | null; count: number }>(
+      "SELECT setlist_id, type, COUNT(*) as count FROM setlist_entries GROUP BY setlist_id, type",
+    );
+    const map: Record<string, { songs: number; notes: number }> = {};
+    for (const r of rows) {
+      const bucket = map[r.setlist_id] ?? (map[r.setlist_id] = { songs: 0, notes: 0 });
+      if (r.type === 'note') bucket.notes += r.count;
+      else bucket.songs += r.count; // legacy rows with null `type` count as songs
+    }
+    return map;
+  }
+
+  /** Total duration (in seconds) per setlist, summing song entries whose
+   * underlying song has a `mm:ss` (or `hh:mm:ss`) duration. Notes and songs
+   * without a duration contribute zero. Used by the Set Lists page to show an
+   * approximate total runtime per card. */
+  async getSetlistDurations(): Promise<Record<string, number>> {
+    const rows = await this.db.query<{ setlist_id: string; duration: string | null }>(
+      "SELECT se.setlist_id, s.duration " +
+      "FROM setlist_entries se " +
+      "JOIN songs s ON s.id = se.song_id " +
+      "WHERE (se.type IS NULL OR se.type = 'song')",
+    );
+    const map: Record<string, number> = {};
+    for (const r of rows) {
+      const secs = parseDurationSeconds(r.duration);
+      if (secs > 0) map[r.setlist_id] = (map[r.setlist_id] ?? 0) + secs;
+    }
+    return map;
+  }
+
   async getEntries(setlistId: string): Promise<SetListEntry[]> {
     const rows = await this.db.query<SetListEntryRow>(
       'SELECT * FROM setlist_entries WHERE setlist_id=? ORDER BY position ASC',
@@ -144,15 +192,47 @@ export class SetListRepository {
     const tempo = snapshot?.tempo ?? null;
     const timeSig = snapshot?.timeSig ?? null;
     await this.db.execute(
-      'INSERT INTO setlist_entries (id, setlist_id, song_id, position, transpose, capo, key, tempo, time_sig) VALUES (?,?,?,?,?,?,?,?,?)',
-      [id, setlistId, songId, pos, transpose, capo, key, tempo, timeSig],
+      'INSERT INTO setlist_entries (id, setlist_id, song_id, type, position, transpose, capo, key, tempo, time_sig) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [id, setlistId, songId, 'song', pos, transpose, capo, key, tempo, timeSig],
     );
     return {
-      id, setlistId, songId, position: pos, transpose, capo,
+      id, setlistId, type: 'song', songId, position: pos, transpose, capo,
       key: key ?? undefined,
       tempo: tempo ?? undefined,
       timeSig: timeSig ?? undefined,
     };
+  }
+
+  async addNoteEntry(
+    setlistId: string,
+    title: string,
+    body: string,
+    position?: number,
+  ): Promise<SetListEntry> {
+    const id = uuidv4();
+    let pos = position;
+    if (pos === undefined) {
+      const result = await this.db.queryOne<{ max_pos: number | null }>(
+        'SELECT MAX(position) as max_pos FROM setlist_entries WHERE setlist_id=?',
+        [setlistId],
+      );
+      pos = (result?.max_pos ?? -1) + 1;
+    }
+    await this.db.execute(
+      'INSERT INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo) VALUES (?,?,?,?,?,?,?,0,0)',
+      [id, setlistId, null, 'note', title, body, pos],
+    );
+    return {
+      id, setlistId, type: 'note', noteTitle: title, noteBody: body,
+      position: pos, transpose: 0, capo: 0,
+    };
+  }
+
+  async updateNoteEntry(entryId: string, title: string, body: string): Promise<void> {
+    await this.db.execute(
+      'UPDATE setlist_entries SET note_title=?, note_body=? WHERE id=?',
+      [title, body, entryId],
+    );
   }
 
   async removeEntry(entryId: string): Promise<void> {

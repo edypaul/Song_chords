@@ -27,8 +27,12 @@ export class SettingsRepository {
             section: { ...def.section, ...(raw.section as object ?? {}) },
             chorusBorderColor: (raw.chorusBorderColor as string) ?? def.chorusBorderColor,
           };
+        } else if (row.key === 'shortcuts' && typeof parsed === 'object' && parsed !== null) {
+          // Merge with defaults so new actions added in later versions are
+          // populated automatically instead of being missing/undefined.
+          settings.shortcuts = { ...DEFAULT_SETTINGS.shortcuts, ...(parsed as object) };
         } else {
-          (settings as Record<string, unknown>)[row.key] = parsed;
+          (settings as unknown as Record<string, unknown>)[row.key] = parsed;
         }
       } catch {
         // skip invalid

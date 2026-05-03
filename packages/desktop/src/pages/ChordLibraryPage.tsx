@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS } from '@song-chords/shared';
+import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord } from '@song-chords/shared';
 import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
@@ -66,12 +66,15 @@ export default function ChordLibraryPage(): React.ReactElement {
       merged[name] = { diagrams: [...diagrams], builtinCount: diagrams.length };
     }
 
-    // 2) Custom user diagrams
+    // 2) Custom user diagrams (filtered to the active instrument so a
+    //    user-saved piano chord doesn't render in the guitar library).
     for (const [name, diagrams] of Object.entries(customChords)) {
+      const matched = diagrams.filter((d) => d.instrument === instrument);
+      if (matched.length === 0) continue;
       if (merged[name]) {
-        merged[name].diagrams.push(...diagrams);
+        merged[name].diagrams.push(...matched);
       } else {
-        merged[name] = { diagrams: [...diagrams], builtinCount: 0 };
+        merged[name] = { diagrams: [...matched], builtinCount: 0 };
       }
     }
 
@@ -134,7 +137,7 @@ export default function ChordLibraryPage(): React.ReactElement {
     void updateSetting(db, 'customChords', existing);
   };
 
-  const hasCustom = (name: string) => (customChords[name]?.length ?? 0) > 0;
+  const hasCustom = (name: string) => (customChords[name]?.filter((d) => d.instrument === instrument).length ?? 0) > 0;
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -142,7 +145,7 @@ export default function ChordLibraryPage(): React.ReactElement {
         <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Chord Library</h1>
         {!showAddForm && (
           <button onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ background: 'var(--accent)', color: 'white' }}>
             + Add Chord
           </button>
@@ -156,6 +159,7 @@ export default function ChordLibraryPage(): React.ReactElement {
           <select value={instrument} onChange={(e) => setInstrument(e.target.value as InstrumentType)} className="setting-select">
             <option value="guitar">Guitar</option>
             <option value="ukulele">Ukulele</option>
+            <option value="piano">Piano</option>
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -204,7 +208,8 @@ export default function ChordLibraryPage(): React.ReactElement {
               )}
               <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                 <ChordDiagramSVG diagram={diagrams[0]!} width={90}
-                  lineColor={svs.lyrics.color || undefined} chordColor={svs.chords.color || undefined} />
+                  lineColor={svs.lyrics.color || undefined} chordColor={svs.chords.color || undefined}
+                  displayName={formatChord(name, settings.chordNotation ?? 'letter')} />
               </div>
               {diagrams.length > 1 ? (
                 <p className="text-center text-[10px]" style={{ color: 'var(--text-muted)' }}>{diagrams.length} var.</p>
@@ -262,6 +267,7 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
   const [currentIdx, setCurrentIdx] = useState(0);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   const isCustomVariation = (idx: number) => idx >= builtinCount;
   const customIdx = (idx: number) => idx - builtinCount;
@@ -276,7 +282,7 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
         onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{chordName}</h2>
+          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatChord(chordName, notation)}</h2>
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowAdd((v) => !v); setEditingIdx(null); }}
               className="text-xs px-2 py-1 rounded" style={{ background: showAdd ? 'var(--surface-elevated)' : 'var(--accent)', color: showAdd ? 'var(--text-muted)' : 'white' }}>

@@ -1,5 +1,22 @@
-import type { AppSettings } from '../types/settings.types';
+import type { AppSettings, KeyboardShortcuts } from '../types/settings.types';
 import { DEFAULT_SONG_VIEW_STYLE } from './song-view-presets';
+
+export const DEFAULT_SHORTCUTS: KeyboardShortcuts = {
+  toggleInlineDiagrams: 'Shift+I',
+  toggleChordBar: 'Shift+B',
+  toggleLyricsOnly: 'Shift+L',
+  toggleMetronome: 'M',
+  toggleSongNotes: 'N',
+  toggleAutoScroll: 'Space',
+  transposeUp: 'Shift+ArrowUp',
+  transposeDown: 'Shift+ArrowDown',
+  exportSong: 'Ctrl+E',
+  editSong: 'Ctrl+Shift+E',
+  zoomIn: 'Ctrl+=',
+  zoomOut: 'Ctrl+-',
+  zoomReset: 'Ctrl+0',
+  capoModifier: 'Alt',
+};
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -13,20 +30,26 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultTranspose: 0,
   songViewStyle: { ...DEFAULT_SONG_VIEW_STYLE },
   customPresets: {},
-  songCentered: false,
+  songCentered: true,
   chordBarPosition: 'top',
   inlineChordDiagrams: false,
   customChords: {},
   perfMetroEnabled: true,
   perfScrollEnabled: true,
   perfZoom: 1,
+  sectionPanelOpen: false,
+  chordNotation: 'letter',
   songListColumns: {
     artist: true,
     genre: true,
     key: true,
     difficulty: true,
     tempo: true,
+    duration: true,
     year: true,
     language: true,
+    chordsCount: true,
+    createdAt: true,
   },
+  shortcuts: { ...DEFAULT_SHORTCUTS },
 };

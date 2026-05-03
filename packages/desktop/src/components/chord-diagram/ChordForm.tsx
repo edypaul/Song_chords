@@ -3,6 +3,7 @@ import { useSettingsStore } from '@song-chords/shared';
 import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 import InteractiveFretboard from './InteractiveFretboard';
+import InteractivePiano from './InteractivePiano';
 
 export default function ChordForm({ instrument, initialName, nameDisabled, hideNameInPreview, initialDiagram, onSave, onCancel }: {
   instrument: InstrumentType;
@@ -15,22 +16,28 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
   onSave: (d: ChordDiagram) => void;
   onCancel: () => void;
 }): React.ReactElement {
-  const strings = instrument === 'guitar' ? 6 : 4;
+  const isPiano = instrument === 'piano';
+  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
   const [name, setName] = useState(initialName ?? initialDiagram?.name ?? '');
   const [baseFret, setBaseFret] = useState(initialDiagram?.baseFret ?? 1);
   const [frets, setFrets] = useState<(number | 'x' | 0 | null)[]>(
-    initialDiagram ? [...initialDiagram.frets] : Array(strings).fill('x') as ('x')[]
+    initialDiagram && !isPiano ? [...initialDiagram.frets] : Array(strings).fill('x') as ('x')[]
   );
   const [barre, setBarre] = useState<{ fret: number; fromString: number; toString: number } | null>(
     initialDiagram?.barre ?? null
   );
+  const [pianoNotes, setPianoNotes] = useState<number[]>(
+    initialDiagram?.pianoNotes ? [...initialDiagram.pianoNotes] : []
+  );
 
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
 
-  const preview: ChordDiagram = {
-    name: name || '?', instrument, baseFret, strings, frets,
-    ...(barre ? { barre } : {}),
-  };
+  const preview: ChordDiagram = isPiano
+    ? { name: name || '?', instrument, baseFret: 1, strings: 0, frets: [], pianoNotes }
+    : {
+        name: name || '?', instrument, baseFret, strings, frets,
+        ...(barre ? { barre } : {}),
+      };
 
   const handleFretboardChange = (newFrets: (number | 'x' | 0 | null)[], newBaseFret: number, newBarre: { fret: number; fromString: number; toString: number } | null) => {
     setFrets(newFrets);
@@ -50,26 +57,32 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
 
       <div className="flex items-center justify-evenly">
         <div style={{ flex: '0 0 auto' }}>
-          <InteractiveFretboard instrument={instrument} frets={frets} baseFret={baseFret} barre={barre} onChange={handleFretboardChange} />
+          {isPiano ? (
+            <InteractivePiano notes={pianoNotes} onChange={setPianoNotes} width={300} />
+          ) : (
+            <InteractiveFretboard instrument={instrument} frets={frets} baseFret={baseFret} barre={barre} onChange={handleFretboardChange} />
+          )}
         </div>
         <div className="flex flex-col items-center" style={{ flex: '0 0 auto' }}>
           <p className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Preview</p>
-          <ChordDiagramSVG diagram={preview} width={140}
+          <ChordDiagramSVG diagram={preview} width={isPiano ? 200 : 140}
             lineColor={svs.lyrics.color || undefined} chordColor={svs.chords.color || undefined} hideName={hideNameInPreview} />
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-3 mt-2">
-        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          Click to place dots · Above nut cycles x → o → none · Drag across strings for barre
-        </p>
-        {barre && (
-          <button onClick={() => handleFretboardChange(frets, baseFret, null)} className="text-[10px] px-2 py-0.5 rounded"
-            style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>
-            Remove barre
-          </button>
-        )}
-      </div>
+      {!isPiano && (
+        <div className="flex items-center justify-center gap-3 mt-2">
+          <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+            Click to place dots · Above nut cycles x → o → none · Drag across strings for barre
+          </p>
+          {barre && (
+            <button onClick={() => handleFretboardChange(frets, baseFret, null)} className="text-[10px] px-2 py-0.5 rounded"
+              style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>
+              Remove barre
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-2 justify-center mt-3">
         <button onClick={() => { if (name.trim()) onSave({ ...preview, name: name.trim() }); }}

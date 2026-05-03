@@ -49,8 +49,11 @@ function groupLines(lines: ParsedLine[]): LineGroup[] {
 export default function SongRenderer({ song, fontSize, viewMode, onChordClick, chordVariations }: Props): React.ReactElement {
   const groups = useMemo(() => groupLines(song.lines), [song.lines]);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
-  const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  const inlineDiagramsRaw = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
+  // Piano keyboards don't fit cleanly inline above lyric syllables, so
+  // inline diagrams are disabled for piano regardless of the stored setting.
+  const inlineDiagrams = inlineDiagramsRaw && instrument !== 'piano';
   const lyricsFontSize = svs.lyrics.fontSize || 16;
   const showInline = inlineDiagrams && viewMode !== 'lyrics-only';
 
@@ -122,13 +125,22 @@ const RenderLine = memo(function RenderLine({
     if (!label) return null;
     const ss = svs.section;
     return (
-      <div className="mt-2 mb-0.5">
-        <span className="section-header" style={{
-          ...(ss.color ? { color: ss.color } : {}),
-          ...(ss.background ? { backgroundColor: ss.background } : {}),
-          ...(ss.fontSize ? { fontSize: `${ss.fontSize}px` } : {}),
-          textTransform: svs.sectionUppercase ? 'uppercase' : 'none',
-        }}>{label}</span>
+      <div className="mt-2 mb-0.5" data-section-heading={label}>
+        <span
+          style={{
+            display: 'inline-block',
+            background: ss.background || 'var(--accent)',
+            color: ss.color || 'white',
+            fontWeight: 700,
+            fontSize: ss.fontSize ? `${ss.fontSize}px` : '0.82em',
+            letterSpacing: '0.06em',
+            textTransform: svs.sectionUppercase ? 'uppercase' : 'none',
+            padding: '2px 4px',
+            borderRadius: '3px',
+          }}
+        >
+          {label}
+        </span>
       </div>
     );
   }
@@ -159,6 +171,44 @@ const RenderLine = memo(function RenderLine({
   }
 
   if (line.isDirective) {
+    // {pause: N} renders as a centred pill chip carrying the seconds value
+    // via `data-pause`. The auto-scroll hook scans for these markers and
+    // pauses for that many seconds when the chip's top edge reaches the
+    // top of the visible scroll container.
+    const tok = line.tokens[0];
+    if (tok?.type === 'directive' && tok.name === 'pause') {
+      const seconds = Number(tok.value) || 0;
+      if (seconds <= 0) return null;
+      return (
+        <div
+          data-pause={seconds}
+          className="flex items-center gap-3 my-3 select-none"
+          style={{
+            color: 'color-mix(in srgb, var(--accent) 70%, transparent)',
+            fontSize: '0.7rem',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+          title={`Auto-scroll pauses here for ${seconds}s`}
+        >
+          <div
+            style={{
+              flex: 1,
+              height: '1px',
+              background: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+            }}
+          />
+          <span className="font-medium tabular-nums">Pause {seconds}s</span>
+          <div
+            style={{
+              flex: 1,
+              height: '1px',
+              background: 'color-mix(in srgb, var(--accent) 30%, transparent)',
+            }}
+          />
+        </div>
+      );
+    }
     return null;
   }
 

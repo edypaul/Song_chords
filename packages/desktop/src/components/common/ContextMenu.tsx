@@ -29,16 +29,22 @@ export default function ContextMenu({ x, y, items, onClose }: Props): React.Reac
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // Capture + stopImmediatePropagation so page-level Escape handlers
+      // don't also fire (otherwise closing the menu would also navigate).
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
     };
     const handleScrollOrResize = () => onClose();
     document.addEventListener('mousedown', handleDown);
-    document.addEventListener('keydown', handleKey);
+    document.addEventListener('keydown', handleKey, { capture: true });
     window.addEventListener('resize', handleScrollOrResize);
     window.addEventListener('scroll', handleScrollOrResize, true);
     return () => {
       document.removeEventListener('mousedown', handleDown);
-      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('keydown', handleKey, { capture: true });
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize, true);
     };

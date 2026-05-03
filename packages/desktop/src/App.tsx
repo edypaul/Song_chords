@@ -38,6 +38,9 @@ import CategoryPlayerPage from './pages/CategoryPlayerPage';
 import DashboardPage from './pages/DashboardPage';
 import FavoritesPage from './pages/FavoritesPage';
 import FavoritesPlayerPage from './pages/FavoritesPlayerPage';
+import KeyboardShortcutsOverlay from './components/common/KeyboardShortcutsModal';
+import GlobalZoomShortcuts from './components/common/GlobalZoomShortcuts';
+import { NavigationGuardProvider } from './context/NavigationGuard';
 
 export default function App(): React.ReactElement {
   const loadSongs = useSongStore((s) => s.loadSongs);
@@ -59,7 +62,10 @@ export default function App(): React.ReactElement {
 
   return (
     <ErrorBoundary>
-      <HashRouter>
+      <NavigationGuardProvider>
+        <KeyboardShortcutsOverlay />
+        <GlobalZoomShortcuts />
+        <HashRouter>
         <Routes>
           <Route path="/" element={<AppShell />}>
             <Route index element={<Navigate to="/library" replace />} />
@@ -82,7 +88,8 @@ export default function App(): React.ReactElement {
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
-      </HashRouter>
+        </HashRouter>
+      </NavigationGuardProvider>
     </ErrorBoundary>
   );
 }

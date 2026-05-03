@@ -9,10 +9,18 @@ export interface SetList {
   updatedAt: number;
 }
 
+export type SetListEntryType = 'song' | 'note';
+
 export interface SetListEntry {
   id: string;
   setlistId: string;
-  songId: string;
+  type: SetListEntryType;
+  /** Song reference — required when type='song', undefined for notes. */
+  songId?: string;
+  /** Note heading shown in both the setlist and the performance view. */
+  noteTitle?: string;
+  /** Note body, shown below the title in the perform view. */
+  noteBody?: string;
   position: number;
   transpose: number;
   capo: number;
@@ -24,7 +32,8 @@ export interface SetListEntry {
 }
 
 export interface SetListWithSongs extends SetList {
-  entries: Array<SetListEntry & { song: Song }>;
+  /** For 'song' entries `song` is the attached snapshot; 'note' entries have no song. */
+  entries: Array<SetListEntry & { song?: Song }>;
 }
 
 export type SetListCreateInput = Omit<SetList, 'id' | 'createdAt' | 'updatedAt'>;

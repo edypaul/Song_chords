@@ -1,14 +1,26 @@
 {
   "name": "song-chords",
   "private": true,
-  "workspaces": [
-    "packages/shared",
-    "packages/desktop"
-  ],
+  "workspaces": {
+    "packages": [
+      "packages/shared",
+      "packages/desktop"
+    ],
+    "nohoist": [
+      "**/electron",
+      "**/electron/**",
+      "**/electron-builder",
+      "**/electron-builder/**",
+      "**/electron-vite",
+      "**/electron-vite/**"
+    ]
+  },
   "scripts": {
     "desktop": "yarn workspace @song-chords/desktop dev",
     "build:shared": "yarn workspace @song-chords/shared build",
     "build:desktop": "yarn workspace @song-chords/desktop build",
+    "package": "yarn workspace @song-chords/desktop package",
+    "package:dir": "yarn workspace @song-chords/desktop package:dir",
     "test": "yarn workspace @song-chords/shared test",
     "lint": "eslint packages/*/src --ext .ts,.tsx",
     "agents": "cd agents && npx tsx index.ts",

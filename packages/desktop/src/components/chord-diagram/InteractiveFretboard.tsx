@@ -12,7 +12,7 @@ interface Props {
 const VISIBLE_FRETS = 5;
 
 export default function InteractiveFretboard({ instrument, frets, baseFret, barre, onChange }: Props): React.ReactElement {
-  const strings = instrument === 'guitar' ? 6 : 4;
+  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
   const width = 220;
   const padTop = 30;
   const padLeft = 24;

@@ -42,7 +42,7 @@ export default function SongContextMenu({ song, x, y, onClose }: Props): React.R
     },
     {
       icon: ListPlus,
-      label: 'Add to play list',
+      label: 'Add to set list',
       onClick: () => setModal('playlist'),
     },
     {
@@ -94,7 +94,7 @@ export default function SongContextMenu({ song, x, y, onClose }: Props): React.R
 
       {modal === 'export' && (
         <SongExportModal
-          song={song}
+          songs={[song]}
           onClose={() => { setModal(null); onClose(); }}
         />
       )}

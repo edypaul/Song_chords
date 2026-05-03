@@ -1,12 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Play } from 'lucide-react';
+import { Star, Play, Download } from 'lucide-react';
 import { useSongStore, useSettingsStore } from '@song-chords/shared';
 import type { Song, SongListColumn } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
+import SongSelectionBar from '../components/song/SongSelectionBar';
+import SongExportModal from '../components/song/SongExportModal';
 
-type SortableField = 'title' | 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'year' | 'language';
+type SortableField = 'title' | 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'duration' | 'year' | 'language' | 'chordsCount' | 'createdAt';
+
+function durationToSeconds(d: string | undefined): number {
+  if (!d) return -1;
+  const parts = d.split(':').map((p) => parseInt(p, 10));
+  if (parts.some((n) => Number.isNaN(n))) return -1;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return -1;
+}
 
 const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
 
@@ -18,15 +29,24 @@ export default function FavoritesPage(): React.ReactElement {
   const [sortField, setSortField] = useState<SortableField>('title');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [menu, setMenu] = useState<{ song: Song; x: number; y: number } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showExport, setShowExport] = useState(false);
 
   const sorted = useMemo(() => {
     const filtered = songs.filter((s) => s.favorite);
     const dir = sortDir === 'asc' ? 1 : -1;
-    const numeric = sortField === 'difficulty' || sortField === 'tempo' || sortField === 'year';
+    const numeric = sortField === 'difficulty' || sortField === 'tempo' || sortField === 'year' || sortField === 'chordsCount' || sortField === 'createdAt';
     return [...filtered].sort((a, b) => {
       if (numeric) {
         const av = (a[sortField] ?? 0) as number;
         const bv = (b[sortField] ?? 0) as number;
+        return (av - bv) * dir;
+      }
+      if (sortField === 'duration') {
+        const av = durationToSeconds(a.duration);
+        const bv = durationToSeconds(b.duration);
+        if (av < 0 && bv >= 0) return 1;
+        if (av >= 0 && bv < 0) return -1;
         return (av - bv) * dir;
       }
       const av = ((a[sortField] ?? '') as string).toString();
@@ -42,6 +62,19 @@ export default function FavoritesPage(): React.ReactElement {
     else { setSortField(f); setSortDir('asc'); }
   };
 
+  const toggleRow = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    setSelected((prev) => prev.size === sorted.length ? new Set() : new Set(sorted.map((s) => s.id)));
+  };
+  const selectedSongs = useMemo(() => sorted.filter((s) => selected.has(s.id)), [sorted, selected]);
+  const allChecked = sorted.length > 0 && selected.size === sorted.length;
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
@@ -50,17 +83,32 @@ export default function FavoritesPage(): React.ReactElement {
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
           {sorted.length} song{sorted.length === 1 ? '' : 's'}
         </span>
+        <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
-          onClick={() => navigate('/favorites/perform')}
+          onClick={() => setShowExport(true)}
           disabled={sorted.length === 0}
-          className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold"
+          className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+          style={{
+            background: 'var(--surface-elevated)',
+            color: sorted.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
+          }}
+          title="Export every favorite song"
+        >
+          <Download size={14} /> Export
+        </button>
+        <button
+          onClick={() => navigate(`/favorites/perform?sort=${sortField}&dir=${sortDir}`)}
+          disabled={sorted.length === 0}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{
             background: sorted.length === 0 ? 'var(--surface-elevated)' : 'var(--accent)',
             color: sorted.length === 0 ? 'var(--text-muted)' : 'white',
             cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          <Play size={14} /> Perform
+          <Play size={16} /> Perform
         </button>
       </div>
 
@@ -75,14 +123,20 @@ export default function FavoritesPage(): React.ReactElement {
           <table className="w-full text-sm">
             <thead>
               <tr className="sticky top-0" style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
+                <th className="w-10 px-3 py-2">
+                  <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all favorites" />
+                </th>
                 <SortTh field="title"      label="Title"      align="left"  extra="px-6" active={sortField} dir={sortDir} onClick={handleSort} />
                 {show('artist')     && <SortTh field="artist"     label="Artist"     align="left"  active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('genre')      && <SortTh field="genre"      label="Genre"      align="left"  width="w-28" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('key')        && <SortTh field="key"        label="Key"        align="left"  width="w-16" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('difficulty') && <SortTh field="difficulty" label="Difficulty" align="left"  width="w-32" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('tempo')      && <SortTh field="tempo"      label="Tempo"      align="right" width="w-24" extra="whitespace-nowrap" active={sortField} dir={sortDir} onClick={handleSort} />}
+                {show('duration')   && <SortTh field="duration"   label="Duration"   align="right" width="w-20" extra="whitespace-nowrap" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('year')       && <SortTh field="year"       label="Year"       align="left"  width="w-20" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('language')   && <SortTh field="language"   label="Language"   align="left"  width="w-28" active={sortField} dir={sortDir} onClick={handleSort} />}
+                {show('chordsCount')&& <SortTh field="chordsCount" label="Chords"     align="right" width="w-20" active={sortField} dir={sortDir} onClick={handleSort} />}
+                {show('createdAt')  && <SortTh field="createdAt"   label="Added"      align="left"  width="w-28" active={sortField} dir={sortDir} onClick={handleSort} />}
               </tr>
             </thead>
             <tbody>
@@ -90,18 +144,28 @@ export default function FavoritesPage(): React.ReactElement {
                 <tr
                   key={song.id}
                   onClick={() => navigate(`/song/${song.id}?favorite=1`)}
-                  onContextMenu={(e) => { e.preventDefault(); setMenu({ song, x: e.clientX, y: e.clientY }); }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (selected.size > 0) return;
+                    setMenu({ song, x: e.clientX, y: e.clientY });
+                  }}
                   className="cursor-pointer border-b hover:bg-[var(--surface-elevated)] transition-colors"
-                  style={{ borderColor: 'var(--border)' }}
+                  style={{ borderColor: 'var(--border)', background: (selected.has(song.id) || menu?.song.id === song.id) ? 'var(--surface-elevated)' : undefined }}
                 >
+                  <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(song.id)} onChange={() => toggleRow(song.id)} aria-label={`Select ${song.title}`} />
+                  </td>
                   <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{toTitleCase(song.title)}</td>
                   {show('artist')     && <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{song.artist ? toTitleCase(song.artist) : '—'}</td>}
                   {show('genre')      && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.genre ? toTitleCase(song.genre) : '—'}</td>}
                   {show('key')        && <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--chord-color)' }}>{song.key ?? '—'}</td>}
                   {show('difficulty') && <td className="px-4 py-3"><DifficultyCell value={song.difficulty} /></td>}
                   {show('tempo')      && <td className="px-4 py-3 text-xs whitespace-nowrap text-right font-mono" style={{ color: 'var(--text-muted)' }}>{song.tempo ? `${song.tempo} BPM` : '—'}</td>}
+                  {show('duration')   && <td className="px-4 py-3 text-xs whitespace-nowrap text-right font-mono" style={{ color: 'var(--text-muted)' }}>{song.duration ?? '—'}</td>}
                   {show('year')       && <td className="px-4 py-3 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{song.year ?? '—'}</td>}
                   {show('language')   && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.language ? toTitleCase(song.language) : '—'}</td>}
+                  {show('chordsCount')&& <td className="px-4 py-3 text-xs font-mono text-right" style={{ color: 'var(--text-muted)' }}>{song.chordsCount ?? 0}</td>}
+                  {show('createdAt')  && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(song.createdAt).toLocaleDateString()}</td>}
                 </tr>
               ))}
             </tbody>
@@ -115,6 +179,14 @@ export default function FavoritesPage(): React.ReactElement {
           x={menu.x}
           y={menu.y}
           onClose={() => setMenu(null)}
+        />
+      )}
+
+      {showExport && (
+        <SongExportModal
+          songs={sorted}
+          bookTitle="Favorites"
+          onClose={() => setShowExport(false)}
         />
       )}
     </div>

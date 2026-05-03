@@ -12,9 +12,17 @@ interface Props {
 
 export default function SongInfoModal({ song, onClose }: Props): React.ReactElement {
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    // Capture phase + stopImmediatePropagation so page-level Escape handlers
+    // (e.g. "navigate back" on Song view / Perform) don't also fire.
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleKey, { capture: true });
   }, [onClose]);
 
   const rows: { label: string; value?: React.ReactNode }[] = [

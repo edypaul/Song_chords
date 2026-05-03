@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import type { ChordDiagram } from '@song-chords/shared';
+import PianoDiagramSVG from './PianoDiagramSVG';
 
 interface Props {
   diagram: ChordDiagram;
@@ -12,10 +13,56 @@ interface Props {
   nameColor?: string;
   /** Hide the chord name text */
   hideName?: boolean;
+  /** Font family for the chord-name text and the fret-position label.
+   *  Falls back to the browser default when omitted. */
+  fontFamily?: string;
+  /** Override the chord-name font size (px). Defaults to 13. */
+  nameFontSize?: number;
+  /** Override the chord-name text. The diagram's stored `name` is used by
+   *  default; pass this when the user has picked a non-letter notation
+   *  (e.g. Latin solfège) so the diagram label matches the rest of the UI. */
+  displayName?: string;
+  /** Render the diagram rotated 90° clockwise. Only meaningful for piano
+   *  — fretted instruments are already taller than wide and rotating
+   *  would just look odd. Used by the inline-diagrams view to fit a
+   *  piano above a single chord position without taking huge horizontal
+   *  space. */
+  vertical?: boolean;
 }
 
-export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineColor, chordColor, nameColor, hideName }: Props): React.ReactElement {
+export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineColor, chordColor, nameColor, hideName, fontFamily, nameFontSize, displayName, vertical }: Props): React.ReactElement {
+  // Piano diagrams use a completely different shape (keyboard, not
+  // fretboard). Dispatch to the dedicated renderer rather than try to
+  // shoehorn it into the fret-grid math below.
+  //
+  // Piano needs more horizontal room than a fretboard at the same
+  // width: 14 white keys + 10 black keys vs 6 strings × 5 frets, so
+  // each key reads small at fretboard widths. 1.30× makes the keys
+  // comfortably tappable / readable across all callers (chord bar,
+  // inline diagrams, modal, exports).
+  if (diagram.instrument === 'piano') {
+    // Vertical pianos use a smaller "width" since the prop becomes the
+    // keyboard's narrow axis (depth). Horizontal pianos still bump the
+    // requested width by 1.30× so the keys are comfortably readable.
+    const pianoW = vertical ? Math.round(width * 0.45) : Math.round(width * 1.30);
+    return (
+      <PianoDiagramSVG
+        diagram={diagram}
+        width={pianoW}
+        lineColor={lineColor}
+        chordColor={chordColor}
+        nameColor={nameColor}
+        hideName={hideName}
+        fontFamily={fontFamily}
+        nameFontSize={nameFontSize}
+        displayName={displayName}
+        vertical={vertical}
+      />
+    );
+  }
+
   const { frets, strings, baseFret, barre, name } = diagram;
+  const renderName = displayName ?? name;
   const numFrets = 5;
   const padTop = 38;
   const fretLabelW = baseFret > 1 ? Math.round(width * 0.16) : 0;
@@ -72,11 +119,11 @@ export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineC
   })();
 
   return (
-    <svg width={totalW} height={height} viewBox={`0 0 ${totalW} ${height}`}>
+    <svg width={totalW} height={height} viewBox={`0 0 ${totalW} ${height}`} style={fontFamily ? { fontFamily } : undefined}>
       {/* Chord name */}
       {!hideName && (
-        <text x={totalW / 2} y={14} textAnchor="middle" fontSize={13} fontWeight="800" fill={nameColor || lc}>
-          {name}
+        <text x={totalW / 2} y={14} textAnchor="middle" fontSize={nameFontSize ?? 13} fontWeight="800" fill={nameColor || lc} fontFamily={fontFamily}>
+          {renderName}
         </text>
       )}
 
@@ -84,7 +131,7 @@ export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineC
       {baseFret === 1 ? (
         <rect x={padLeft - 1} y={padTop - 3} width={totalW - padLeft - padRight + 2} height={4} rx={2} fill={lc} opacity={0.6} />
       ) : (
-        <text x={xs[strings - 1]! + Math.max(10, width * 0.08)} y={padTop + cellH * 0.5} textAnchor="start" dominantBaseline="central" fontSize={Math.min(16, Math.max(10, Math.round(width * 0.1)))} fontWeight="700" fill={lc} opacity={0.9}>
+        <text x={xs[strings - 1]! + Math.max(10, width * 0.08)} y={padTop + cellH * 0.5} textAnchor="start" dominantBaseline="central" fontSize={Math.min(16, Math.max(10, Math.round(width * 0.1)))} fontWeight="700" fill={lc} opacity={0.9} fontFamily={fontFamily}>
           {baseFret}
         </text>
       )}

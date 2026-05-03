@@ -15,12 +15,21 @@ export default function ConfirmDialog({
   danger = false, onConfirm, onCancel,
 }: Props): React.ReactElement {
   useEffect(() => {
+    // Capture phase + stopImmediatePropagation so page-level handlers
+    // (e.g. "navigate back" on Escape) don't also fire.
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-      if (e.key === 'Enter') onConfirm();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onCancel();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onConfirm();
+      }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener('keydown', handleKey, { capture: true });
+    return () => window.removeEventListener('keydown', handleKey, { capture: true });
   }, [onConfirm, onCancel]);
 
   return (
