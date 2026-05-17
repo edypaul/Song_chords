@@ -48,10 +48,3 @@ export function parseSortFromSearch(search: URLSearchParams): { field: SongSortF
   const dir: SortDir = rawDir === 'desc' ? 'desc' : 'asc';
   return { field, dir };
 }
-
-export function sortSearchString(field: SongSortField, dir: SortDir): string {
-  const params = new URLSearchParams();
-  params.set('sort', field);
-  params.set('dir', dir);
-  return params.toString();
-}

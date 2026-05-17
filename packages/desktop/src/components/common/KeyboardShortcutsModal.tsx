@@ -28,8 +28,15 @@ const ACTION_LABELS: Record<ShortcutAction, string> = {
   toggleAutoScroll:     'Start / pause auto-scroll',
   transposeUp:          'Transpose up',
   transposeDown:        'Transpose down',
+  resetTranspose:       'Reset transpose to 0',
   exportSong:           'Open export modal',
   editSong:             'Enter edit page',
+  toggleFavorite:       'Toggle favorite',
+  cast:                 'Open cast popover',
+  addToSetList:         'Add song to set list',
+  toggleFullscreen:     'Toggle fullscreen / performance mode',
+  nextSong:             'Next song in a set list',
+  prevSong:             'Previous song in a set list',
   zoomIn:               'Zoom in',
   zoomOut:              'Zoom out',
   zoomReset:            'Reset zoom',
@@ -48,17 +55,15 @@ const STATIC_GROUPS: Group[] = [
     title: 'Perform mode',
     icon: <Play size={14} />,
     shortcuts: [
-      { keys: ['→', 'PgDn'], desc: 'Next song' },
-      { keys: ['←', 'PgUp'], desc: 'Previous song' },
-      { keys: ['Esc'],       desc: 'Leave perform mode' },
-      { keys: ['Swipe'],     desc: 'Navigate with touch displays' },
-    ],
-  },
-  {
-    title: 'Song view',
-    icon: <FileText size={14} />,
-    shortcuts: [
-      { keys: ['F'], desc: 'Enter / leave full-screen' },
+      // Set-list navigation is configurable in Settings (default
+      // ArrowRight / ArrowLeft) and surfaces in the dynamic groups
+      // above. The hardcoded fallbacks listed here always work as
+      // a safety net even if the user clears the configurable
+      // bindings.
+      { keys: ['PgDn'], desc: 'Next song (always available)' },
+      { keys: ['PgUp'], desc: 'Previous song (always available)' },
+      { keys: ['Esc'],  desc: 'Leave perform mode' },
+      { keys: ['Swipe'], desc: 'Navigate with touch displays' },
     ],
   },
   {
@@ -156,6 +161,7 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
     if (!shortcuts) return [];
     const songPerform: Shortcut[] = [];
     const songOnly: Shortcut[] = [];
+    const setlistNav: Shortcut[] = [];
     const zoom: Shortcut[] = [];
     const routing: Array<{ action: ShortcutAction; target: Shortcut[] }> = [
       { action: 'toggleInlineDiagrams', target: songPerform },
@@ -164,10 +170,17 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
       { action: 'toggleMetronome',      target: songPerform },
       { action: 'toggleAutoScroll',     target: songPerform },
       { action: 'toggleSongNotes',      target: songPerform },
+      { action: 'toggleFullscreen',     target: songPerform },
       { action: 'transposeUp',          target: songPerform },
       { action: 'transposeDown',        target: songPerform },
+      { action: 'resetTranspose',       target: songPerform },
       { action: 'exportSong',           target: songOnly },
       { action: 'editSong',             target: songOnly },
+      { action: 'toggleFavorite',       target: songOnly },
+      { action: 'cast',                 target: songOnly },
+      { action: 'addToSetList',         target: songOnly },
+      { action: 'nextSong',             target: setlistNav },
+      { action: 'prevSong',             target: setlistNav },
       { action: 'zoomIn',               target: zoom },
       { action: 'zoomOut',              target: zoom },
       { action: 'zoomReset',            target: zoom },
@@ -182,6 +195,7 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
     const out: Group[] = [];
     if (songPerform.length) out.push({ title: 'Song view & Perform', icon: <Music size={14} />, shortcuts: songPerform });
     if (songOnly.length)    out.push({ title: 'Song actions',        icon: <FileText size={14} />, shortcuts: songOnly });
+    if (setlistNav.length)  out.push({ title: 'Set list navigation', icon: <Play size={14} />, shortcuts: setlistNav });
     if (zoom.length)        out.push({ title: 'Zoom',                icon: <ZoomIn size={14} />, shortcuts: zoom });
     return out;
   }, [shortcuts]);

@@ -1,15 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ListMusic, Trash2, Calendar, Pencil, Check, X, Play, FileText, Music, Clock, Copy, Download } from 'lucide-react';
+import { Plus, ListMusic, Trash2, Calendar, Pencil, Check, X, Play, FileText, Music, Clock, Copy, Download, GripVertical } from 'lucide-react';
 import { useSetListStore, useSongStore, SetListRepository } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import type { SetList, Song } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import SongExportModal from '../components/song/SongExportModal';
+// Drag-and-drop via @dnd-kit — same library + sensors / strategy as
+// the inner SetListDetailPage uses for entry reordering, so the two
+// surfaces share consistent drag behavior (pointer + keyboard, animated
+// translations, accessible drag-handles).
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  verticalListSortingStrategy, useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 export default function SetListsPage(): React.ReactElement {
   const navigate = useNavigate();
-  const { setlists, createSetList, updateSetList, deleteSetList, duplicateSetList, isLoading } = useSetListStore();
+  const { setlists, createSetList, updateSetList, deleteSetList, duplicateSetList, reorderSetLists, isLoading } = useSetListStore();
   const songs = useSongStore((s) => s.songs);
   const [pendingExport, setPendingExport] = useState<{ songs: Song[]; title: string } | null>(null);
 
@@ -47,6 +60,27 @@ export default function SetListsPage(): React.ReactElement {
   const [newDate, setNewDate] = useState('');
   const [counts, setCounts] = useState<Record<string, { songs: number; notes: number }>>({});
   const [durations, setDurations] = useState<Record<string, number>>({});
+
+  // @dnd-kit setup — pointer + keyboard sensors so the cards are
+  // reorderable by mouse / touch AND by keyboard (Tab to focus a
+  // drag handle, Space to grab, arrows to move). Same configuration
+  // as the entry-reorder DnD inside SetListDetailPage so behavior is
+  // consistent across the two surfaces.
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = setlists.map((s) => s.id);
+    const oldIdx = ids.indexOf(active.id as string);
+    const newIdx = ids.indexOf(over.id as string);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const newOrder = arrayMove(ids, oldIdx, newIdx);
+    await reorderSetLists(db, newOrder);
+  };
 
   // Reload songs/notes counts whenever the setlist collection changes (new
   // list, deleted list, entries added from elsewhere in the app).
@@ -143,23 +177,27 @@ export default function SetListsPage(): React.ReactElement {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 max-w-2xl">
-            {setlists.map((sl) => (
-              <SetListCard
-                key={sl.id}
-                setlist={sl}
-                songCount={counts[sl.id]?.songs ?? 0}
-                noteCount={counts[sl.id]?.notes ?? 0}
-                durationSeconds={durations[sl.id] ?? 0}
-                onOpen={() => navigate(`/setlists/${sl.id}`)}
-                onPerform={() => navigate(`/setlists/${sl.id}/player`)}
-                onUpdate={(patch) => updateSetList(db, sl.id, patch)}
-                onDelete={() => deleteSetList(db, sl.id)}
-                onDuplicate={() => duplicateSetList(db, sl.id)}
-                onExport={() => openExportForSetlist(sl)}
-              />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={setlists.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="grid grid-cols-1 gap-3 max-w-2xl">
+                {setlists.map((sl) => (
+                  <SetListCard
+                    key={sl.id}
+                    setlist={sl}
+                    songCount={counts[sl.id]?.songs ?? 0}
+                    noteCount={counts[sl.id]?.notes ?? 0}
+                    durationSeconds={durations[sl.id] ?? 0}
+                    onOpen={() => navigate(`/setlists/${sl.id}`)}
+                    onPerform={() => navigate(`/setlists/${sl.id}/player`)}
+                    onUpdate={(patch) => updateSetList(db, sl.id, patch)}
+                    onDelete={() => deleteSetList(db, sl.id)}
+                    onDuplicate={() => duplicateSetList(db, sl.id)}
+                    onExport={() => openExportForSetlist(sl)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
@@ -201,6 +239,15 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
   const [name, setName] = useState(setlist.name);
   const [desc, setDesc] = useState(setlist.description ?? '');
   const [date, setDate] = useState(setlist.date ? new Date(setlist.date).toISOString().slice(0, 10) : '');
+  // @dnd-kit sortable wiring: setNodeRef goes on the row element,
+  // attributes + listeners go on the grip handle so a user can click
+  // the body to navigate but must grab the handle to start a drag.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: setlist.id });
+  const dndStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -271,9 +318,27 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
 
   return (
     <div
+      ref={setNodeRef}
+      style={dndStyle}
       onClick={onOpen}
-      className="flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-colors group bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--accent)]"
+      className="flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-colors group bg-[var(--surface)] border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:border-[var(--accent)]"
     >
+      {/* Drag handle — the only place dnd-kit listens for the start
+          gesture. Clicking elsewhere on the card still navigates via
+          the parent onClick; only this grip starts a reorder drag.
+          Stop propagation on click so the navigate-to-detail handler
+          on the parent div doesn't fire while the user is grabbing. */}
+      <div
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="flex items-center justify-center p-1 rounded cursor-grab active:cursor-grabbing"
+        style={{ color: 'var(--text-muted)' }}
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical size={16} />
+      </div>
       <div className="p-2 rounded-lg" style={{ background: 'var(--surface-elevated)' }}>
         <ListMusic size={20} style={{ color: 'var(--accent)' }} />
       </div>

@@ -5,7 +5,6 @@ export interface FontOption {
 
 export const FONT_FAMILIES: FontOption[] = [
   { label: 'Default', value: '' },
-  { label: 'Monospace', value: 'monospace' },
   { label: 'Sans-serif', value: 'sans-serif' },
   { label: 'Serif', value: 'serif' },
   { label: 'Arial', value: 'Arial, sans-serif' },
@@ -15,6 +14,4 @@ export const FONT_FAMILIES: FontOption[] = [
   { label: 'Georgia', value: 'Georgia, serif' },
   { label: 'Times New Roman', value: "'Times New Roman', serif" },
   { label: 'Palatino', value: "'Palatino Linotype', Palatino, serif" },
-  { label: 'Courier New', value: "'Courier New', monospace" },
-  { label: 'Lucida Console', value: "'Lucida Console', monospace" },
 ];

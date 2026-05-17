@@ -133,9 +133,20 @@ export default function SongEditPage(): React.ReactElement {
   const [timeSig, setTimeSig] = useState(existing?.timeSig ?? '4/4');
   const [capo, setCapo] = useState(existing?.capo ?? 0);
   const [genre, setGenre] = useState(existing?.genre ?? '');
+  // `genreCustomMode` is strictly controlled by the user clicking the
+  // "Type custom genre…" option in the dropdown. It is NOT inferred
+  // from the saved genre value, because the user wants the text input
+  // hidden until they explicitly opt in — even when editing a song
+  // whose stored genre isn't in COMMON_GENRES.
+  const [genreCustomMode, setGenreCustomMode] = useState(false);
   const [year, setYear] = useState(existing?.year?.toString() ?? '');
   const [language, setLanguage] = useState(existing?.language ?? '');
+  // Mirrors `genreCustomMode`. Strictly user-controlled: only flips
+  // true when the "Type custom language…" sentinel is picked.
+  const [languageCustomMode, setLanguageCustomMode] = useState(false);
   const [duration, setDuration] = useState(existing?.duration ?? '');
+  const [link, setLink] = useState(existing?.link ?? '');
+  const [audioFile, setAudioFile] = useState(existing?.audioFile ?? '');
   // UI-only toggle for how the user wants to edit; all saves are ChordPro.
   const [format, setFormat] = useState<'chordpro' | 'plaintext'>('plaintext');
   const [content, setContent] = useState(existing?.content ?? exampleFor(format));
@@ -272,6 +283,8 @@ export default function SongEditPage(): React.ReactElement {
     year: existing?.year?.toString() ?? '',
     language: existing?.language ?? '',
     duration: existing?.duration ?? '',
+    link: existing?.link ?? '',
+    audioFile: existing?.audioFile ?? '',
     content: existing?.content ?? exampleFor('plaintext'),
     notes: existing?.notes ?? '',
     tags: existing?.tags ?? [],
@@ -290,6 +303,8 @@ export default function SongEditPage(): React.ReactElement {
       setYear(existing.year?.toString() ?? '');
       setLanguage(existing.language ?? '');
       setDuration(existing.duration ?? '');
+      setLink(existing.link ?? '');
+      setAudioFile(existing.audioFile ?? '');
       setContent(existing.content);
       setFormat('chordpro');
       setNotes(existing.notes ?? '');
@@ -309,6 +324,8 @@ export default function SongEditPage(): React.ReactElement {
         year: existing.year?.toString() ?? '',
         language: existing.language ?? '',
         duration: existing.duration ?? '',
+        link: existing.link ?? '',
+        audioFile: existing.audioFile ?? '',
         content: existing.content,
         notes: existing.notes ?? '',
         tags: existing.tags ?? [],
@@ -329,13 +346,15 @@ export default function SongEditPage(): React.ReactElement {
     if (year !== init.year) return true;
     if (language !== init.language) return true;
     if (duration !== init.duration) return true;
+    if (link !== init.link) return true;
+    if (audioFile !== init.audioFile) return true;
     if (content !== init.content) return true;
     if (notes !== init.notes) return true;
     if (difficulty !== init.difficulty) return true;
     if (tags.length !== init.tags.length) return true;
     for (let i = 0; i < tags.length; i++) if (tags[i] !== init.tags[i]) return true;
     return false;
-  }, [title, artist, key, tempo, timeSig, capo, genre, year, language, duration, content, notes, difficulty, tags]);
+  }, [title, artist, key, tempo, timeSig, capo, genre, year, language, duration, link, audioFile, content, notes, difficulty, tags]);
 
   // Warn on full window close / reload when there are unsaved edits.
   // Inline navigation (back button) is guarded by guardedLeave below.
@@ -390,6 +409,8 @@ export default function SongEditPage(): React.ReactElement {
         year: year ? parseInt(year) : undefined,
         language: language.trim() || 'Spanish',
         duration: duration.trim() || undefined,
+        link: link.trim() || undefined,
+        audioFile: audioFile.trim() || undefined,
         content: normalizedContent,
         chordsCount: 0, // recomputed by the repository on write
         notes: notes.trim() || undefined,
@@ -530,24 +551,47 @@ export default function SongEditPage(): React.ReactElement {
                   </select>
                 </Field>
               </div>
-              <Field label="Genre" hint="Pick a common genre, or type a custom one below.">
-                <select
-                  value={COMMON_GENRES.includes(genre) ? genre : ''}
-                  onChange={(e) => setGenre(e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">— Select common genre —</option>
-                  {COMMON_GENRES.map((g) => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                </select>
-                <div style={{ marginTop: 6 }}>
-                  <SuggestionInput
-                    value={genre}
-                    onChange={setGenre}
-                    suggestions={genreSuggestions}
-                    placeholder="Or type a custom genre…"
-                  />
+              <Field label="Genre" hint="Pick a common genre, or choose Type custom genre to enter your own.">
+                {/* The text input only appears AFTER the user picks
+                    the "Type custom genre…" option. Otherwise the
+                    Field is just the dropdown — even when editing a
+                    song whose saved genre is non-common (the user can
+                    still re-open the custom input by selecting the
+                    sentinel option). */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={genreCustomMode ? '__custom__' : (COMMON_GENRES.includes(genre) ? genre : '')}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '__custom__') {
+                        setGenreCustomMode(true);
+                        // Clear any common-genre selection so the text
+                        // input starts empty for the user to type into.
+                        if (COMMON_GENRES.includes(genre)) setGenre('');
+                        return;
+                      }
+                      setGenreCustomMode(false);
+                      setGenre(v);
+                    }}
+                    className="input-field shrink-0"
+                    style={{ maxWidth: genreCustomMode ? 220 : undefined }}
+                  >
+                    <option value="">— Select common genre —</option>
+                    {COMMON_GENRES.map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                    <option value="__custom__">Type a custom genre…</option>
+                  </select>
+                  {genreCustomMode && (
+                    <div className="flex-1 min-w-0">
+                      <SuggestionInput
+                        value={genre}
+                        onChange={setGenre}
+                        suggestions={genreSuggestions}
+                        placeholder="Genre"
+                      />
+                    </div>
+                  )}
                 </div>
               </Field>
               <div className="grid grid-cols-4 gap-4">
@@ -565,15 +609,79 @@ export default function SongEditPage(): React.ReactElement {
                     max={9999}
                   />
                 </Field>
-                <Field label="Language">
-                  <SuggestionInput value={language} onChange={setLanguage} suggestions={languageSuggestions} placeholder="English" />
-                </Field>
+                {/* Language sits in a 4-column grid that only has
+                    three fields (Duration, Year, Language) — the 4th
+                    column is empty. Span two columns so the field
+                    fills the remaining horizontal space and the
+                    dropdown reads cleanly. The same span applies in
+                    custom mode so the inline text input has room. */}
+                <div style={{ gridColumn: 'span 2', minWidth: 0, width: '100%' }}>
+                  <Field label="Language">
+                    {(() => {
+                      const COMMON_LANGUAGES = ['Spanish', 'English', 'Portuguese', 'Italian', 'French'] as const;
+                      const isCommon = (COMMON_LANGUAGES as readonly string[]).includes(language);
+                      return (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={languageCustomMode ? '__custom__' : (isCommon ? language : '')}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === '__custom__') {
+                                setLanguageCustomMode(true);
+                                if (isCommon) setLanguage('');
+                                return;
+                              }
+                              setLanguageCustomMode(false);
+                              setLanguage(v);
+                            }}
+                            // Both modes use `flex-1 min-w-0` so the
+                            // dropdown stretches: it fills the whole
+                            // row when alone, and shares the row 50/50
+                            // with the custom-input when that's
+                            // visible (both flex-1 children grow
+                            // equally from the same basis).
+                            className="input-field flex-1 min-w-0"
+                            aria-label="Pick a common language"
+                          >
+                            <option value="">— Select language —</option>
+                            {COMMON_LANGUAGES.map((l) => (
+                              <option key={l} value={l}>{l}</option>
+                            ))}
+                            <option value="__custom__">Type a custom language…</option>
+                          </select>
+                          {languageCustomMode && (
+                            <div className="flex-1 min-w-0">
+                              <SuggestionInput
+                                value={language}
+                                onChange={setLanguage}
+                                suggestions={languageSuggestions}
+                                placeholder="Language"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </Field>
+                </div>
               </div>
               <Field label="Tags" hint="Type a keyword and press Enter or comma to add.">
                 <TagsInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
               </Field>
               <Field label="Difficulty">
                 <DifficultyStars value={difficulty} onChange={setDifficulty} />
+              </Field>
+              <Field label="Audio Link" hint="Paste a URL where the song can be played (YouTube, SoundCloud, Spotify, a direct mp3, etc.). Optional.">
+                <input
+                  type="url"
+                  value={link}
+                  onChange={(e) => setLink(e.target.value)}
+                  className="input-field"
+                  placeholder="https://www.youtube.com/watch?v=…"
+                />
+              </Field>
+              <Field label="Audio File" hint="Pick a local audio file (mp3, m4a, ogg, wav, flac, aac, webm). Takes precedence over the link when both are set.">
+                <AudioFilePicker value={audioFile} onChange={setAudioFile} />
               </Field>
               <Field label="Notes">
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={4} placeholder="Performance notes..." />
@@ -1184,6 +1292,51 @@ function DurationInput({ value, onChange }: { value: string; onChange: (v: strin
       style={isInvalid ? { borderColor: 'var(--danger)' } : undefined}
       title="Format: mm:ss (e.g. 3:45)"
     />
+  );
+}
+
+/** Read-only file path display + Browse / Clear buttons. The browse
+ *  picker uses Electron's native file dialog with audio extension
+ *  filters; the chosen absolute path is what we save on the song. */
+function AudioFilePicker({ value, onChange }: { value: string; onChange: (v: string) => void }): React.ReactElement {
+  const pick = async () => {
+    const path = await window.electronAPI.files.pickAudio();
+    if (path) onChange(path);
+  };
+  const filename = value ? value.split(/[\\/]+/).pop() : '';
+  return (
+    <div className="flex items-center gap-2">
+      <div
+        className="input-field flex-1 min-w-0 flex items-center"
+        style={{ cursor: 'default', overflow: 'hidden' }}
+        title={value || 'No file selected'}
+      >
+        {value ? (
+          <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{filename}</span>
+        ) : (
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>No file selected</span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => void pick()}
+        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+        style={{ background: 'var(--accent)', color: 'white' }}
+      >
+        Browse…
+      </button>
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          className="px-2.5 py-1.5 rounded-lg text-xs transition-colors"
+          style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
+          title="Remove file"
+        >
+          Clear
+        </button>
+      )}
+    </div>
   );
 }
 

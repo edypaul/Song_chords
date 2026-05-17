@@ -16,6 +16,7 @@ function pageTitleFor(pathname: string): string {
   if (pathname.startsWith('/favorites')) return 'Favorites';
   if (pathname.startsWith('/chords')) return 'Chord Library';
   if (pathname.startsWith('/import')) return 'Import';
+  if (pathname.startsWith('/cast')) return 'Cast';
   if (pathname.startsWith('/settings')) return 'Settings';
   if (pathname.startsWith('/song/new')) return 'New Song';
   if (pathname.match(/^\/song\/[^/]+\/edit/)) return 'Edit Song';

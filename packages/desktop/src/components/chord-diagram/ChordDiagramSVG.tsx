@@ -78,6 +78,18 @@ export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineC
   const ys = Array.from({ length: numFrets + 1 }, (_, i) => padTop + i * cellH);
 
   const dotR = cellW * 0.32;
+  // Marker dimensions for muted (×) and open (◯) strings scale with
+  // the diagram size. At the in-app inline-diagrams width (~80px) we
+  // want small markers so they don't dominate; at modal-size width
+  // (~120px+) we want them noticeably larger so they're easy to read.
+  // ratio interpolates linearly: at 80→0.6, at 120→1.0+, capped.
+  const markerScale = Math.min(1.3, Math.max(0.55, width / 110));
+  const xHalf = Math.round(5 * markerScale);
+  const xTop = Math.round(14 * markerScale);
+  const xBot = Math.round(4 * markerScale);
+  const oR = Math.max(2.5, 4 * markerScale);
+  const oCy = Math.round(9 * markerScale);
+  const markerStroke = Math.max(1.1, 1.5 * markerScale);
 
   const lc = lineColor || 'currentColor';
   const cc = chordColor || 'var(--chord-color)';
@@ -164,16 +176,18 @@ export default React.memo(function ChordDiagramSVG({ diagram, width = 120, lineC
         const stringNum = strings - si;
         if (fret === null) return null;
         if (fret === 'x') {
+          // X glyph sized by `markerScale` (see above): small at
+          // inline-diagram widths, larger at modal widths.
           return (
             <g key={si}>
-              <line x1={x - 5} y1={padTop - 14} x2={x + 5} y2={padTop - 4} stroke={lc} strokeWidth={1.5} opacity={0.6} />
-              <line x1={x + 5} y1={padTop - 14} x2={x - 5} y2={padTop - 4} stroke={lc} strokeWidth={1.5} opacity={0.6} />
+              <line x1={x - xHalf} y1={padTop - xTop} x2={x + xHalf} y2={padTop - xBot} stroke={lc} strokeWidth={markerStroke} opacity={0.6} />
+              <line x1={x + xHalf} y1={padTop - xTop} x2={x - xHalf} y2={padTop - xBot} stroke={lc} strokeWidth={markerStroke} opacity={0.6} />
             </g>
           );
         }
         if (fret === 0) {
           return (
-            <circle key={si} cx={x} cy={padTop - 9} r={4} fill="none" stroke={lc} strokeWidth={1.5} opacity={0.6} />
+            <circle key={si} cx={x} cy={padTop - oCy} r={oR} fill="none" stroke={lc} strokeWidth={markerStroke} opacity={0.6} />
           );
         }
         // Skip dot if this string is covered by the barre at the same fret

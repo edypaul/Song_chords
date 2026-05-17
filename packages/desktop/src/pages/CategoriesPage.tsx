@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
-import { ChevronRight, ArrowLeft, Play, Star, Download } from 'lucide-react';
+import { ChevronRight, ArrowLeft, Play, Star } from 'lucide-react';
 import type { Song, SongListColumn } from '@song-chords/shared';
 import { useSongStore, useSettingsStore } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
-import SongExportModal from '../components/song/SongExportModal';
+import PlayLinkButton from '../components/song/PlayLinkButton';
 
 type CategoryKey = 'artist' | 'genre' | 'key' | 'difficulty' | 'tags' | 'year' | 'decade' | 'language';
 
@@ -120,7 +120,6 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
   const [menu, setMenu] = useState<{ song: Song; x: number; y: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showExport, setShowExport] = useState(false);
 
   const sorted = useMemo(() => {
     const filtered = songs.filter((s) => extractValues(category, s).includes(value));
@@ -199,20 +198,6 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({sorted.length})</span>
         <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
-          onClick={() => setShowExport(true)}
-          disabled={sorted.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-          style={{
-            background: 'var(--surface-elevated)',
-            color: sorted.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-            border: '1px solid var(--border)',
-            cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
-          }}
-          title="Export every song in this category"
-        >
-          <Download size={13} /> Export
-        </button>
-        <button
           onClick={() => navigate(`/categories/${category}/${encodeURIComponent(value)}/perform?sort=${sortField}&dir=${sortDir}`)}
           disabled={sorted.length === 0}
           className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
@@ -237,6 +222,7 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all songs" />
                 </th>
                 <SortTh field="title"      label="Title"      align="left"  extra="px-6" active={sortField} dir={sortDir} onClick={handleSort} />
+                <th className="w-10 px-2 py-2" aria-label="Play audio source" />
                 {show('artist')     && <SortTh field="artist"     label="Artist"     align="left"  active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('genre')      && <SortTh field="genre"      label="Genre"      align="left"  width="w-28" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('key')        && <SortTh field="key"        label="Key"        align="left"  width="w-16" active={sortField} dir={sortDir} onClick={handleSort} />}
@@ -271,6 +257,9 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
                       {toTitleCase(song.title)}
                     </span>
                   </td>
+                  <td className="w-10 px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                    <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
+                  </td>
                   {show('artist')     && <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{song.artist ? toTitleCase(song.artist) : '—'}</td>}
                   {show('genre')      && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.genre ? toTitleCase(song.genre) : '—'}</td>}
                   {show('key')        && <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--chord-color)' }}>{song.key ?? '—'}</td>}
@@ -297,13 +286,6 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
         />
       )}
 
-      {showExport && (
-        <SongExportModal
-          songs={sorted}
-          bookTitle={`${formatValue(category, value)}`}
-          onClose={() => setShowExport(false)}
-        />
-      )}
     </div>
   );
 }

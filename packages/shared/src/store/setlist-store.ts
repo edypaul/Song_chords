@@ -22,6 +22,10 @@ interface SetListStore {
   updateNoteEntry: (db: IDatabase, entryId: string, title: string, body: string) => Promise<void>;
   removeSongFromSetList: (db: IDatabase, entryId: string) => Promise<void>;
   reorderSetList: (db: IDatabase, setlistId: string, orderedEntryIds: string[]) => Promise<void>;
+  /** Rewrite the top-level ordering of the user's setlists. Used by
+   *  drag-to-reorder on the Set Lists page. `orderedIds[0]` becomes
+   *  the topmost setlist. */
+  reorderSetLists: (db: IDatabase, orderedIds: string[]) => Promise<void>;
   updateEntry: (
     db: IDatabase,
     entryId: string,
@@ -194,6 +198,25 @@ export const useSetListStore = create<SetListStore>((set, get) => ({
     const repo = new SetListRepository(db);
     await repo.reorderEntries(setlistId, orderedEntryIds);
     await get().openSetList(db, setlistId);
+  },
+
+  reorderSetLists: async (db, orderedIds) => {
+    const repo = new SetListRepository(db);
+    // Optimistically reorder the in-memory list so the UI updates the
+    // moment the drop completes, then persist. If the persist fails
+    // a subsequent loadSetLists call will reconcile from the DB.
+    set((state) => {
+      const byId: Record<string, SetList> = {};
+      for (const s of state.setlists) byId[s.id] = s;
+      const reordered = orderedIds.map((id) => byId[id]).filter((s): s is SetList => !!s);
+      // Append any setlists that weren't in `orderedIds` (defensive —
+      // shouldn't happen, but avoids dropping rows on a partial input).
+      for (const s of state.setlists) {
+        if (!orderedIds.includes(s.id)) reordered.push(s);
+      }
+      return { setlists: reordered };
+    });
+    await repo.reorder(orderedIds);
   },
 
   updateEntry: async (db, entryId, overrides) => {

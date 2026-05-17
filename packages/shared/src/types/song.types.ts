@@ -34,6 +34,17 @@ export interface Song {
   /** Epoch ms of when the song was last opened in the Song View page.
    *  Undefined for songs never viewed since migration v11. */
   lastViewedAt?: number;
+  /** Optional URL to a streaming source for the song's audio
+   *  (YouTube, Spotify, SoundCloud, a direct mp3, etc.). Surfaced as
+   *  a play icon on every song-list and the song view toolbar — when
+   *  clicked it opens a draggable floating player anchored over the
+   *  current view. */
+  link?: string;
+  /** Optional absolute path to a local audio file (mp3, m4a, ogg, wav,
+   *  flac, aac, webm). Played by the floating audio panel via a
+   *  registered `song-audio://` protocol that streams the file from
+   *  disk. Takes precedence over `link` when both are set. */
+  audioFile?: string;
 }
 
 export type SongCreateInput = Omit<Song, 'id' | 'createdAt' | 'updatedAt'>;

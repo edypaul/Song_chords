@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, Play, Download } from 'lucide-react';
+import { Star, Play } from 'lucide-react';
 import { useSongStore, useSettingsStore } from '@song-chords/shared';
 import type { Song, SongListColumn } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
-import SongExportModal from '../components/song/SongExportModal';
+import PlayLinkButton from '../components/song/PlayLinkButton';
 
 type SortableField = 'title' | 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'duration' | 'year' | 'language' | 'chordsCount' | 'createdAt';
 
@@ -30,7 +30,6 @@ export default function FavoritesPage(): React.ReactElement {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [menu, setMenu] = useState<{ song: Song; x: number; y: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showExport, setShowExport] = useState(false);
 
   const sorted = useMemo(() => {
     const filtered = songs.filter((s) => s.favorite);
@@ -85,23 +84,9 @@ export default function FavoritesPage(): React.ReactElement {
         </span>
         <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
-          onClick={() => setShowExport(true)}
-          disabled={sorted.length === 0}
-          className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-          style={{
-            background: 'var(--surface-elevated)',
-            color: sorted.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
-            border: '1px solid var(--border)',
-            cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
-          }}
-          title="Export every favorite song"
-        >
-          <Download size={14} /> Export
-        </button>
-        <button
           onClick={() => navigate(`/favorites/perform?sort=${sortField}&dir=${sortDir}`)}
           disabled={sorted.length === 0}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          className="ml-auto flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{
             background: sorted.length === 0 ? 'var(--surface-elevated)' : 'var(--accent)',
             color: sorted.length === 0 ? 'var(--text-muted)' : 'white',
@@ -127,6 +112,7 @@ export default function FavoritesPage(): React.ReactElement {
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="Select all favorites" />
                 </th>
                 <SortTh field="title"      label="Title"      align="left"  extra="px-6" active={sortField} dir={sortDir} onClick={handleSort} />
+                <th className="w-10 px-2 py-2" aria-label="Play audio source" />
                 {show('artist')     && <SortTh field="artist"     label="Artist"     align="left"  active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('genre')      && <SortTh field="genre"      label="Genre"      align="left"  width="w-28" active={sortField} dir={sortDir} onClick={handleSort} />}
                 {show('key')        && <SortTh field="key"        label="Key"        align="left"  width="w-16" active={sortField} dir={sortDir} onClick={handleSort} />}
@@ -156,6 +142,9 @@ export default function FavoritesPage(): React.ReactElement {
                     <input type="checkbox" checked={selected.has(song.id)} onChange={() => toggleRow(song.id)} aria-label={`Select ${song.title}`} />
                   </td>
                   <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{toTitleCase(song.title)}</td>
+                  <td className="w-10 px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                    <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
+                  </td>
                   {show('artist')     && <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{song.artist ? toTitleCase(song.artist) : '—'}</td>}
                   {show('genre')      && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.genre ? toTitleCase(song.genre) : '—'}</td>}
                   {show('key')        && <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--chord-color)' }}>{song.key ?? '—'}</td>}
@@ -182,13 +171,6 @@ export default function FavoritesPage(): React.ReactElement {
         />
       )}
 
-      {showExport && (
-        <SongExportModal
-          songs={sorted}
-          bookTitle="Favorites"
-          onClose={() => setShowExport(false)}
-        />
-      )}
     </div>
   );
 }

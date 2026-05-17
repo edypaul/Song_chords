@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Library, ListMusic, Upload, Settings, Menu, Guitar, Tags, LayoutDashboard, LogOut, Star } from 'lucide-react';
+import { Library, ListMusic, Upload, Settings, Menu, Guitar, Tags, LayoutDashboard, LogOut, Star, Cast } from 'lucide-react';
 import { useNavigationGuard } from '../../context/NavigationGuard';
 
 const NAV_ITEMS = [
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/setlists',   label: 'Set Lists',  icon: ListMusic },
   { to: '/chords',     label: 'Chords',     icon: Guitar },
   { to: '/import',     label: 'Import',     icon: Upload },
+  { to: '/cast',       label: 'Cast',       icon: Cast },
 ];
 
 interface SidebarProps {

@@ -3,6 +3,16 @@ import { join } from 'path';
 import { appendFileSync, mkdirSync } from 'fs';
 import { setupDatabase } from './db/better-sqlite-adapter';
 import { registerIpcHandlers } from './ipc-handlers';
+import { castServer } from './cast-server';
+import { registerAudioProtocolPrivileges, registerAudioProtocolHandler } from './audio-protocol';
+import { startRendererServer, stopRendererServer } from './renderer-server';
+
+// Register custom protocols as privileged BEFORE app.ready.
+// `registerSchemesAsPrivileged` is a one-shot call that must run at
+// module load time, not inside whenReady.
+registerAudioProtocolPrivileges();
+
+let rendererUrl: string | null = null;
 import { migrations } from '@song-chords/shared';
 
 let mainWindow: BrowserWindow | null = null;
@@ -77,8 +87,16 @@ function createWindow(): void {
   });
 
   if (process.env['ELECTRON_RENDERER_URL']) {
+    // Dev: Vite dev server.
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+  } else if (rendererUrl) {
+    // Packaged: load via the local HTTP server (loopback only). Real
+    // HTTP origin is required by third-party iframe embeds (YouTube
+    // etc.) that refuse `file://` and also reject custom protocols.
+    mainWindow.loadURL(rendererUrl);
   } else {
+    // Should never happen — server starts before createWindow. Fall
+    // back to file load so the user at least sees something.
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
@@ -102,11 +120,41 @@ app.whenReady().then(async () => {
         { role: 'selectAll' },
       ],
     },
+    {
+      // Hidden View menu that lets the user open DevTools with the
+      // standard shortcuts (F12 / Ctrl+Shift+I). Without this, the
+      // shortcuts don't fire because there's no menu to dispatch
+      // them. We don't show the menu bar (`setMenuBarVisibility(false)`
+      // in createWindow), but accelerators still work.
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+      ],
+    },
   ]));
 
   const db = await setupDatabase();
   await db.runMigrations(migrations);
   registerIpcHandlers(db);
+  // Bind handlers for our custom protocols now that `app.ready` has
+  // resolved. `song-audio://` streams local audio files for the
+  // floating audio panel.
+  registerAudioProtocolHandler();
+
+  // Spin up the loopback HTTP server that hosts the bundled renderer.
+  // Skipped in dev — Vite's dev server already does this job.
+  if (!process.env['ELECTRON_RENDERER_URL']) {
+    try {
+      const info = await startRendererServer(join(__dirname, '../renderer'));
+      rendererUrl = info.url;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[renderer-server] failed to start, falling back to file://', err);
+    }
+  }
+
   createWindow();
 
   app.on('activate', () => {
@@ -126,4 +174,13 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+// Tear down the local servers before the app exits so OS resources
+// are released cleanly. Cast server runs only when the user has
+// started a cast; the renderer server runs for the lifetime of the
+// app.
+app.on('before-quit', () => {
+  void castServer.stop();
+  void stopRendererServer();
 });

@@ -7,6 +7,7 @@ import type { Song, SongListColumn } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
+import PlayLinkButton from '../components/song/PlayLinkButton';
 
 export default function LibraryPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -98,6 +99,7 @@ export default function LibraryPage(): React.ReactElement {
                   />
                 </th>
                 <SortTh field="title"      label="Title"      align="left"  extra="px-6" active={sortField} dir={sortDirection} onClick={handleSort} />
+                <th className="w-10 px-2 py-2" aria-label="Play audio source" />
                 {show('artist')     && <SortTh field="artist"     label="Artist"     align="left"  active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('genre')      && <SortTh field="genre"      label="Genre"      align="left"  width="w-28" active={sortField} dir={sortDirection} onClick={handleSort} />}
                 {show('key')        && <SortTh field="key"        label="Key"        align="left"  width="w-16" active={sortField} dir={sortDirection} onClick={handleSort} />}
@@ -172,6 +174,9 @@ function SongRow({
           {song.favorite && <Star size={12} style={{ color: 'var(--accent)' }} fill="currentColor" />}
           {toTitleCase(song.title)}
         </span>
+      </td>
+      <td className="w-10 px-2 py-2" onClick={(e) => e.stopPropagation()}>
+        <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
       </td>
       {show('artist')     && <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{song.artist ? toTitleCase(song.artist) : '—'}</td>}
       {show('genre')      && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.genre ? toTitleCase(song.genre) : '—'}</td>}

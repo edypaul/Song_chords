@@ -20,6 +20,22 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
   const { autoScrollActive, autoScrollSpeed, activeSong, toggleAutoScroll, perfStop } = usePlayerStore();
   const animRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
+
+  // Force auto-scroll OFF when the host page unmounts (leaving the
+  // Song view, Perform, or fullscreen page). Without this the store
+  // would stay in `autoScrollActive: true` while no scroll container
+  // exists; the next time the user opened a song the scroll would
+  // already be "running" with nothing to scroll, which surfaces as a
+  // jammed Play button and a stale toggle state. We write directly to
+  // the store (rather than calling `toggleAutoScroll`) so it's
+  // idempotent — if it was already off, nothing changes.
+  useEffect(() => {
+    return () => {
+      if (usePlayerStore.getState().autoScrollActive) {
+        usePlayerStore.setState({ autoScrollActive: false });
+      }
+    };
+  }, []);
   // Fractional scroll position we're tracking internally (avoids rounding losing sub-pixel progress)
   const posRef = useRef<number>(0);
   // The scrollTop we last programmatically set — used to detect manual scroll

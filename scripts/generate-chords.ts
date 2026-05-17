@@ -14,7 +14,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-const VOICINGS_PER_CHORD = 5;
+// Upper bound on variations per chord. The selector returns only the
+// common/practical voicings and may yield fewer (1–4) — it no longer
+// pads with high-neck filler just to reach a fixed count.
+const VOICINGS_PER_CHORD = 4;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'guitar-diagrams.ts');
 

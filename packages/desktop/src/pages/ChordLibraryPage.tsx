@@ -81,6 +81,14 @@ export default function ChordLibraryPage(): React.ReactElement {
     return merged;
   }, [builtin, customChords]);
 
+  // "My Chords" must be scoped to the SELECTED instrument — a custom
+  // guitar voicing for "C" should NOT make "C" show up while the
+  // Ukulele instrument is selected. `customChords[name]` mixes all
+  // instruments together, so filter by `d.instrument` (same rule the
+  // ★ badge uses via `hasCustom`).
+  const hasCustomForInstrument = (name: string): boolean =>
+    (customChords[name]?.some((d) => d.instrument === instrument)) ?? false;
+
   const filtered = useMemo(() => {
     // When a bass note is selected, search for slash chords (e.g. "Csus4/E").
     // If the slash chord exists in the library, show it.
@@ -92,7 +100,7 @@ export default function ChordLibraryPage(): React.ReactElement {
         const type = name.slice(root.length);
         if (rootFilter !== 'All' && root !== rootFilter) continue;
         if (typeFilter !== 'All' && type !== typeFilter) continue;
-        if (customOnly && !customChords[name]?.length) continue;
+        if (customOnly && !hasCustomForInstrument(name)) continue;
 
         // Only show chords whose exact slash name exists in the library
         const slashName = `${name}/${bassFilter}`;
@@ -108,10 +116,12 @@ export default function ChordLibraryPage(): React.ReactElement {
       const type = name.slice(root.length);
       if (rootFilter !== 'All' && root !== rootFilter) return false;
       if (typeFilter !== 'All' && type !== typeFilter) return false;
-      if (customOnly && !customChords[name]?.length) return false;
+      if (customOnly && !hasCustomForInstrument(name)) return false;
       return true;
     }).sort(([a], [b]) => a.localeCompare(b));
-  }, [allChords, rootFilter, typeFilter, bassFilter, customOnly, customChords]);
+    // `instrument` participates via hasCustomForInstrument — include it
+    // so toggling the instrument re-filters "My Chords".
+  }, [allChords, rootFilter, typeFilter, bassFilter, customOnly, customChords, instrument]);
 
   const addCustomChord = (diagram: ChordDiagram) => {
     const existing = { ...customChords };

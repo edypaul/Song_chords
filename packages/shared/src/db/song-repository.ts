@@ -34,6 +34,8 @@ interface SongRow {
   sort_order: number;
   preferences: string;
   last_viewed_at: number | null;
+  link: string | null;
+  audio_file: string | null;
 }
 
 function rowToSong(row: SongRow): Song {
@@ -66,6 +68,8 @@ function rowToSong(row: SongRow): Song {
     updatedAt: row.updated_at,
     sortOrder: row.sort_order,
     lastViewedAt: row.last_viewed_at ?? undefined,
+    link: row.link ?? undefined,
+    audioFile: row.audio_file ?? undefined,
   };
 }
 
@@ -106,8 +110,8 @@ export class SongRepository {
 
     await this.db.execute(
       `INSERT INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
-        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order, link, audio_file)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         song.id, song.title, song.artist ?? null, song.album ?? null, song.key ?? null,
         song.tempo ?? null, song.timeSig ?? null, song.capo,
@@ -118,6 +122,8 @@ export class SongRepository {
         song.favorite ? 1 : 0,
         JSON.stringify(song.preferences ?? {}),
         song.createdAt, song.updatedAt, song.sortOrder,
+        song.link ?? null,
+        song.audioFile ?? null,
       ],
     );
 
@@ -139,7 +145,7 @@ export class SongRepository {
     await this.db.execute(
       `UPDATE songs SET title=?, artist=?, album=?, key=?, tempo=?, time_sig=?, capo=?,
         genre=?, year=?, language=?, duration=?, notes=?, content=?, content_format=?, tags=?, difficulty=?, favorite=?, preferences=?,
-        updated_at=?, sort_order=?
+        updated_at=?, sort_order=?, link=?, audio_file=?
        WHERE id=?`,
       [
         updated.title, updated.artist ?? null, updated.album ?? null, updated.key ?? null,
@@ -150,7 +156,10 @@ export class SongRepository {
         updated.difficulty ?? null,
         updated.favorite ? 1 : 0,
         JSON.stringify(updated.preferences ?? {}),
-        updated.updatedAt, updated.sortOrder, id,
+        updated.updatedAt, updated.sortOrder,
+        updated.link ?? null,
+        updated.audioFile ?? null,
+        id,
       ],
     );
 

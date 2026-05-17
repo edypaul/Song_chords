@@ -47,6 +47,17 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
   const customChords = useSettingsStore((s) => s.settings.customChords ?? {});
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const [layout, setLayout] = useState<ExportLayout>('chords');
+  // Inline chord diagrams aren't meaningful for piano (keyboard
+  // shapes don't fit inline alongside lyric text the way fretboards
+  // do), so the export layout list filters that option out when the
+  // user's default instrument is piano. If they had inline-diagrams
+  // selected from a previous session, snap the selection back to the
+  // standard chords-over-lyric layout so the export doesn't silently
+  // produce something they didn't choose.
+  const isPiano = instrument === 'piano';
+  useEffect(() => {
+    if (isPiano && layout === 'inline-diagrams') setLayout('chords');
+  }, [isPiano, layout]);
   // Format the user has picked — actual export only fires on the Export
   // button click, so the layout block can show conditionally based on this.
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('pdf');
@@ -115,15 +126,26 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
     // app's currently-active preset.
     const lineColor = exportStyle.lyrics.color || '#111';
     const chordColor = exportStyle.chords.color || '#4b73ff';
+    // For inline-diagrams layout the chord-name label sits directly
+    // above a narrow 80px diagram, so the default 13px name reads as
+    // crowded — especially with longer chord names like "B7sus4" /
+    // "Asus4" that visually overflow the fret grid. Override to a
+    // smaller size for that layout only; other export layouts keep
+    // the user's preset font-size (or the SVG default).
+    const inlineNameFontSize = 10;
+    const isInline = layout === 'inline-diagrams';
+    const nameFontSize = isInline
+      ? inlineNameFontSize
+      : (exportStyle.chords.fontSize || undefined);
     return renderToStaticMarkup(
       <ChordDiagramSVG
         diagram={d}
-        width={layout === 'inline-diagrams' ? 80 : 96}
+        width={isInline ? 80 : 96}
         lineColor={lineColor}
         chordColor={chordColor}
         nameColor={chordColor}
         fontFamily={exportStyle.fontFamily || undefined}
-        nameFontSize={exportStyle.chords.fontSize || undefined}
+        nameFontSize={nameFontSize}
       />,
     );
   };
@@ -354,7 +376,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
                 Layout
               </p>
               <div className="flex flex-col gap-1 overflow-y-auto">
-                {EXPORT_LAYOUTS.map((l) => {
+                {EXPORT_LAYOUTS.filter((l) => !(isPiano && l.id === 'inline-diagrams')).map((l) => {
                   const checked = layout === l.id;
                   const LayoutIcon = LAYOUT_ICONS[l.id];
                   return (
@@ -430,7 +452,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
  * (white) background — gives the user a good sense of what the PDF /
  * HTML will look like before committing. */
 function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement {
-  const fontFamily = style.fontFamily || 'monospace';
+  const fontFamily = style.fontFamily || 'sans-serif';
   const lyricsBg = style.lyrics.background || '#ffffff';
   const lyricsColor = style.lyrics.color || '#0f172a';
   const titleColor = style.title.color || lyricsColor;

@@ -147,65 +147,365 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
-  // Inline-diagrams: precompute collision-avoided chord positions and the
-  // adjusted lyric. Spaces are inserted at word-boundary/existing-whitespace
-  // positions only, never mid-word — so words stay intact.
+  // Inline-diagrams data, mirroring the cast view's pathway in
+  // utils/song-export.ts (renderChordLyricLine inline branch).
+  // Builds:
+  //   - atoms: word/space units (split on space/tab only, NBSP stays
+  //     attached to its word so a leading-NBSP block reads as one atom)
+  //   - per-word segments with chord markers and padDashes counts for
+  //     in-word collision avoidance
+  //   - extraSpaces map: inter-word atoms that need widening
+  //
+  // Three rules implemented here, identical to the cast pathway:
+  //   1. Leading whitespace is trimmed (or replaced with NBSPs if a
+  //      leading chord exists, so the diagram has invisible padding
+  //      on its left).
+  //   2. Multiple chords inside one word split it with visible dashes
+  //      ("ha--bi-tacion") so the audience sees the syllable boundary.
+  //   3. Words never break across visual lines (each word atom is a
+  //      `display: inline-block; white-space: nowrap` span).
   const inlineData = useMemo(() => {
     if (!(showChords && inlineDiagrams && instrument)) return null;
-    const DIAGRAM_CH = 10;
+    // Width in regular-letter "char-equivalents" needed to clear a
+    // diagram. Used by the chord-spacing pre-pass.
+    const MIN_SYLLABLE_CH = 10;
+    // Width in NBSP characters needed to span one diagram-worth of
+    // visible space. NBSPs are ~half the width of a letter, so we
+    // need ≥ 2× the syllable-char count to actually clear a diagram.
+    // 17 = balance between "tight but no collision" and avoiding too
+    // much gap between leading chord diagrams.
+    const LEADING_NBSP_PER_CHORD = 17;
+
     let rawLyric = '';
     const chordList: Array<{ name: string; pos: number }> = [];
     for (const t of line.tokens) {
       if (t.type === 'chord') chordList.push({ name: (t as ChordToken).chord, pos: rawLyric.length });
       else if (t.type === 'lyric') rawLyric += (t as LyricToken).text;
     }
-    if (chordList.length === 0) return { chords: [], positions: [], lyric: rawLyric };
+    if (chordList.length === 0) {
+      return { lyricOnly: true as const, lyric: rawLyric };
+    }
 
-    const findInsertionPoint = (s: string, pos: number): number => {
-      if (pos >= s.length) return s.length;
-      if (/\s/.test(s[pos]!)) return pos;
-      let i = pos;
-      while (i > 0 && !/\s/.test(s[i - 1]!)) i--;
-      return i;
+    // Normalize leading whitespace: trim when no chord lives there,
+    // otherwise replace with a fixed NBSP block sized to fit each
+    // leading chord (so chord-only-no-syllable pieces have just enough
+    // empty space on their left to render the diagram).
+    const leadingWsLen = rawLyric.match(/^\s+/)?.[0]?.length ?? 0;
+    // Leading whitespace handling. Strip any leading whitespace from
+    // rawLyric BEFORE atom-splitting; collect leading-chord names
+    // separately and prepend them as standalone chord-only atoms
+    // after the atoms array is built. Each leading chord becomes its
+    // own zero-width atom preceded by a regular-space atom that the
+    // collision pre-pass will widen with a pixel spacer, so the
+    // diagram has visible empty space around it.
+    const leadingChordNames: string[] = [];
+    if (leadingWsLen > 0) {
+      for (const c of chordList) {
+        if (c.pos < leadingWsLen) leadingChordNames.push(c.name);
+      }
+      for (let i = chordList.length - 1; i >= 0; i--) {
+        if (chordList[i]!.pos < leadingWsLen) chordList.splice(i, 1);
+        else chordList[i]!.pos -= leadingWsLen;
+      }
+      rawLyric = rawLyric.slice(leadingWsLen);
+    }
+
+    // Split rawLyric into atoms at regular space/tab boundaries only
+    // (NBSP stays attached to its surrounding word).
+    const isSplitSpace = (ch: string): boolean => ch === ' ' || ch === '\t';
+    type Atom = { text: string; chords: Array<{ name: string; offset: number }>; isSpace: boolean };
+    const atoms: Atom[] = [];
+    if (rawLyric.length > 0) {
+      let bufStart = 0;
+      let bufIsSpace = isSplitSpace(rawLyric[0]!);
+      for (let i = 1; i <= rawLyric.length; i++) {
+        const atEnd = i === rawLyric.length;
+        const ch = atEnd ? null : rawLyric[i]!;
+        const chIsSpace = ch === null ? !bufIsSpace : isSplitSpace(ch);
+        if (atEnd || chIsSpace !== bufIsSpace) {
+          atoms.push({ text: rawLyric.slice(bufStart, i), chords: [], isSpace: bufIsSpace });
+          bufStart = i;
+          if (!atEnd) bufIsSpace = chIsSpace;
+        }
+      }
+    }
+    if (atoms.length === 0) atoms.push({ text: '', chords: [], isSpace: false });
+
+    // Attach each chord to its word atom (inter-word whitespace chords
+    // attach to the next word at offset 0).
+    const atomStart = (idx: number): number => {
+      let s = 0;
+      for (let k = 0; k < idx; k++) s += atoms[k]!.text.length;
+      return s;
     };
-
-    // Effective width: letters take ~1 unit, spaces ~0.5. Summing units
-    // between chords gives a font-agnostic estimate of how much pixel gap
-    // the lyric provides. We require DIAGRAM_CH units of gap so the
-    // diagrams (≈80px wide) don't overlap regardless of whether the gap
-    // is letters, spaces, or a mix.
-    const charUnit = (ch: string): number => /\s/.test(ch) ? 0.5 : 1.0;
-    const effUnits = (s: string, start: number, end: number): number => {
-      let u = 0;
-      const e = Math.min(end, s.length);
-      for (let i2 = start; i2 < e; i2++) u += charUnit(s[i2]!);
-      return u;
-    };
-
-    let lyric = rawLyric;
-    const finalPositions: number[] = [];
-    for (let i = 0; i < chordList.length; i++) {
-      const c = chordList[i]!;
-      if (i === 0) {
-        finalPositions.push(c.pos);
+    // Chord attachment. The simple case (chord inside a word atom)
+    // attaches the chord at its offset. Chords that fall in inter-
+    // word whitespace get attached to the FOLLOWING word atom at
+    // offset 0 — so multiple such chords stack on the same syllable
+    // and the segment builder produces empty-text segments for them.
+    // Chords past the end of the line trigger a standalone atom
+    // insertion at the END of the atoms array.
+    //
+    // For the rendering side, empty-text segments get NBSP padding
+    // (invisible but pixel-wide) and never display em-dashes, so the
+    // visible result is just the chord diagrams without ugly dashes.
+    // Chord attachment.
+    //
+    //   - Chord at the START of a word atom with NO space before it
+    //     in the source (chord directly precedes the word, like
+    //     `[A]is`) → attach at offset 0 of that word. Renders as
+    //     chord-over-syllable.
+    //   - Chord INSIDE a word atom (splits it mid-syllable, like
+    //     `habi[Em]tacion`) → attach at its offset. Renders as
+    //     in-word syllable split with em-dash.
+    //   - Chord at the start of a word but PRECEDED BY whitespace
+    //     in the source (like `[A] is`) OR in inter-word whitespace
+    //     OR past end of lyric → standalone chord-only atom inserted
+    //     after the preceding word. The lyric flows on, diagram over
+    //     empty space.
+    //
+    // We use the original chord position (`c.pos`) AND the lyric
+    // character at that position to discriminate:
+    //   - rawLyric[c.pos] is a non-space character → chord is
+    //     directly adjacent to a word with NO preceding space → it's
+    //     a chord-on-syllable.
+    //   - rawLyric[c.pos] is a space, OR c.pos >= rawLyric.length →
+    //     standalone insertion.
+    type Insertion = { afterIdx: number; chord: string; orderIdx: number };
+    const insertions: Insertion[] = [];
+    let orderCounter = 0;
+    for (const c of chordList) {
+      // Inspect the character AT the chord's source position.
+      const charAtPos = c.pos < rawLyric.length ? rawLyric[c.pos]! : '';
+      const isOnSyllable = charAtPos !== '' && !/\s/.test(charAtPos);
+      if (!isOnSyllable) {
+        // Chord in whitespace or past end → standalone insertion.
+        // Find the last non-space atom whose end is <= c.pos so the
+        // insertion goes immediately after the preceding word.
+        let lastWordIdx = -1;
+        let cursor = 0;
+        for (let k = 0; k < atoms.length; k++) {
+          const a = atoms[k]!;
+          const end = cursor + a.text.length;
+          if (!a.isSpace && end <= c.pos) lastWordIdx = k;
+          if (end > c.pos) break;
+          cursor = end;
+        }
+        insertions.push({
+          afterIdx: lastWordIdx,
+          chord: c.name,
+          orderIdx: orderCounter++,
+        });
         continue;
       }
-      const prev = finalPositions[i - 1]!;
-      const units = effUnits(lyric, prev, c.pos);
-      if (units < DIAGRAM_CH) {
-        const spacesToAdd = Math.ceil((DIAGRAM_CH - units) / 0.5);
-        const insertPoint = findInsertionPoint(lyric, c.pos);
-        lyric = lyric.slice(0, insertPoint) + ' '.repeat(spacesToAdd) + lyric.slice(insertPoint);
-        for (let j = 0; j < chordList.length; j++) {
-          if (chordList[j]!.pos >= insertPoint) chordList[j]!.pos += spacesToAdd;
-        }
-        for (let j = 0; j < finalPositions.length; j++) {
-          if (finalPositions[j]! >= insertPoint) finalPositions[j]! += spacesToAdd;
-        }
+      // Chord on a syllable: find the containing word atom and
+      // attach at the offset relative to that atom's start.
+      let target = -1;
+      let cursor = 0;
+      for (let k = 0; k < atoms.length; k++) {
+        const a = atoms[k]!;
+        const end = cursor + a.text.length;
+        if (c.pos < end && !a.isSpace) { target = k; break; }
+        cursor = end;
       }
-      finalPositions.push(chordList[i]!.pos);
+      if (target === -1) {
+        // Defensive fallback — shouldn't happen for a syllable
+        // character, but if it does, emit as standalone.
+        insertions.push({
+          afterIdx: atoms.length - 1,
+          chord: c.name,
+          orderIdx: orderCounter++,
+        });
+        continue;
+      }
+      const start = atomStart(target);
+      atoms[target]!.chords.push({ name: c.name, offset: Math.max(0, c.pos - start) });
     }
-    return { chords: chordList, positions: finalPositions, lyric };
+    // Apply insertions in reverse afterIdx order so earlier splices
+    // don't shift later ones. Same-afterIdx insertions keep source
+    // order: splice in REVERSE source order so the source-first
+    // chord ends up leftmost after all splices.
+    insertions.sort((a, b) => {
+      if (a.afterIdx !== b.afterIdx) return b.afterIdx - a.afterIdx;
+      return b.orderIdx - a.orderIdx;
+    });
+    for (const ins of insertions) {
+      const insertAt = ins.afterIdx + 1;
+      // Insert [leading-space, chord-only-atom, trailing-space] so
+      // there's always an inter-atom space on BOTH sides of every
+      // inserted chord-only atom. Without the leading space, the
+      // pre-pass would see no `interSpaceAtoms` between the
+      // preceding word and this standalone chord, and fall back to
+      // adding visible ASCII dashes (`padDashes`) on the preceding
+      // syllable.
+      atoms.splice(insertAt, 0,
+        { text: ' ', chords: [], isSpace: true },
+        { text: '', chords: [{ name: ins.chord, offset: 0 }], isSpace: false },
+        { text: ' ', chords: [], isSpace: true },
+      );
+    }
+
+    // Prepend each leading chord as its own standalone atom + space
+    // atom AT THE FRONT of the atoms array. Done AFTER the chord-
+    // attachment loop above so the cursor calculation isn't shifted
+    // by the prepended atoms' lengths.
+    const hasLeadingChord = leadingChordNames.length > 0;
+    if (hasLeadingChord) {
+      const prepend: Atom[] = [];
+      for (const name of leadingChordNames) {
+        prepend.push({ text: '', chords: [{ name, offset: 0 }], isSpace: false });
+        prepend.push({ text: ' ', chords: [], isSpace: true });
+      }
+      atoms.unshift(...prepend);
+    }
+
+    // Segment each word atom at every chord offset. Each chord-bearing
+    // segment except the last in its word gets `emDash: true` so the
+    // renderer emits one em-dash between syllables (e.g. "habi—ta").
+    type Segment = { chord?: { name: string }; text: string; emDash: boolean; padDashes: number };
+    const wordSegments: Map<number, Segment[]> = new Map();
+    const chordPoints: Array<{ atomIdx: number; segIdx: number }> = [];
+    for (let k = 0; k < atoms.length; k++) {
+      const a = atoms[k]!;
+      if (a.isSpace) continue;
+      const word = a.text;
+      const chords = a.chords.slice().sort((x, y) => x.offset - y.offset);
+      const segs: Segment[] = [];
+      let cursor = 0;
+      if (chords.length === 0 || chords[0]!.offset > 0) {
+        segs.push({ text: word.slice(0, chords[0]?.offset ?? word.length), emDash: false, padDashes: 0 });
+        cursor = chords[0]?.offset ?? word.length;
+      }
+      // For every chord, decide whether it OWNS its syllable text or
+      // is a placeholder. A chord owns a syllable when it's the LAST
+      // chord at its offset (and there's text to slice). When
+      // multiple chords share an offset (e.g. 6 chord-only positions
+      // all attached to "voy" at offset 0), the LAST one would
+      // normally own "voy" — but we ALSO want to treat that last
+      // one as a placeholder when ALL chords on this word share the
+      // same offset (i.e. they're all chord-only, the word should
+      // appear as a separate no-chord segment AFTER them). Detect
+      // this by checking if EVERY chord has the same offset.
+      const allSameOffset = chords.every((c) => c.offset === chords[0]!.offset)
+        && chords.length > 1;
+      for (let m = 0; m < chords.length; m++) {
+        const myOffset = chords[m]!.offset;
+        const hasNextChord = m + 1 < chords.length;
+        const nextChordOffset = hasNextChord ? chords[m + 1]!.offset : word.length;
+        // sharedWithNext only fires when there is actually a next chord at the same offset.
+        // Without this guard, a single-chord atom with empty word text (e.g. a prepended
+        // leading chord) would be flagged shared and forced into placeholder mode.
+        // Stacked: another chord shares this offset (current or next
+        // chord, or all-same-offset case). All such chords are
+        // placeholders with empty text.
+        const sharedWithNext = hasNextChord && nextChordOffset === myOffset;
+        const isPlaceholder = sharedWithNext || allSameOffset;
+        const segText = isPlaceholder ? '' : word.slice(myOffset, nextChordOffset);
+        const hasRealSyllable = segText.length > 0 && !/^\s+$/.test(segText);
+        segs.push({
+          chord: { name: chords[m]!.name },
+          text: segText,
+          emDash: m < chords.length - 1 && hasRealSyllable,
+          padDashes: 0,
+        });
+        if (!isPlaceholder) cursor = nextChordOffset;
+      }
+      // Append remaining word text as a no-chord segment when all
+      // chord-bearing segments were placeholders (cursor never
+      // advanced past the chord cluster).
+      if (cursor < word.length && chords.length > 0) {
+        segs.push({ text: word.slice(Math.max(cursor, chords[chords.length - 1]!.offset)), emDash: false, padDashes: 0 });
+      }
+      wordSegments.set(k, segs);
+      for (let s = 0; s < segs.length; s++) {
+        if (segs[s]!.chord) chordPoints.push({ atomIdx: k, segIdx: s });
+      }
+    }
+
+    // Collision-avoidance pre-pass. For every adjacent pair of chord
+    // positions, ensure they're at least MIN_CHORD_GAP_CH "char units"
+    // apart so two diagrams don't overlap. The deficit is added as
+    // `extraSpaces` on the inter-word whitespace (preferred, keeps
+    // wrap points) or as `padDashes` inside the current word
+    // (fallback).
+    //
+    // The rendered output converts each `extraSpaces` unit into an
+    // explicit pixel-width spacer (~diagramW/8 per unit) so the
+    // collision width is deterministic regardless of the font's
+    // narrow space-glyph width.
+    // Chord-to-chord minimum in char-equivalent units. The pre-pass
+    // widens inter-word spaces (preferred) or pads in-word segments
+    // with NBSPs (for chord-only stacks on the same syllable).
+    const MIN_CHORD_GAP_CH = 10;
+    const extraSpaces: Map<number, number> = new Map();
+    // Count NBSP-only segments at half-width because NBSP glyphs in
+    // proportional fonts are about half as wide as letter glyphs.
+    // Without this, a leading-NBSP block (which inserts 2× more
+    // NBSPs per chord to compensate) would be over-counted in the
+    // pre-pass and no collision padding would be added even though
+    // the visible diagrams are colliding.
+    const visibleCharCount = (s: string): number => {
+      if (s.length === 0) return 0;
+      if (/^\s+$/.test(s)) return s.length * 0.5;
+      return s.length;
+    };
+    const segWidth = (seg: Segment): number =>
+      visibleCharCount(seg.text) + seg.padDashes + (seg.emDash ? 1 : 0);
+    for (let i = 0; i + 1 < chordPoints.length; i++) {
+      const ca = chordPoints[i]!;
+      const cb = chordPoints[i + 1]!;
+      // Skip the pair-wise widening when `ca` is a standalone
+      // chord-only atom (entire atom: empty text + exactly one chord).
+      // Such atoms already reserve diagram-width pixel space via
+      // their outer `min-width` style — widening the inter-atom space
+      // on top of that would double the visible gap.
+      const caAtom = atoms[ca.atomIdx]!;
+      if (caAtom.text === '' && caAtom.chords.length === 1) continue;
+      let units = 0;
+      const interSpaceAtoms: number[] = [];
+      if (ca.atomIdx === cb.atomIdx) {
+        const segs = wordSegments.get(ca.atomIdx)!;
+        units = segWidth(segs[ca.segIdx]!);
+      } else {
+        const segsA = wordSegments.get(ca.atomIdx)!;
+        units += segWidth(segsA[ca.segIdx]!);
+        for (let s = ca.segIdx + 1; s < segsA.length; s++) units += segWidth(segsA[s]!);
+        for (let k = ca.atomIdx + 1; k < cb.atomIdx; k++) {
+          const ak = atoms[k]!;
+          if (ak.isSpace) {
+            interSpaceAtoms.push(k);
+            units += ak.text.length + (extraSpaces.get(k) ?? 0);
+          } else {
+            const sg = wordSegments.get(k)!;
+            for (let s = 0; s < sg.length; s++) units += segWidth(sg[s]!);
+          }
+        }
+        const segsB = wordSegments.get(cb.atomIdx)!;
+        for (let s = 0; s < cb.segIdx; s++) units += segWidth(segsB[s]!);
+      }
+      const deficit = MIN_CHORD_GAP_CH - units;
+      if (deficit <= 0) continue;
+      if (interSpaceAtoms.length > 0) {
+        const target = interSpaceAtoms[interSpaceAtoms.length - 1]!;
+        extraSpaces.set(target, (extraSpaces.get(target) ?? 0) + deficit);
+      } else {
+        // In-word collision (no inter-word space between the two
+        // chord positions). Always add the deficit width — the
+        // renderer turns it into visible "-" dashes for real
+        // syllables (so the audience sees the syllable split) OR
+        // invisible NBSP padding for non-syllable placeholders (so
+        // the chord-only diagrams keep their horizontal space).
+        const segs = wordSegments.get(ca.atomIdx)!;
+        segs[ca.segIdx]!.padDashes += deficit;
+      }
+    }
+
+    // (Standalone chord-only atom spacing is now handled directly via
+    // `min-width` on the chord-only atom's outer span — see the
+    // render path below. No need to inflate `extraSpaces` for those
+    // atoms, which would double the visible gap.)
+
+    return { lyricOnly: false as const, atoms, wordSegments, extraSpaces, hasLeadingChord: leadingChordNames.length > 0 };
   }, [line, showChords, inlineDiagrams, instrument]);
 
   const wordGroups = useMemo(() => {
@@ -242,17 +542,34 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
   }, [inlineDiagrams, instrument, wordGroups, chordVariations, custom]);
 
   const chordFontSize = chordStyle?.fontSize ? `${chordStyle.fontSize}px` : '0.85em';
-  const diagramW = 80;
+  // Diagram width scales with the lyric font size so diagrams stay
+  // visually balanced with the lyrics across font-size settings (and
+  // viewport sizes, since users typically pick a smaller lyric font
+  // on phones). Clamped to a sensible range so very small fonts
+  // don't shrink diagrams below readability and very large fonts
+  // don't blow them up to fill the screen.
+  const lyricFontSize = svs?.lyrics.fontSize || 19;
+  const diagramW = Math.min(120, Math.max(56, Math.round(lyricFontSize * 4.5)));
 
   // Inline-diagrams mode: embed each chord diagram as a 0-width marker at
   // its source character position inside the lyric flow. The SVG is
   // absolutely positioned above the marker so natural text layout (in the
   // preset font) handles horizontal alignment — no monospace override.
   if (inlineData) {
-    const { chords, positions, lyric } = inlineData;
-    if (chords.length === 0) {
-      return <div style={{ margin: '2px 0' }}>{lyric || '\u00A0'}</div>;
+    if (inlineData.lyricOnly) {
+      // Lyric-only chord-line (no chords on this line). Use the same
+      // tight line-height as the chord-bearing line so the inherited
+      // 1.8 line-height from SongRenderer doesn't add half-leading
+      // above/below the text \u2014 that half-leading would otherwise
+      // throw off the visual centering of the NEXT chord-line's
+      // diagrams between the surrounding lyrics.
+      return (
+        <div style={{ margin: '2px 0', lineHeight: 1 }}>
+          {inlineData.lyric || '\u00A0'}
+        </div>
+      );
     }
+    const { atoms, wordSegments, extraSpaces } = inlineData;
     // Per-instrument SVG height. Each diagram has a different intrinsic
     // rendered height (a 4-string ukulele draws taller-aspect cells than
     // a 6-string guitar at the same width), so a single multiplier
@@ -269,67 +586,340 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
           : Math.round(diagramW * 1.2);
     // Visible gap between the diagram's bottom edge and the lyric's
     // top edge.
-    const VISIBLE_GAP = 3;
+    // Equal visible padding above and below the diagram band.
+    //   - Line container `padding-top: DIAGRAM_MARGIN` → gap from
+    //     previous lyric BOTTOM EDGE to this diagram TOP.
+    //   - Marker height = svgHeight + LYRIC_FONT_SIZE + DIAGRAM_MARGIN.
+    //     Diagram sits `top: 0` inside, lyric text wraps in a
+    //     `vertical-align: bottom; line-height: 1` span so it sits at
+    //     the BOTTOM. The leftover space inside the marker
+    //     (= DIAGRAM_MARGIN) becomes the visible gap between the
+    //     diagram bottom and the lyric top.
+    // Vertical spacing around the diagram band, both scaled with the
+    // lyric font size:
+    //   - TOP_GAP: visible space between previous lyric BOTTOM and
+    //     this diagram's chord NAME (the top of the visible diagram
+    //     unit). Bigger than the bottom gap because the previous
+    //     line's CSS line-box reaches all the way to its half-leading
+    //     bottom edge — the visible text bottom is ~half-leading px
+    //     above, so we need extra padding for the diagram to look
+    //     centered.
+    //   - BOTTOM_GAP: visible space between this diagram's FRETBOARD
+    //     bottom and this lyric's TOP. The lyric sits at the bottom
+    //     of the marker (vertical-align: bottom, line-height: 1) so
+    //     there's no half-leading on this side — this gap can be
+    //     smaller and still look balanced.
+    const LYRIC_FONT_SIZE = lyricFontSize;
+    const TOP_GAP = Math.round(LYRIC_FONT_SIZE * 0.95);
+    const BOTTOM_GAP = Math.round(LYRIC_FONT_SIZE * 0.05);
+    // Backward-compatible alias used elsewhere in the file.
+    const DIAGRAM_MARGIN = BOTTOM_GAP;
     // The SVG is absolutely positioned `top: -PADDING_TOP` from the
     // lyric anchor — i.e. PADDING_TOP px above the lyric. Make
     // PADDING_TOP = svgHeight + VISIBLE_GAP so the SVG's bottom sits
     // exactly VISIBLE_GAP px above the lyric. The container's
     // `paddingTop` (below) uses the same value to reserve room above
     // the lyric line.
-    const PADDING_TOP = svgHeight + VISIBLE_GAP;
+    // Marker reserves: diagram + lyric font height + bottom gap.
+    // With diagram positioned `top: 0` inside and lyric at the BOTTOM
+    // via vertical-align: bottom, the leftover space between them is
+    // the bottom gap.
+    const PADDING_TOP = svgHeight + LYRIC_FONT_SIZE + DIAGRAM_MARGIN;
     // ChordDiagramSVG has padLeft=16 before its first string. Shift the
     // SVG 16px left so that leftmost string aligns with the marker's
     // character position, not the SVG's outer bounding box.
     const SVG_LEFT_OFFSET = -16;
+    // ChordDiagramSVG also has ~3-5px of empty space above the chord
+    // name text (the text baseline is at y=14, ascent ~10-12px → name
+    // visible top at y≈3). Pull the SVG up by SVG_TOP_TRIM so the
+    // visible "diagram unit" (chord name + fretboard) sits flush with
+    // the marker top — making the visual centering between two lyric
+    // lines symmetrical.
+    const SVG_TOP_TRIM = -4;
 
-    // Merge chord markers into the lyric text, ordered by final position.
-    const sorted = chords
-      .map((c, i) => ({ name: c.name, pos: positions[i]! }))
-      .sort((a, b) => a.pos - b.pos);
-
-    const pieces: React.ReactNode[] = [];
-    let lyricIdx = 0;
-    sorted.forEach((m, mi) => {
-      if (m.pos > lyricIdx) {
-        pieces.push(lyric.slice(lyricIdx, m.pos));
-        lyricIdx = m.pos;
-      }
-      const varIdx = chordVariations?.[m.name] ?? 0;
+    const renderMarker = (chordName: string, key: string, leftOverride?: number): React.ReactNode => {
+      const varIdx = chordVariations?.[chordName] ?? 0;
       const found = varIdx > 0
-        ? getDiagramByIndex(m.name, instrument!, varIdx, custom)
-        : getDiagramExact(m.name, instrument!, custom);
+        ? getDiagramByIndex(chordName, instrument!, varIdx, custom)
+        : getDiagramExact(chordName, instrument!, custom);
       const diag = found ?? (instrument === 'piano'
-        ? { name: m.name, instrument: instrument!, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
+        ? { name: chordName, instrument: instrument!, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
         : {
-            name: m.name,
+            name: chordName,
             instrument: instrument!,
             baseFret: 1,
             strings: instrument === 'guitar' ? 6 : 4,
             frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
           });
-      pieces.push(
-        <span key={`m${mi}`} style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', top: -PADDING_TOP, left: SVG_LEFT_OFFSET, lineHeight: 0, whiteSpace: 'nowrap', cursor: onChordClick ? 'pointer' : undefined }} onClick={() => onChordClick?.(m.name)} title={formatChord(m.name, notation)}>
+      // Marker is a 0-width inline-block. Its `vertical-align: top`
+      // anchors it to the TOP of the line-box (consistent across
+      // browsers, unaffected by font metrics or half-leading). The
+      // marker reserves PADDING_TOP of inline height so the line-box
+      // grows to fit the diagram. The diagram itself sits in an
+      // absolute child anchored to the marker's TOP, offset RIGHT by
+      // `left: SVG_LEFT_OFFSET` so the diagram's leftmost string
+      // aligns with the syllable's first character.
+      return (
+        <span
+          key={key}
+          style={{
+            display: 'inline-block',
+            position: 'relative',
+            width: 0,
+            height: PADDING_TOP,
+            verticalAlign: 'top',
+          }}
+        >
+          <span
+            style={{
+              position: 'absolute',
+              top: SVG_TOP_TRIM,
+              left: leftOverride ?? SVG_LEFT_OFFSET,
+              lineHeight: 1,
+              whiteSpace: 'nowrap',
+              cursor: onChordClick ? 'pointer' : undefined,
+              fontSize: 'initial',
+            }}
+            onClick={() => onChordClick?.(chordName)}
+            title={formatChord(chordName, notation)}
+          >
             <ChordDiagramSVG
               diagram={diag}
               width={diagramW}
               lineColor={svs?.lyrics.color || undefined}
               chordColor={svs?.chords.color || undefined}
               nameColor={svs?.chords.color || undefined}
-              displayName={formatChord(m.name, notation)}
+              displayName={formatChord(chordName, notation)}
               vertical={instrument === 'piano'}
             />
           </span>
         </span>
       );
-    });
-    if (lyricIdx < lyric.length) {
-      pieces.push(lyric.slice(lyricIdx));
+    };
+
+    // Each word atom becomes one `display: inline-block; white-space: nowrap`
+    // span so wrapping only happens at the spaces between atoms. Marker
+    // spans inside contribute their full PADDING_TOP height to every
+    // visual line, so wrapped lines also reserve diagram clearance.
+    const pieces: React.ReactNode[] = [];
+    for (let k = 0; k < atoms.length; k++) {
+      const a = atoms[k]!;
+      if (a.isSpace) {
+        const baseText = a.text.length === 0 ? ' ' : a.text;
+        const extra = extraSpaces.get(k) ?? 0;
+        // The natural inter-word space stays as text (a real space
+        // char, so the line can still break here on wrap). Any extra
+        // collision-avoidance width is rendered as an inline-block
+        // SPACER with explicit pixel width — measured in pixels so it
+        // doesn't depend on the proportional font's narrow space
+        // glyph. A full MIN_CHORD_GAP_CH (10) units corresponds to
+        // ~diagramW + small breathing room.
+        const SPACER_PX_PER_UNIT = Math.round((diagramW + 16) / 10);
+        pieces.push(
+          <span
+            key={`s${k}`}
+            style={{ whiteSpace: 'pre', display: 'inline-block', verticalAlign: 'bottom', lineHeight: 1 }}
+          >
+            {baseText}
+            {extra > 0 && (
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: `${extra * SPACER_PX_PER_UNIT}px`,
+                  height: '1px',
+                  verticalAlign: 'bottom',
+                }}
+                aria-hidden="true"
+              />
+            )}
+          </span>
+        );
+      } else {
+        const segs = wordSegments.get(k)!;
+        const children: React.ReactNode[] = [];
+        for (let s = 0; s < segs.length; s++) {
+          const seg = segs[s]!;
+          // Trailing em-dash separates this chord's syllable from the
+          // next chord's syllable in the same word (e.g. "habi" + "—"
+          // + "ta"). One em-dash per split; matches the reference
+          // images. Pure-whitespace segments (leading-NBSP block) never
+          // get an em-dash because they have no following syllable to
+          // separate from.
+          // A segment is a "real syllable" only when it has non-empty,
+          // non-whitespace text. Chord-only placeholders (empty text
+          // OR pure whitespace like the leading-NBSP block) are NOT
+          // real syllables — they never get visible ASCII dashes or
+          // em-dashes; their collision padding is invisible NBSPs.
+          // NBSPs are roughly half as wide as letters in proportional
+          // fonts, so non-syllable padding is doubled to match the
+          // visible pixel width of the equivalent dash padding.
+          const hasRealSyllable = seg.text.length > 0 && !/^\s+$/.test(seg.text);
+          let body = seg.text;
+          let longDashPx = 0;
+          if (seg.padDashes > 0) {
+            if (hasRealSyllable) {
+              // In-word syllable split: a single long visible dash
+              // (inline-block span with a centered border) spans
+              // the padDashes width, replacing the previous run of
+              // many ASCII dashes.
+              // Width = (padDashes + 2) × ~one-dash-width, so the
+              // long-dash bar is the combined width of the dashes it
+              // replaces plus a 2-dash extension for a cleaner look.
+              longDashPx = Math.round((seg.padDashes + 2) * lyricFontSize * 0.33);
+            } else {
+              // Non-syllable placeholder: invisible NBSP padding.
+              body = body + ' '.repeat(seg.padDashes * 2);
+            }
+          }
+          const trailingEmDash = seg.emDash && hasRealSyllable;
+          if (seg.chord) {
+            // For chord-only standalone atoms (empty word atom whose
+            // only chord is this segment), center the diagram
+            // horizontally within the atom's min-width box so it
+            // sits in the middle of the visible gap. For chord-on-
+            // syllable atoms keep the default SVG_LEFT_OFFSET so the
+            // diagram's leftmost string aligns with the character.
+            const isStandaloneChordOnly = a.text === '' && a.chords.length === 1;
+            let leftOverride: number | undefined;
+            if (isStandaloneChordOnly) {
+              // Atom min-width = diagramW × 0.9 (see outer span).
+              // Center the diagram inside it: shift right by
+              // (atomW - diagramW) / 2 from offset 0. With atomW <
+              // diagramW the offset is NEGATIVE, so the diagram
+              // overflows the atom box equally on each side.
+              const atomW = Math.round(diagramW * 0.9);
+              leftOverride = Math.round((atomW - diagramW) / 2);
+            }
+            children.push(renderMarker(seg.chord.name, `m${k}_${s}`, leftOverride));
+          }
+          // Lyric text wrapped in a span with `vertical-align: bottom`
+          // so it sits at the bottom of the (tall) line-box instead
+          // of being vertically centered by the inflated line-height.
+          // `lineHeight: 1` keeps the text's own line-box compact.
+          //
+          // Chord-only placeholder = has chord but no real syllable.
+          // Two width policies:
+          //   - Adjacent chord-only placeholders in a cluster get a
+          //     SMALLER min-width — diagrams sit close together, like
+          //     the reference layout. Adjacent placeholders' diagrams
+          //     are still distinguishable thanks to the chord-name
+          //     label centered above each.
+          //   - The LAST chord-only placeholder (or any placeholder
+          //     whose next segment is a real syllable) gets the FULL
+          //     diagram-width — so the lyric word following the
+          //     cluster doesn't end up under the last diagram.
+          const isChordOnlyPlaceholder = !!seg.chord && !hasRealSyllable;
+          const nextSeg = segs[s + 1];
+          const nextIsPlaceholder = !!nextSeg
+            && !!nextSeg.chord
+            && !(nextSeg.text.length > 0 && !/^\s+$/.test(nextSeg.text));
+          const bodyStyle: React.CSSProperties = {
+            display: 'inline-block',
+            verticalAlign: 'bottom',
+            lineHeight: 1,
+          };
+          if (isChordOnlyPlaceholder) {
+            bodyStyle.minWidth = nextIsPlaceholder
+              ? `${Math.round(diagramW * 0.55)}px`
+              : `${Math.round(diagramW * 0.85)}px`;
+          }
+          children.push(
+            <span
+              key={`t${k}_${s}`}
+              style={bodyStyle}
+            >
+              {body}
+              {longDashPx > 0 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    width: `${longDashPx}px`,
+                    height: '2px',
+                    backgroundColor: 'currentColor',
+                    verticalAlign: 'middle',
+                    marginLeft: '2px',
+                    marginRight: '2px',
+                  }}
+                />
+              )}
+              {/* The em-dash is redundant when a long-dash is shown
+                  (both serve as syllable separators). Only render the
+                  em-dash when there's no long-dash padding. */}
+              {trailingEmDash && longDashPx === 0 && '—'}
+            </span>
+          );
+        }
+        // Chord-only placeholder atom (empty text, has chord). Two
+        // width policies depending on whether the NEXT non-space atom
+        // is ALSO a chord-only placeholder:
+        //   - Tight (~0.75× diagram width) when followed by another
+        //     chord-only atom → diagrams sit close together as a
+        //     cluster.
+        //   - Full (diagram width + breathing room) when followed by
+        //     a real word → the lyric word starts past this diagram.
+        const isChordOnlyAtom = a.text === '' && a.chords.length > 0;
+        let isClusterNonLast = false;
+        let prevWasSyllableWord = false;
+        if (isChordOnlyAtom) {
+          // Look ahead through space atoms for the next non-space atom.
+          for (let nk = k + 1; nk < atoms.length; nk++) {
+            const na = atoms[nk]!;
+            if (na.isSpace) continue;
+            isClusterNonLast = na.text === '' && na.chords.length > 0;
+            break;
+          }
+          // Look back: was the previous non-space atom a syllable-bearing
+          // word? If so, add a bit of padding-left so the chord-only
+          // diagram doesn't sit flush against the preceding lyric.
+          for (let pk = k - 1; pk >= 0; pk--) {
+            const pa = atoms[pk]!;
+            if (pa.isSpace) continue;
+            // syllable-bearing = has visible text and either no chord
+            // or chord at a real syllable offset (i.e. NOT a chord-only
+            // placeholder atom).
+            prevWasSyllableWord = pa.text.length > 0 && !/^\s+$/.test(pa.text);
+            break;
+          }
+        }
+        // Min-width = diagramW × 0.9 — slightly NARROWER than the
+        // diagram so it visually extends a few px past each side of
+        // its atom. Combined with the centered `leftOverride`, this
+        // packs adjacent chord-only diagrams and the surrounding
+        // lyrics nice and tight.
+        const minWidthPx = isChordOnlyAtom
+          ? Math.round(diagramW * 0.9)
+          : 0;
+        const minWidthStyle: React.CSSProperties = minWidthPx > 0
+          ? { minWidth: `${minWidthPx}px` }
+          : {};
+        pieces.push(
+          <span
+            key={`w${k}`}
+            style={{
+              display: 'inline-block',
+              whiteSpace: 'nowrap',
+              verticalAlign: 'top',
+              ...minWidthStyle,
+            }}
+          >
+            {children}
+          </span>
+        );
+      }
     }
 
+    // OUTER container reserves `padding-top: DIAGRAM_MARGIN` ABOVE
+    // the diagram band — that's the visible gap between the previous
+    // line's lyric and this line's diagram top. The marker reserves
+    // `svgHeight + VISIBLE_GAP` inline (which provides the gap
+    // between the diagram bottom and this lyric). `padding-bottom`
+    // adds a bit of breathing room below this lyric before the next
+    // line starts. line-height is set just to contain the marker.
+    const lineH = PADDING_TOP;
     return (
-      <div style={{ margin: 0, paddingTop: PADDING_TOP }}>
-        <div style={{ whiteSpace: 'pre' }}>{pieces}</div>
+      <div style={{ margin: 0, paddingTop: TOP_GAP, paddingBottom: 0, lineHeight: `${lineH}px` }}>
+        <div style={{ overflowWrap: 'normal', wordBreak: 'keep-all' }}>{pieces}</div>
       </div>
     );
   }

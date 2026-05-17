@@ -92,7 +92,17 @@ export default function SectionNavigator({
         if (relTop <= TOLERANCE) activeIdx = i;
       });
 
-      if (atBottom && activeIdx < 0) activeIdx = sections.length - 1;
+      // At the content end, the final section is always the relevant
+      // one. Auto-scroll stops at `totalScrollable` (the end of the
+      // song, NOT the end of the bottom spacer), so the last section's
+      // heading may still sit below the container top — meaning the
+      // `relTop <= TOLERANCE` test above never selects it. Without
+      // this override the last section never lights up when the song
+      // is auto-scrolled to the end with the panel open. Forcing the
+      // last index whenever we're at the bottom fixes that, and is
+      // correct because reaching the content end necessarily means
+      // the final section is the one on screen.
+      if (atBottom) activeIdx = sections.length - 1;
       if (activeIdx < 0) activeIdx = 0;
       const item = sections[activeIdx];
       setActiveId(item ? item.id : null);

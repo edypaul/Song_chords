@@ -3,7 +3,7 @@ import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FO
 import { db } from '../ipc/ipc-client';
 import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, SongListColumn, KeyboardShortcuts, ShortcutAction } from '@song-chords/shared';
 import ShortcutRecorder from '../components/common/ShortcutRecorder';
-import { Download, Upload, Trash2 } from 'lucide-react';
+import { Download, Upload, Trash2, Palette, Music as MusicIcon, Layout, Keyboard, Database, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import {
   downloadJson, pickJsonFile, timestampSlug,
@@ -211,11 +211,82 @@ export default function SettingsPage(): React.ReactElement {
     }
   };
 
-  return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-8" style={{ color: 'var(--text-primary)' }}>Settings</h1>
+  // Categories that drive the left-side navigation. The actual section
+  // content stays inline below; we just gate each Section on the
+  // active category so the page renders one logical group at a time.
+  const CATEGORIES = [
+    { id: 'general',   label: 'General',   icon: <Palette size={14} /> },
+    { id: 'display',   label: 'Display',   icon: <Layout size={14} /> },
+    { id: 'playback',  label: 'Playback',  icon: <MusicIcon size={14} /> },
+    { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={14} /> },
+    { id: 'data',      label: 'Data',      icon: <Database size={14} /> },
+    { id: 'danger',    label: 'Danger Zone', icon: <AlertTriangle size={14} /> },
+  ] as const;
+  type CategoryId = typeof CATEGORIES[number]['id'];
+  const [activeCat, setActiveCat] = useState<CategoryId>('general');
+  const showCat = (id: CategoryId) => activeCat === id;
 
-      <Section title="Appearance">
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Settings sub-nav — horizontal tab bar across the top of the
+          page. Differs from the main app sidebar by:
+            - horizontal orientation instead of vertical.
+            - active item uses a bottom-edge accent stripe (tab bar
+              convention) rather than the main nav's solid accent
+              fill.
+            - tighter rows, smaller font, scrolls horizontally on
+              narrow viewports so every category stays reachable. */}
+      <nav
+        className="shrink-0 flex items-center gap-1 px-4 border-b overflow-x-auto"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+        aria-label="Settings categories"
+      >
+        <h1
+          className="text-[13px] font-semibold uppercase tracking-wider pr-4 mr-2 shrink-0"
+          style={{ color: 'var(--text-muted)', letterSpacing: '0.08em', borderRight: '1px solid var(--border)', paddingTop: 14, paddingBottom: 14 }}
+        >
+          Settings
+        </h1>
+        {CATEGORIES.map((c) => {
+          const active = activeCat === c.id;
+          return (
+            <button
+              key={c.id}
+              onClick={() => setActiveCat(c.id)}
+              className="flex items-center gap-2 px-3 text-[13px] transition-colors shrink-0"
+              style={{
+                color: active ? 'var(--accent)' : 'var(--text-secondary)',
+                fontWeight: active ? 600 : 450,
+                borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+                marginBottom: -1,
+                paddingTop: 14,
+                paddingBottom: 14,
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.color = 'var(--text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.color = 'var(--text-secondary)';
+              }}
+            >
+              <span
+                className="shrink-0 flex items-center justify-center"
+                style={{ width: 14, color: active ? 'var(--accent)' : 'var(--text-muted)' }}
+              >
+                {c.icon}
+              </span>
+              <span>{c.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Right pane — scrolls independently. */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-8 max-w-2xl mx-auto">
+
+      {showCat('general') && (<Section title="Appearance">
         <SettingRow label="Theme">
           <select
             value={settings.theme}
@@ -234,9 +305,9 @@ export default function SettingsPage(): React.ReactElement {
             <option value="dark">Dark</option>
           </select>
         </SettingRow>
-      </Section>
+      </Section>)}
 
-      <Section title="Music">
+      {showCat('general') && (<Section title="Music">
         <SettingRow label="Default Instrument">
           <select
             value={settings.defaultInstrument}
@@ -272,9 +343,9 @@ export default function SettingsPage(): React.ReactElement {
         <SettingRow label="Show chord diagrams bar" hint="Default visibility of the chord diagrams bar for all songs">
           <Toggle checked={settings.showChordDiagrams} onChange={(v) => set('showChordDiagrams', v)} />
         </SettingRow>
-      </Section>
+      </Section>)}
 
-      <Section title="Auto-Scroll">
+      {showCat('playback') && (<Section title="Auto-Scroll">
         <SettingRow label="Default Scroll Speed">
           <div className="flex items-center gap-3">
             <input
@@ -288,12 +359,14 @@ export default function SettingsPage(): React.ReactElement {
             <span className="w-8 text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{settings.scrollSpeed}</span>
           </div>
         </SettingRow>
-      </Section>
+      </Section>)}
 
-      <SongViewStyleSection style={settings.songViewStyle} onChange={(v) => set('songViewStyle', v)}
-        customPresets={settings.customPresets ?? {}} onCustomPresetsChange={(v) => set('customPresets', v)} />
+      {showCat('display') && (
+        <SongViewStyleSection style={settings.songViewStyle} onChange={(v) => set('songViewStyle', v)}
+          customPresets={settings.customPresets ?? {}} onCustomPresetsChange={(v) => set('customPresets', v)} />
+      )}
 
-      <Section title="Song Layout">
+      {showCat('display') && (<Section title="Song Layout">
         <SettingRow label="Center Song" hint="Center the song content on the page">
           <Toggle checked={settings.songCentered ?? false} onChange={(v) => set('songCentered', v)} />
         </SettingRow>
@@ -322,9 +395,9 @@ export default function SettingsPage(): React.ReactElement {
             <span className="w-10 text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{Math.round((settings.perfZoom ?? 1) * 100)}%</span>
           </div>
         </SettingRow>
-      </Section>
+      </Section>)}
 
-      <Section title="Song List Columns">
+      {showCat('display') && (<Section title="Song List Columns">
         <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
             Columns to show in the Songs, Categories, and Favorites lists. Title is always shown.
@@ -347,16 +420,16 @@ export default function SettingsPage(): React.ReactElement {
             })}
           </div>
         </div>
-      </Section>
+      </Section>)}
 
-      <Section title="Keyboard Shortcuts">
+      {showCat('shortcuts') && (<Section title="Keyboard Shortcuts">
         <KeyboardShortcutsEditor
           shortcuts={settings.shortcuts ?? DEFAULT_SHORTCUTS}
           onChange={(next) => set('shortcuts', next)}
         />
-      </Section>
+      </Section>)}
 
-      <Section title="Backup & Restore">
+      {showCat('data') && (<Section title="Backup & Restore">
         <BackupRow
           label="Songs library"
           hint="All songs, set lists, and favorites. Restoring replaces everything."
@@ -387,9 +460,9 @@ export default function SettingsPage(): React.ReactElement {
             {status.message}
           </div>
         )}
-      </Section>
+      </Section>)}
 
-      <Section title="Danger Zone">
+      {showCat('danger') && (<Section title="Danger Zone">
         <div className="flex flex-col gap-3 px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             Pick what to delete. This cannot be undone — export a backup first if you want a copy.
@@ -427,7 +500,10 @@ export default function SettingsPage(): React.ReactElement {
             </button>
           </div>
         </div>
-      </Section>
+      </Section>)}
+
+        </div>
+      </div>
 
       {confirmDelete && (
         <ConfirmDialog
@@ -523,8 +599,15 @@ const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   toggleAutoScroll:     'Start / pause auto-scroll',
   transposeUp:          'Transpose up',
   transposeDown:        'Transpose down',
+  resetTranspose:       'Reset transpose to 0',
   exportSong:           'Open export modal',
   editSong:             'Enter edit page',
+  toggleFavorite:       'Toggle favorite',
+  cast:                 'Open cast popover',
+  addToSetList:         'Add song to set list',
+  toggleFullscreen:     'Toggle fullscreen / performance mode',
+  nextSong:             'Next song (in a set list)',
+  prevSong:             'Previous song (in a set list)',
   zoomIn:               'Zoom in',
   zoomOut:              'Zoom out',
   zoomReset:            'Reset zoom',
@@ -541,7 +624,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'View & Display',
     hint: 'Active in the Song view and Perform pages.',
-    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes'],
+    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen'],
   },
   {
     title: 'Playback',
@@ -549,15 +632,20 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     actions: ['toggleMetronome', 'toggleAutoScroll'],
   },
   {
+    title: 'Set list navigation',
+    hint: 'Move between songs while performing a set list.',
+    actions: ['nextSong', 'prevSong'],
+  },
+  {
     title: 'Key & Capo',
     hint: 'Transpose the song up or down; hold the capo modifier with a digit to set the capo directly. Active in the Song view and Perform pages.',
-    actions: ['transposeUp', 'transposeDown'],
+    actions: ['transposeUp', 'transposeDown', 'resetTranspose'],
     includeCapo: true,
   },
   {
     title: 'Song actions',
-    hint: 'Active when a song is open in the Song view.',
-    actions: ['exportSong', 'editSong'],
+    hint: 'Favorite, cast, add to set list, export, edit. Active when a song is open.',
+    actions: ['toggleFavorite', 'cast', 'addToSetList', 'exportSong', 'editSong'],
   },
   {
     title: 'Zoom',
@@ -634,6 +722,39 @@ function KeyboardShortcutsEditor({
           </div>
         </div>
       ))}
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <div
+          className="px-4 py-2.5 flex flex-col gap-0.5"
+          style={{ background: 'var(--bg-secondary)' }}
+        >
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+            Help
+          </h3>
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Built-in shortcut for opening this list. Cannot be changed.
+          </p>
+        </div>
+        <div
+          className="flex items-center gap-4 px-4 py-3"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>
+            Open keyboard shortcuts list
+          </p>
+          <kbd
+            className="px-2 py-1 rounded text-xs font-mono"
+            style={{
+              background: 'var(--surface-elevated)',
+              color: 'var(--text-secondary)',
+              border: '1px solid var(--border)',
+              minWidth: '2rem',
+              textAlign: 'center',
+            }}
+          >
+            ?
+          </kbd>
+        </div>
+      </div>
       <div className="p-3 flex justify-center" style={{ borderTop: '1px solid var(--border)' }}>
         <button
           onClick={() => onChange({ ...DEFAULT_SHORTCUTS })}

@@ -61,7 +61,7 @@ export default function SongRenderer({ song, fontSize, viewMode, onChordClick, c
     <div style={{
       fontSize: `${lyricsFontSize}px`,
       lineHeight: 1.8,
-      fontFamily: svs.fontFamily || 'monospace',
+      fontFamily: svs.fontFamily || 'sans-serif',
       color: svs.lyrics.color || undefined,
     }}>
       {groups.map((group, gi) =>
@@ -214,7 +214,10 @@ const RenderLine = memo(function RenderLine({
 
   if (line.hasChords && viewMode === 'lyrics-only') {
     const lyrics = line.tokens.filter((t) => t.type === 'lyric').map((t) => (t as { text: string }).text).join('');
-    return <div>{lyrics}</div>;
+    // line-height: 1.4 keeps successive lyric lines tight (no
+    // inflated half-leading), which makes the chord-line diagrams
+    // visually centered between the surrounding lyrics.
+    return <div style={{ lineHeight: 1.4 }}>{lyrics}</div>;
   }
 
   if (!line.hasChords && viewMode === 'chords-only') {
@@ -227,6 +230,9 @@ const RenderLine = memo(function RenderLine({
   }
 
   const text = line.tokens.map((t) => (t as { text?: string }).text ?? '').join('');
-  return <div>{text || '\u00A0'}</div>;
+  // Same tight line-height for non-chord lyric lines (or pure text
+  // lines) so they don't inflate the visual gap above the next
+  // chord-line's diagram.
+  return <div style={{ lineHeight: 1.4 }}>{text || ' '}</div>;
 });
 

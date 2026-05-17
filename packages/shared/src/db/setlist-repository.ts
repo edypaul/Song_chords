@@ -77,7 +77,11 @@ export class SetListRepository {
   constructor(private db: IDatabase) {}
 
   async getAll(): Promise<SetList[]> {
-    const rows = await this.db.query<SetListRow>('SELECT * FROM setlists ORDER BY updated_at DESC');
+    // Order by the user-controlled `position` column (set via drag &
+    // drop on the Set Lists page). Ties break by updated_at DESC so
+    // newly-touched lists still surface above older same-position rows
+    // — useful for fresh databases where every row starts at position 0.
+    const rows = await this.db.query<SetListRow>('SELECT * FROM setlists ORDER BY position ASC, updated_at DESC');
     return rows.map(rowToSetList);
   }
 
@@ -89,11 +93,34 @@ export class SetListRepository {
   async create(input: SetListCreateInput): Promise<SetList> {
     const now = Date.now();
     const id = uuidv4();
+    // New setlists land at the END of the user-controlled order — the
+    // top of the list is reserved for the user's own arrangement.
+    // We could also put new lists at the top; ending the list is
+    // safer (existing drag order isn't disrupted by a sudden
+    // shuffle), and the user can drag the new card up if they want.
+    const maxRow = await this.db.queryOne<{ max_pos: number | null }>(
+      'SELECT MAX(position) as max_pos FROM setlists',
+    );
+    const nextPosition = (maxRow?.max_pos ?? -1) + 1;
     await this.db.execute(
-      'INSERT INTO setlists (id, name, description, date, created_at, updated_at) VALUES (?,?,?,?,?,?)',
-      [id, input.name, input.description ?? null, input.date ?? null, now, now],
+      'INSERT INTO setlists (id, name, description, date, position, created_at, updated_at) VALUES (?,?,?,?,?,?,?)',
+      [id, input.name, input.description ?? null, input.date ?? null, nextPosition, now, now],
     );
     return { ...input, id, createdAt: now, updatedAt: now };
+  }
+
+  /**
+   * Rewrite every setlist's `position` according to the given id order
+   * (index 0 = top). Used by the Set Lists page's drag-to-reorder UI.
+   * Sequential UPDATEs — mirrors `reorderEntries` below. `IDatabase`
+   * has no transaction primitive; a partial failure here would just
+   * leave some positions stale until the next reorder, which the
+   * store's optimistic update + DB-backed reload reconciles anyway.
+   */
+  async reorder(orderedIds: string[]): Promise<void> {
+    for (let i = 0; i < orderedIds.length; i++) {
+      await this.db.execute('UPDATE setlists SET position=? WHERE id=?', [i, orderedIds[i]]);
+    }
   }
 
   async update(id: string, patch: Partial<Pick<SetList, 'name' | 'description' | 'date'>>): Promise<void> {

@@ -50,6 +50,7 @@ export { toLatin, fromLatin, formatChord, formatKey, normalizeContentToLetter } 
 export { getDiagram, getDiagramExact, getDiagramVariations, getDiagramByIndex, getAllChordNames, hasCustomVariations, getBuiltinDiagrams } from './chord-diagrams/diagram-lookup';
 export { GUITAR_DIAGRAMS } from './chord-diagrams/guitar-diagrams';
 export { UKULELE_DIAGRAMS } from './chord-diagrams/ukulele-diagrams';
+export { GUITAR_SLASH_DIAGRAMS, UKULELE_SLASH_DIAGRAMS } from './chord-diagrams/slash-diagrams';
 export { PIANO_DIAGRAMS, getAllPianoChordNames } from './chord-diagrams/piano-diagrams';
 
 // Chord engine

@@ -20,10 +20,20 @@ const electronAPI = {
       ipcRenderer.invoke('files:writeFile', filePath, content),
     saveSongsFolder: (folderName: string, files: Array<{ filename: string; content: string }>): Promise<{ folder: string | null; error?: string }> =>
       ipcRenderer.invoke('files:saveSongsFolder', folderName, files),
+    /** Native single-file picker with audio extensions filter. Returns
+     *  the absolute path of the chosen file, or null if cancelled. */
+    pickAudio: (): Promise<string | null> => ipcRenderer.invoke('files:pickAudio'),
   },
   shell: {
     openExternal: (url: string) =>
       ipcRenderer.invoke('shell:openExternal', url),
+  },
+  youtube: {
+    /** Open a child BrowserWindow that loads the canonical YouTube
+     *  watch page for the given URL. Used as the fallback for
+     *  embed-disabled videos — the regular page has no embedding
+     *  restrictions and plays anything. */
+    openPopup: (url: string): Promise<void> => ipcRenderer.invoke('youtube:openPopup', url),
   },
   pdf: {
     savePdf: (html: string, defaultName: string, bgColor?: string): Promise<{ canceled: boolean; filePath?: string; error?: string }> =>
@@ -44,6 +54,28 @@ const electronAPI = {
       ipcRenderer.on('window:max-state', handler);
       return () => ipcRenderer.removeListener('window:max-state', handler);
     },
+  },
+  cast: {
+    /** Start the local cast HTTP + WebSocket server. Defaults to
+     *  mirror mode capturing the calling window. */
+    start: (view: 'app' | 'song' | 'fullscreen' | 'performance'): Promise<{ host: string; port: number }> =>
+      ipcRenderer.invoke('cast:start', view),
+    stop: (): Promise<{ running: boolean; host: string | null; port: number | null; clients: number; view: string; mode: 'mirror' | 'html' | 'idle' }> =>
+      ipcRenderer.invoke('cast:stop'),
+    status: (): Promise<{ running: boolean; host: string | null; port: number | null; clients: number; view: string; mode: 'mirror' | 'html' | 'idle' }> =>
+      ipcRenderer.invoke('cast:status'),
+    setView: (view: 'app' | 'song' | 'fullscreen' | 'performance'): Promise<{ running: boolean; host: string | null; port: number | null; clients: number; view: string; mode: 'mirror' | 'html' | 'idle' }> =>
+      ipcRenderer.invoke('cast:setView', view),
+    /** Switch the cast to mirror mode (live JPEG capture of the
+     *  caller's window). Used by the Cast page's full-app mirror. */
+    setMirror: (): Promise<{ running: boolean; host: string | null; port: number | null; clients: number; view: string; mode: 'mirror' | 'html' | 'idle' }> =>
+      ipcRenderer.invoke('cast:setMirror'),
+    /** Push a self-contained HTML document to all receivers. Used by
+     *  the per-song Cast button popovers (Lyrics only / Lyrics +
+     *  chords). The HTML is built in the renderer via
+     *  `buildCastHtml(song, mode)`. */
+    setHtml: (html: string): Promise<{ running: boolean; host: string | null; port: number | null; clients: number; view: string; mode: 'mirror' | 'html' | 'idle' }> =>
+      ipcRenderer.invoke('cast:setHtml', html),
   },
   onMenuAction: (callback: (action: string) => void) => {
     const actions = [

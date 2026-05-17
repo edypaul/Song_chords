@@ -34,9 +34,11 @@ CREATE TABLE IF NOT EXISTS setlists (
   name        TEXT NOT NULL,
   description TEXT,
   date        INTEGER,
+  position    INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_setlists_position ON setlists(position);
 
 CREATE TABLE IF NOT EXISTS setlist_entries (
   id          TEXT PRIMARY KEY,
@@ -152,5 +154,28 @@ CREATE INDEX IF NOT EXISTS idx_setlist_entries_song    ON setlist_entries(song_i
   {
     version: 11,
     up: `ALTER TABLE songs ADD COLUMN last_viewed_at INTEGER;`,
+  },
+  {
+    version: 12,
+    up: `ALTER TABLE songs ADD COLUMN link TEXT;`,
+  },
+  {
+    version: 13,
+    up: `ALTER TABLE songs ADD COLUMN audio_file TEXT;`,
+  },
+  {
+    // User-controllable ordering for the Set Lists page. Defaults to
+    // the row's existing updated_at-descending order so existing
+    // databases keep their current visible order on first load.
+    // We seed `position` from a row-number over `updated_at DESC` —
+    // smaller position = earlier (top of the list).
+    version: 14,
+    up: `
+ALTER TABLE setlists ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+UPDATE setlists SET position = (
+  SELECT COUNT(*) FROM setlists s2 WHERE s2.updated_at > setlists.updated_at OR (s2.updated_at = setlists.updated_at AND s2.id > setlists.id)
+);
+CREATE INDEX IF NOT EXISTS idx_setlists_position ON setlists(position);
+`,
   },
 ];

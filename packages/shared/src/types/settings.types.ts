@@ -47,8 +47,15 @@ export type ShortcutAction =
   | 'toggleAutoScroll'
   | 'transposeUp'
   | 'transposeDown'
+  | 'resetTranspose'
   | 'exportSong'
   | 'editSong'
+  | 'toggleFavorite'
+  | 'cast'
+  | 'addToSetList'
+  | 'toggleFullscreen'
+  | 'nextSong'
+  | 'prevSong'
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomReset';
@@ -62,8 +69,15 @@ export interface KeyboardShortcuts {
   toggleAutoScroll: string;
   transposeUp: string;
   transposeDown: string;
+  resetTranspose: string;
   exportSong: string;
   editSong: string;
+  toggleFavorite: string;
+  cast: string;
+  addToSetList: string;
+  toggleFullscreen: string;
+  nextSong: string;
+  prevSong: string;
   zoomIn: string;
   zoomOut: string;
   zoomReset: string;

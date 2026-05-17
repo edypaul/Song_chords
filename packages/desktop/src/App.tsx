@@ -38,9 +38,11 @@ import CategoryPlayerPage from './pages/CategoryPlayerPage';
 import DashboardPage from './pages/DashboardPage';
 import FavoritesPage from './pages/FavoritesPage';
 import FavoritesPlayerPage from './pages/FavoritesPlayerPage';
+import CastPage from './pages/CastPage';
 import KeyboardShortcutsOverlay from './components/common/KeyboardShortcutsModal';
 import GlobalZoomShortcuts from './components/common/GlobalZoomShortcuts';
 import { NavigationGuardProvider } from './context/NavigationGuard';
+import { AudioPlayerProvider } from './context/AudioPlayer';
 
 export default function App(): React.ReactElement {
   const loadSongs = useSongStore((s) => s.loadSongs);
@@ -53,6 +55,7 @@ export default function App(): React.ReactElement {
     void loadSetLists(db);
   }, []);
 
+
   useEffect(() => {
     const root = document.documentElement;
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -63,6 +66,7 @@ export default function App(): React.ReactElement {
   return (
     <ErrorBoundary>
       <NavigationGuardProvider>
+        <AudioPlayerProvider>
         <KeyboardShortcutsOverlay />
         <GlobalZoomShortcuts />
         <HashRouter>
@@ -85,10 +89,12 @@ export default function App(): React.ReactElement {
             <Route path="categories/:category/:value/perform" element={<CategoryPlayerPage />} />
             <Route path="favorites" element={<FavoritesPage />} />
             <Route path="favorites/perform" element={<FavoritesPlayerPage />} />
+            <Route path="cast" element={<CastPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
         </HashRouter>
+        </AudioPlayerProvider>
       </NavigationGuardProvider>
     </ErrorBoundary>
   );

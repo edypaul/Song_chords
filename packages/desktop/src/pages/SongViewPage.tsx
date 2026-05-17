@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp } from 'lucide-react';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, MoreVertical } from 'lucide-react';
 import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations, formatKey, formatChord } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
+import MetronomeControl from '../components/controls/MetronomeControl';
 import ChordDiagramBar from '../components/chord-diagram/ChordDiagramBar';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
@@ -13,6 +15,8 @@ import SetListPickerModal from '../components/song/SetListPickerModal';
 import StickyNotePanel from '../components/song/StickyNotePanel';
 import SectionNavigator from '../components/song/SectionNavigator';
 import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
+import CastQuickButton from '../components/song/CastQuickButton';
+import PlayLinkButton from '../components/song/PlayLinkButton';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMetronome } from '../hooks/useMetronome';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
@@ -111,7 +115,14 @@ export default function SongViewPage(): React.ReactElement {
   // In-session performance-mode toggles (no longer persisted settings)
   const [perfMetroWanted, setPerfMetroWanted] = useState(true);
   const [perfScrollWanted, setPerfScrollWanted] = useState(true);
-  const metronome = useMetronome(activeSong?.tempo ?? 120, activeSong?.timeSig ?? '4/4');
+  // Half / double-time multiplier — applies to the metronome only,
+  // never the stored song tempo. Resets to 1× when the user opens a
+  // different song so the new song starts at its natural BPM. Mirrors
+  // the same control on the Perform page.
+  const [tempoMultiplier, setTempoMultiplier] = useState<0.5 | 1 | 2>(1);
+  useEffect(() => { setTempoMultiplier(1); }, [activeSong?.id]);
+  const baseTempo = activeSong?.tempo ?? 120;
+  const metronome = useMetronome(Math.round(baseTempo * tempoMultiplier), activeSong?.timeSig ?? '4/4');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
   const [showNotes, setShowNotes] = useState(false);
@@ -122,6 +133,55 @@ export default function SongViewPage(): React.ReactElement {
   }, [activeSong?.id, activeSong?.notes]);
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
+  // Three-dots "more" menu — collects the actions that aren't useful
+  // during live performance (style preset, favorite, set-list, export,
+  // notes, audio link, edit) so the main toolbar stays uncluttered.
+  // The menu is portaled into <body> because the toolbar container has
+  // `overflow: hidden`, which would otherwise clip the absolute-
+  // positioned dropdown. `moreMenuPos` tracks the screen-space anchor
+  // computed from the trigger button's bounding rect.
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!moreMenuOpen) return;
+    const place = () => {
+      const btn = moreMenuTriggerRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      setMoreMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [moreMenuOpen]);
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    // Use `click` (not `mousedown`) so a click on a menu item's
+    // button has a chance to run its own onClick handler before the
+    // menu unmounts. mousedown fires earlier than click, and the
+    // CastQuickButton inside the menu relies on its own click handler
+    // to open its popover — closing the menu on mousedown would
+    // unmount CastQuickButton before the click reaches it.
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (moreMenuRef.current && moreMenuRef.current.contains(t)) return;
+      if (moreMenuTriggerRef.current && moreMenuTriggerRef.current.contains(t)) return;
+      // The cast popover portals to <body>, OUTSIDE the menu. Any
+      // click inside an element with [data-cast-popover] (the popover
+      // root) should keep the menu open so the user can interact with
+      // the popover without it disappearing under them.
+      if ((t as HTMLElement).closest?.('[data-cast-popover]')) return;
+      setMoreMenuOpen(false);
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, [moreMenuOpen]);
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 
@@ -142,8 +202,21 @@ export default function SongViewPage(): React.ReactElement {
     toggleAutoScroll:     () => toggleAutoScroll(),
     transposeUp:          () => transposeUp(),
     transposeDown:        () => transposeDown(),
+    resetTranspose:       () => resetTranspose(),
     exportSong:           () => setShowExport(true),
     editSong:             () => { if (id) navigate(`/song/${id}/edit`); },
+    toggleFavorite:       () => { if (activeSong) void toggleFavorite(db, activeSong.id); },
+    cast:                 () => {
+      // CastQuickButton encapsulates its own popover state; the
+      // simplest cross-component trigger is to click its rendered
+      // icon (title="Cast"). It sits inside the More menu's
+      // .cast-menu-row, so we scope the query to that container
+      // when the menu's open OR fall back to a global lookup.
+      const btn = document.querySelector('button[title="Cast"]') as HTMLButtonElement | null;
+      btn?.click();
+    },
+    addToSetList:         () => setShowSetListPicker(true),
+    toggleFullscreen:     () => { if (performanceMode) exitPerformance(); else enterFullscreen(); },
     zoomIn:               () => setZoomLevel((z) => Math.min(z + 0.1, 3)),
     zoomOut:              () => setZoomLevel((z) => Math.max(z - 0.1, 0.5)),
     zoomReset:            () => setZoomLevel(1),
@@ -260,20 +333,16 @@ export default function SongViewPage(): React.ReactElement {
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Ignore key presses while the user is typing in a form control.
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      const editable = (e.target as HTMLElement | null)?.isContentEditable;
-      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!editable;
-
+      // Escape is the only hardcoded key here — it's a universal
+      // "exit/back" gesture that we don't want users to be able to
+      // re-bind (Esc is the page-close pact across every modal /
+      // panel). All other keys flow through the configurable
+      // useKeyboardShortcuts system above, including F for the
+      // fullscreen toggle.
       if (e.key === 'Escape') {
         if (performanceMode) { exitPerformance(); return; }
         navigate(-1);
         return;
-      }
-      if (!inInput && (e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        if (performanceMode) exitPerformance();
-        else enterFullscreen();
       }
     };
     const handleFsChange = () => {
@@ -503,8 +572,14 @@ export default function SongViewPage(): React.ReactElement {
             </div>
           )}
 
+          {/* Audio source + Cast (full-screen perf) */}
+          <div className="ml-auto flex items-center gap-1">
+            <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
+            <CastQuickButton />
+          </div>
+
           {/* Exit */}
-          <button onClick={exitPerformance} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ml-auto" style={{ color: 'var(--text-muted)' }} title="Exit performance mode (Esc)">
+          <button onClick={exitPerformance} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }} title="Exit performance mode (Esc)">
             <X size={13} /> Exit
           </button>
         </div>
@@ -688,24 +763,16 @@ export default function SongViewPage(): React.ReactElement {
 
         <div className="flex items-center gap-2">
           {activeSong?.tempo && (
-            <>
-              <button
-                onClick={metronome.toggle}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded text-xs transition-colors"
-                style={{ background: metronome.isPlaying ? 'var(--accent)' : 'var(--surface-elevated)', color: metronome.isPlaying ? 'white' : 'var(--text-secondary)' }}
-                title={`Metronome — ${activeSong.tempo} BPM, ${activeSong.timeSig ?? '4/4'}`}
-              >
-                <Timer size={13} />
-                <span>{activeSong.tempo}</span>
-              </button>
-              {metronome.isPlaying && (
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: metronome.beatsPerMeasure }, (_, i) => (
-                    <div key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: i === metronome.currentBeat ? (i === 0 ? 'var(--accent)' : 'var(--chord-color)') : 'var(--border)', transition: 'background 0.05s' }} />
-                  ))}
-                </div>
-              )}
-            </>
+            <MetronomeControl
+              tempo={activeSong.tempo}
+              timeSig={activeSong.timeSig}
+              isPlaying={metronome.isPlaying}
+              currentBeat={metronome.currentBeat}
+              beatsPerMeasure={metronome.beatsPerMeasure}
+              tempoMultiplier={tempoMultiplier}
+              onToggle={metronome.toggle}
+              onMultiplierChange={setTempoMultiplier}
+            />
           )}
 
           {/* Zoom indicator */}
@@ -724,144 +791,250 @@ export default function SongViewPage(): React.ReactElement {
             {Math.round(zoomLevel * 100)}%
           </button>
 
-          {/* Lyrics-only toggle — placed right of the zoom indicator */}
-          {(() => {
-            const lyricsOnly = viewMode === 'lyrics-only';
-            return (
-              <button
-                onClick={() => setViewMode(lyricsOnly ? 'chords' : 'lyrics-only')}
-                className="p-1.5 rounded-md transition-colors"
-                style={{
-                  background: lyricsOnly ? 'var(--accent)' : 'var(--surface-elevated)',
-                  color: lyricsOnly ? 'white' : 'var(--text-muted)',
-                }}
-                title={lyricsOnly ? 'Show chords' : 'Lyrics only'}
-              >
-                <FileText size={14} />
-              </button>
-            );
-          })()}
-
-          {/* Chord bar toggle (disabled when lyrics-only or inline diagrams
-              is on — but inline-diagrams is force-off for piano). */}
-          {(() => {
-            const inlineEffective = inlineDiagrams && instrument !== 'piano';
-            const chordBarDisabled = viewMode === 'lyrics-only' || inlineEffective;
-            const chordBarOn = chordBarVisible && !chordBarDisabled;
-            return (
-              <button
-                onClick={() => setChordBarVisible((v) => !v)}
-                disabled={chordBarDisabled}
-                className="p-1.5 rounded-md transition-colors"
-                style={{
-                  background: chordBarOn ? 'var(--accent)' : 'var(--surface-elevated)',
-                  color: chordBarOn ? 'white' : 'var(--text-muted)',
-                  opacity: chordBarDisabled ? 0.4 : 1,
-                  cursor: chordBarDisabled ? 'not-allowed' : 'pointer',
-                }}
-                title={chordBarDisabled ? 'Unavailable while inline diagrams or lyrics-only mode is on' : (chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar')}
-              >
-                <Guitar size={14} />
-              </button>
-            );
-          })()}
-          {/* Inline diagrams toggle (disabled for piano — keyboard shapes
-              don't fit cleanly inline — and when lyrics-only / chord bar is on). */}
+          {/* Mutually-exclusive view toggle: Lyrics-only / Chord-bar /
+              Inline-diagrams. Acts like a 3-position nav — clicking any
+              button activates that mode and deactivates the others.
+              None of the buttons disable themselves; the only exception
+              is inline-diagrams when the instrument is piano (those
+              shapes are too wide to read inline). */}
           {(() => {
             const isPiano = instrument === 'piano';
-            const inlineDisabled = viewMode === 'lyrics-only' || chordBarVisible || isPiano;
-            const inlineOn = inlineDiagrams && !inlineDisabled;
-            const disabledReason = isPiano
-              ? 'Inline diagrams are unavailable for piano'
-              : 'Unavailable while chord bar or lyrics-only mode is on';
+            const lyricsOnly = viewMode === 'lyrics-only';
+            const inlineOn = !lyricsOnly && !chordBarVisible && inlineDiagrams && !isPiano;
+            const chordBarOn = !lyricsOnly && chordBarVisible && !inlineOn;
+            const activateLyricsOnly = () => {
+              // Toggle off when already active — drops back to the
+              // default chord-over-lyric view. Otherwise activate it
+              // and clear the other two modes.
+              if (lyricsOnly) { setViewMode('chords'); return; }
+              setViewMode('lyrics-only');
+              if (chordBarVisible) setChordBarVisible(false);
+              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+            };
+            const activateChordBar = () => {
+              // Toggle off when already active; otherwise activate and
+              // clear the other two modes.
+              if (chordBarOn) { setChordBarVisible(false); return; }
+              if (lyricsOnly) setViewMode('chords');
+              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+              setChordBarVisible(true);
+            };
+            const activateInline = () => {
+              if (isPiano) return;
+              // Toggle off when already active; otherwise activate and
+              // clear the other two modes.
+              if (inlineOn) { void updateSetting(db, 'inlineChordDiagrams', false); return; }
+              if (lyricsOnly) setViewMode('chords');
+              if (chordBarVisible) setChordBarVisible(false);
+              if (!inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', true);
+            };
+            const btnStyle = (active: boolean, faded: boolean) => ({
+              background: active ? 'var(--accent)' : 'var(--surface-elevated)',
+              color: active ? 'white' : 'var(--text-muted)',
+              opacity: faded ? 0.4 : 1,
+              cursor: faded ? 'not-allowed' : 'pointer',
+            });
             return (
-              <button
-                onClick={() => void updateSetting(db, 'inlineChordDiagrams', !inlineDiagrams)}
-                disabled={inlineDisabled}
-                className="p-1.5 rounded-md transition-colors"
-                style={{
-                  background: inlineOn ? 'var(--accent)' : 'var(--surface-elevated)',
-                  color: inlineOn ? 'white' : 'var(--text-muted)',
-                  opacity: inlineDisabled ? 0.4 : 1,
-                  cursor: inlineDisabled ? 'not-allowed' : 'pointer',
-                }}
-                title={inlineDisabled ? disabledReason : (inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams')}
-              >
-                <LayoutGrid size={14} />
-              </button>
+              <>
+                <button
+                  onClick={activateLyricsOnly}
+                  className="p-1.5 rounded-md transition-colors"
+                  style={btnStyle(lyricsOnly, false)}
+                  title={lyricsOnly ? 'Show chord names' : 'Show lyrics only'}
+                >
+                  <FileText size={14} />
+                </button>
+                <button
+                  onClick={activateChordBar}
+                  className="p-1.5 rounded-md transition-colors"
+                  style={btnStyle(chordBarOn, false)}
+                  title={chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar'}
+                >
+                  <Guitar size={14} />
+                </button>
+                <button
+                  onClick={activateInline}
+                  disabled={isPiano}
+                  className="p-1.5 rounded-md transition-colors"
+                  style={btnStyle(inlineOn, isPiano)}
+                  title={isPiano
+                    ? 'Inline diagrams are unavailable for piano'
+                    : (inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams')}
+                >
+                  <LayoutGrid size={14} />
+                </button>
+              </>
             );
           })()}
 
-          {/* Style preset selector */}
-          <select
-            value={svs.preset}
-            onChange={(e) => {
-              const key = e.target.value;
-              const builtin = SONG_STYLE_PRESETS[key];
-              if (builtin) { void updateSetting(db, 'songViewStyle', { ...builtin.style }); return; }
-              const custom = customPresets[key];
-              if (custom) { void updateSetting(db, 'songViewStyle', { ...custom.style }); return; }
-            }}
-            className="text-xs rounded px-1.5 py-1 transition-colors"
-            style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)', maxWidth: 120 }}
-            title="Song style preset"
-          >
-            <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
-              {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
-                <option key={k} value={k}>{p.name}</option>
-              ))}
-            </optgroup>
-            {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
-              <optgroup label="My Presets">
-                {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
-                  <option key={k} value={k}>{p.name}</option>
-                ))}
-              </optgroup>
-            )}
-            {svs.preset === 'custom' && <option value="custom">Custom</option>}
-          </select>
+          {/* Play link / audio file — kept in the main bar because it's
+              a one-tap action used live (start the song's reference
+              audio or open the source link). PlayLinkButton renders
+              nothing when the song has neither a link nor an audio
+              file, so it's safe to leave unconditional. */}
+          <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
 
+          {/* Cast was moved into the three-dots menu (below) — it's
+              still a one-tap action once the menu is open, but it
+              doesn't need to sit in the live-performance toolbar. */}
+
+          {/* Song notes toggle lives in the three-dots menu — keeping it
+              out of the main bar keeps the live-performance surface
+              from changing shape when notes are shown / hidden. */}
+
+          {/* Favorite toggle — lives in the main bar (not the menu)
+              because performers like the one-tap save-to-favorites
+              gesture during a session. */}
           <button
             onClick={() => void toggleFavorite(db, activeSong.id)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
             title={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Star
               size={16}
-              style={{ color: activeSong.favorite ? 'var(--accent)' : 'var(--text-secondary)' }}
               fill={activeSong.favorite ? 'currentColor' : 'none'}
+              style={{ color: activeSong.favorite ? 'var(--accent)' : 'var(--text-secondary)' }}
             />
           </button>
 
+          {/* Three-dots "More" menu — non-performance actions live here
+              so the live-use surface stays uncluttered. The menu itself
+              is portaled into <body> (further below) so the toolbar's
+              `overflow-hidden` doesn't clip it. */}
           <button
-            onClick={() => setShowSetListPicker(true)}
+            ref={moreMenuTriggerRef}
+            onClick={() => setMoreMenuOpen((v) => !v)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Add to set list"
+            style={{ background: moreMenuOpen ? 'var(--surface-elevated)' : undefined }}
+            title="More options"
+            aria-label="More options"
+            aria-expanded={moreMenuOpen}
           >
-            <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
+            <MoreVertical size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
+          {moreMenuOpen && moreMenuPos && createPortal(
+            (
+              <div
+                ref={moreMenuRef}
+                className="rounded-lg shadow-2xl py-1"
+                style={{
+                  position: 'fixed',
+                  top: moreMenuPos.top,
+                  right: moreMenuPos.right,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  minWidth: 220,
+                  zIndex: 1000,
+                }}
+              >
+                {/* Style preset */}
+                <div className="px-3 py-2">
+                  <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+                    Style preset
+                  </label>
+                  <select
+                    value={svs.preset}
+                    onChange={(e) => {
+                      const key = e.target.value;
+                      const builtin = SONG_STYLE_PRESETS[key];
+                      if (builtin) { void updateSetting(db, 'songViewStyle', { ...builtin.style }); return; }
+                      const custom = customPresets[key];
+                      if (custom) { void updateSetting(db, 'songViewStyle', { ...custom.style }); return; }
+                    }}
+                    className="w-full text-xs rounded px-2 py-1.5"
+                    style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                  >
+                    <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
+                      {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
+                        <option key={k} value={k}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                    {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
+                      <optgroup label="My Presets">
+                        {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
+                          <option key={k} value={k}>{p.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {svs.preset === 'custom' && <option value="custom">Custom</option>}
+                  </select>
+                </div>
 
-          <button
-            onClick={() => setShowExport(true)}
-            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Export song"
-          >
-            <Download size={16} style={{ color: 'var(--text-secondary)' }} />
-          </button>
+                <div className="my-1 border-t" style={{ borderColor: 'var(--border)' }} />
 
-          {activeSong.notes && activeSong.notes.trim() && (
-            <button
-              onClick={() => setShowNotes((v) => !v)}
-              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-              style={{ background: showNotes ? 'var(--surface-elevated)' : undefined }}
-              title={showNotes ? 'Hide song notes' : 'Show song notes'}
-            >
-              <StickyNote size={16} style={{ color: 'var(--accent)' }} />
-            </button>
+                <MoreMenuItem
+                  icon={<ListMusic size={14} style={{ color: 'var(--text-secondary)' }} />}
+                  label="Add to set list"
+                  onClick={() => { setShowSetListPicker(true); setMoreMenuOpen(false); }}
+                />
+                <MoreMenuItem
+                  icon={<Download size={14} style={{ color: 'var(--text-secondary)' }} />}
+                  label="Export song"
+                  onClick={() => { setShowExport(true); setMoreMenuOpen(false); }}
+                />
+                {(() => {
+                  // Always render the row — disabled when the song
+                  // has no notes — so the menu shape stays consistent
+                  // and the user can see the action even when it's
+                  // not applicable to the current song.
+                  const hasNotes = !!activeSong.notes && activeSong.notes.trim().length > 0;
+                  return (
+                    <MoreMenuItem
+                      icon={<StickyNote size={14} style={{ color: hasNotes ? 'var(--accent)' : 'var(--text-muted)' }} />}
+                      label={showNotes && hasNotes ? 'Hide song notes' : 'Show song notes'}
+                      disabled={!hasNotes}
+                      disabledTitle="This song has no notes"
+                      onClick={() => { setShowNotes((v) => !v); setMoreMenuOpen(false); }}
+                    />
+                  );
+                })()}
+                {/* Play link / audio file moved back to the main bar
+                    — it's a single-tap action that performers use live
+                    (start reference audio, open source URL). */}
+                {/* Cast — the entire row is clickable and delegates to
+                    CastQuickButton's inner button so the click target is
+                    as large as the other menu entries. The wrapper
+                    `.cast-menu-row` neutralises CastQuickButton's own
+                    p-2 padding so its icon lines up with the 16px
+                    icon-slot used by the other MoreMenuItem rows. */}
+                <div
+                  className="cast-menu-row flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[var(--surface-elevated)] transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    // If the click already hit the inner button, let
+                    // CastQuickButton handle it natively. Otherwise
+                    // synthesize a click on the cast button so clicking
+                    // the label or empty row area still opens the cast
+                    // popover.
+                    const target = e.target as HTMLElement;
+                    if (target.closest('button[title="Cast"]')) return;
+                    const btn = e.currentTarget.querySelector('button[title="Cast"]') as HTMLButtonElement | null;
+                    btn?.click();
+                  }}
+                >
+                  <span className="shrink-0 flex items-center justify-center" style={{ width: 16 }}>
+                    <CastQuickButton />
+                  </span>
+                  <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
+                    Cast to receiver
+                  </span>
+                </div>
+                <style>{`
+                  .cast-menu-row button[title="Cast"] {
+                    padding: 0 !important;
+                    border-radius: 0 !important;
+                    background: transparent !important;
+                  }
+                `}</style>
+                <MoreMenuItem
+                  icon={<Edit2 size={14} style={{ color: 'var(--text-secondary)' }} />}
+                  label="Edit song"
+                  onClick={() => { setMoreMenuOpen(false); navigate(`/song/${id}/edit`); }}
+                />
+              </div>
+            ),
+            document.body,
           )}
-          <button onClick={() => navigate(`/song/${id}/edit`)} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors" title="Edit song">
-            <Edit2 size={16} style={{ color: 'var(--text-secondary)' }} />
-          </button>
         </div>
 
           <button
@@ -972,6 +1145,43 @@ export default function SongViewPage(): React.ReactElement {
         />
       )}
     </div>
+  );
+}
+
+/** Single item inside the toolbar's three-dots menu. Renders as a
+ *  full-width row with a small leading icon and a label, mirroring the
+ *  styling of any standard popover-menu entry in the app. */
+function MoreMenuItem({ icon, label, onClick, disabled, disabledTitle }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  /** When true the row is rendered greyed-out and ignores clicks.
+   *  Used for actions that should always be visible but aren't
+   *  applicable right now (e.g. "Show song notes" when the song has
+   *  no notes). */
+  disabled?: boolean;
+  /** Optional tooltip shown when hovering a disabled item, so users
+   *  know WHY it's unavailable. */
+  disabledTitle?: string;
+}): React.ReactElement {
+  return (
+    <button
+      onClick={() => { if (!disabled) onClick(); }}
+      disabled={disabled}
+      title={disabled ? disabledTitle : undefined}
+      className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors"
+      style={{
+        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+        opacity: disabled ? 0.5 : 1,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        background: disabled ? 'transparent' : undefined,
+      }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--surface-elevated)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      <span className="shrink-0 flex items-center justify-center" style={{ width: 16 }}>{icon}</span>
+      <span className="flex-1 truncate">{label}</span>
+    </button>
   );
 }
 

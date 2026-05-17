@@ -84,8 +84,14 @@ export const CHORD_FORMULAS: ChordFormula[] = [
   { suffix: 'maj7#11', intervals: [ROOT, M3, P5, M7, b5],
     tier1: [1, 3, 4], tier2: [0],  tier3: [2] },
   //  maj13: 1 3 5 7 9 13
+  //  Guide tones (M3 + maj7) define the quality; the 13th is the
+  //  named color tone but forcing it into tier1 alongside the 3rd
+  //  and 7th made every generated shape exceed the hand stretch.
+  //  13th → tier2 so it's included when it fits and dropped (with a
+  //  score penalty) when it would make the shape unplayable — which
+  //  is exactly how guitarists voice a maj13 in practice.
   { suffix: 'maj13',   intervals: [ROOT, M3, P5, M7, M2, M6],
-    tier1: [1, 3, 5], tier2: [0],  tier3: [2, 4] },
+    tier1: [1, 3],   tier2: [5, 0], tier3: [2, 4] },
 
   // ────── Minor family ──────
   //  m: 1 b3 5  — b3 defines minor
@@ -121,12 +127,13 @@ export const CHORD_FORMULAS: ChordFormula[] = [
   //  m9(maj7): 1 b3 5 7 9
   { suffix: 'm9(maj7)',intervals: [ROOT, m3, P5, M7, M2],
     tier1: [1, 3],   tier2: [0, 4], tier3: [2] },
-  //  m11: 1 b3 5 b7 9 11
+  //  m11: 1 b3 5 b7 9 11 — b3 + b7 are the guide tones; the 11th is
+  //  the named tone (tier2) so playable shapes can drop it.
   { suffix: 'm11',     intervals: [ROOT, m3, P5, m7, M2, P4],
-    tier1: [1, 3, 5], tier2: [0],  tier3: [2, 4] },
-  //  m13: 1 b3 5 b7 9 11 13
+    tier1: [1, 3],   tier2: [5, 0], tier3: [2, 4] },
+  //  m13: 1 b3 5 b7 9 11 13 — b3 + b7 guide tones; 13th → tier2.
   { suffix: 'm13',     intervals: [ROOT, m3, P5, m7, M2, P4, M6],
-    tier1: [1, 3, 6], tier2: [0],  tier3: [2, 4, 5] },
+    tier1: [1, 3],   tier2: [6, 0], tier3: [2, 4, 5] },
 
   // ────── Dominant family (b7) ──────
   //  7: 1 3 5 b7  — 3rd + b7 are THE guide tones
@@ -162,12 +169,15 @@ export const CHORD_FORMULAS: ChordFormula[] = [
   //  7#11: 1 3 5 b7 #11
   { suffix: '7#11',    intervals: [ROOT, M3, P5, m7, b5],
     tier1: [1, 3, 4], tier2: [0],  tier3: [2] },
-  //  13: 1 3 5 b7 9 13
+  //  13: 1 3 5 b7 9 13 — 3rd + b7 are THE guide tones; the 13th is
+  //  the named color tone (tier2), droppable for a playable shape.
   { suffix: '13',      intervals: [ROOT, M3, P5, m7, M2, M6],
-    tier1: [1, 3, 5], tier2: [0],  tier3: [2, 4] },
-  //  13sus4: 1 4 5 b7 9 13
+    tier1: [1, 3],   tier2: [5, 0], tier3: [2, 4] },
+  //  13sus4: 1 4 5 b7 9 13 — the sus-4 and b7 are the identity;
+  //  the 13th is the named color tone (tier2) so the generator can
+  //  drop it for a playable shape. 3rd still forbidden (sus).
   { suffix: '13sus4',  intervals: [ROOT, P4, P5, m7, M2, M6],
-    tier1: [1, 3, 5], tier2: [0],  tier3: [2, 4],  avoid: [M3] },
+    tier1: [1, 3],   tier2: [5, 0], tier3: [2, 4],  avoid: [M3] },
 
   // ────── Augmented family (#5) ──────
   //  +: 1 3 #5  — 3rd + #5 both define augmented
@@ -198,11 +208,6 @@ export const CHORD_FORMULAS: ChordFormula[] = [
 /** Lookup formula by suffix */
 export function getFormula(suffix: string): ChordFormula | undefined {
   return CHORD_FORMULAS.find((f) => f.suffix === suffix);
-}
-
-/** Get the set of semitone pitch classes for a chord */
-export function getChordPitchClasses(rootSemitone: number, formula: ChordFormula): Set<number> {
-  return new Set(formula.intervals.map((i) => (rootSemitone + i) % 12));
 }
 
 /** Note name to semitone value */

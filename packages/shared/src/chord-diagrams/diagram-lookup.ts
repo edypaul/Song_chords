@@ -1,6 +1,7 @@
 import type { ChordDiagram, InstrumentType } from '../types/chord.types';
 import { GUITAR_DIAGRAMS } from './guitar-diagrams';
 import { UKULELE_DIAGRAMS } from './ukulele-diagrams';
+import { GUITAR_SLASH_DIAGRAMS, UKULELE_SLASH_DIAGRAMS } from './slash-diagrams';
 import { PIANO_DIAGRAMS, getAllPianoChordNames } from './piano-diagrams';
 
 type DiagramMap = Record<string, ChordDiagram[]>;
@@ -9,9 +10,14 @@ type DiagramMap = Record<string, ChordDiagram[]>;
  *  generated lazily, so its `[name]` access always returns an array
  *  (possibly empty for unrecognized names). */
 function getBuiltin(chordName: string, instrument: InstrumentType): ChordDiagram[] {
-  if (instrument === 'guitar') return GUITAR_DIAGRAMS[chordName] ?? [];
-  if (instrument === 'ukulele') return UKULELE_DIAGRAMS[chordName] ?? [];
-  // Piano: Proxy-backed lazy generator.
+  if (instrument === 'guitar') {
+    return GUITAR_DIAGRAMS[chordName] ?? GUITAR_SLASH_DIAGRAMS[chordName] ?? [];
+  }
+  if (instrument === 'ukulele') {
+    return UKULELE_DIAGRAMS[chordName] ?? UKULELE_SLASH_DIAGRAMS[chordName] ?? [];
+  }
+  // Piano: Proxy-backed lazy generator — already resolves slash
+  // chords at runtime (splitChord + bass note), so no slash table.
   return PIANO_DIAGRAMS[chordName] ?? [];
 }
 
@@ -55,9 +61,13 @@ export function getDiagramByIndex(chordName: string, instrument: InstrumentType,
  *  enumerates the algorithmic library. */
 export function getAllChordNames(instrument: InstrumentType, custom?: DiagramMap): string[] {
   let names: string[];
-  if (instrument === 'guitar') names = Object.keys(GUITAR_DIAGRAMS);
-  else if (instrument === 'ukulele') names = Object.keys(UKULELE_DIAGRAMS);
-  else names = getAllPianoChordNames();
+  if (instrument === 'guitar') {
+    names = [...Object.keys(GUITAR_DIAGRAMS), ...Object.keys(GUITAR_SLASH_DIAGRAMS)];
+  } else if (instrument === 'ukulele') {
+    names = [...Object.keys(UKULELE_DIAGRAMS), ...Object.keys(UKULELE_SLASH_DIAGRAMS)];
+  } else {
+    names = getAllPianoChordNames();
+  }
 
   // Add custom chord names that don't already exist in the built-in list.
   const custMap = customForInstrument(custom, instrument);
@@ -77,8 +87,8 @@ export function hasCustomVariations(chordName: string, custom?: DiagramMap): boo
  *  generated library — sufficient for callers that only iterate names.
  *  Use the lookup helpers above when querying by name. */
 export function getBuiltinDiagrams(instrument: InstrumentType): DiagramMap {
-  if (instrument === 'guitar') return GUITAR_DIAGRAMS;
-  if (instrument === 'ukulele') return UKULELE_DIAGRAMS;
+  if (instrument === 'guitar') return { ...GUITAR_DIAGRAMS, ...GUITAR_SLASH_DIAGRAMS };
+  if (instrument === 'ukulele') return { ...UKULELE_DIAGRAMS, ...UKULELE_SLASH_DIAGRAMS };
   // Piano: materialize the full set so callers that iterate (e.g. chord
   // library) get every name. The library is small (~300 entries) so the
   // up-front cost is fine.
