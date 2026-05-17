@@ -19,6 +19,30 @@ export default function SettingsPage(): React.ReactElement {
     void updateSetting(db, key, value);
   };
 
+  // Keep the active song-view style in sync with the effective theme.
+  // The old logic only switched the preset when the user explicitly
+  // picked Light/Dark from the dropdown — so on the default "System"
+  // theme (or when the OS toggled day/night), the song view kept a
+  // dark preset in light mode (unreadable) and vice-versa.
+  // `useEffectiveTheme` resolves System → light|dark and updates on
+  // OS change, so reacting to it covers every case. We only switch
+  // when the CURRENT preset's mode no longer matches the effective
+  // theme, so a deliberate same-mode preset choice is never clobbered.
+  const effectiveTheme = useEffectiveTheme();
+  React.useEffect(() => {
+    const currentPresetKey = settings.songViewStyle?.preset;
+    const currentPreset = currentPresetKey
+      ? SONG_STYLE_PRESETS[currentPresetKey]
+      : undefined;
+    // Custom presets carry their own `mode`; fall back to that.
+    const currentMode = currentPreset?.mode
+      ?? settings.customPresets?.[currentPresetKey ?? '']?.mode;
+    if (currentMode === effectiveTheme) return; // already correct
+    const first = Object.values(SONG_STYLE_PRESETS).find((p) => p.mode === effectiveTheme);
+    if (first) void updateSetting(db, 'songViewStyle', { ...first.style });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTheme]);
+
   // ─── Backup & restore ──────────────────────────────────────────────────
   const [status, setStatus] = useState<{ kind: 'info' | 'error'; message: string } | null>(null);
   /** Pending import dialog state. `kind` distinguishes which backup type the
@@ -291,12 +315,11 @@ export default function SettingsPage(): React.ReactElement {
           <select
             value={settings.theme}
             onChange={(e) => {
-              const t = e.target.value as ThemeType;
-              set('theme', t);
-              if (t === 'light' || t === 'dark') {
-                const first = Object.values(SONG_STYLE_PRESETS).find((p) => p.mode === t);
-                if (first) set('songViewStyle', { ...first.style });
-              }
+              // Just update the theme. The effect above watches the
+              // resolved effective theme and swaps to the first
+              // matching preset for ANY transition (explicit
+              // Light/Dark pick, System, or OS day/night change).
+              set('theme', e.target.value as ThemeType);
             }}
             className="setting-select"
           >

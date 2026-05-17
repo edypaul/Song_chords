@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { Cast, X, Power, LayoutGrid, Copy, Check } from 'lucide-react';
 import { usePlayerStore, useSettingsStore } from '@song-chords/shared';
 import { buildCastHtml, type CastMode as HtmlCastMode } from '../../utils/cast-html';
+import { useCastSyncStore } from '../../store/cast-sync-store';
 
 type Mode = HtmlCastMode; // 'lyrics' | 'lyrics-chords'
 
@@ -40,6 +41,34 @@ export default function CastQuickButton(): React.ReactElement {
   // by toolbars that use `overflow: hidden`. Recomputed on open and on
   // window resize.
   const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
+
+  // Reflect the REAL cast-server state on mount (and keep it fresh),
+  // independent of whether the popover is open. This component is
+  // re-mounted every time its host three-dots menu closes/opens, so
+  // its local `serverInfo` resets to null on each remount — without
+  // this poll the Cast icon would look "off" right after closing the
+  // menu even though the server is still actively casting. The cast
+  // server lives in the Electron main process and is the source of
+  // truth; we just mirror it. (The open-only refresh below stays for
+  // the live viewer-count / URL while the popover is visible.)
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const s = await window.electronAPI.cast.status();
+        if (cancelled) return;
+        if (s.running && s.host && s.port) {
+          setServerInfo({ host: s.host, port: s.port });
+          setClients(s.clients);
+        } else {
+          setServerInfo(null);
+        }
+      } catch { /* ignore */ }
+    };
+    void sync();
+    const id = setInterval(sync, 2500);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   // Pull current cast server status when the popover opens — if the
   // server is already running (e.g. user already cast from another
@@ -177,6 +206,10 @@ export default function CastQuickButton(): React.ReactElement {
       setServerInfo(info);
       await pushCurrentHtml(chosen);
       setMode(chosen);
+      // Hand the active mode to the durable store so the app-level
+      // CastSync keeps re-pushing on song navigation even after this
+      // button (inside the three-dots menu) unmounts.
+      useCastSyncStore.getState().setHtmlMode(chosen);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -192,6 +225,9 @@ export default function CastQuickButton(): React.ReactElement {
       await window.electronAPI.cast.stop();
       setServerInfo(null);
       setMode(null);
+      // Cast fully stopped — clear the durable mode so CastSync goes
+      // inert (no pushes at a dead server).
+      useCastSyncStore.getState().clearHtmlMode();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

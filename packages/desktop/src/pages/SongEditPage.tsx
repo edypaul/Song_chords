@@ -43,6 +43,26 @@ function exampleFor(format: 'chordpro' | 'plaintext'): string {
   return format === 'chordpro' ? EXAMPLE_CHORDPRO : EXAMPLE_PLAINTEXT;
 }
 
+/**
+ * Canonical form of the song body for dirty-tracking. The edit page
+ * lets the user flip the SAME body between inline ChordPro and
+ * chords-over-lyrics; that conversion is idempotent (a stable fixed
+ * point) but is NOT a byte-identical text round trip in dense-chord
+ * spots. Reducing both the current and the initial body to one
+ * canonical ChordPro string means a pure format toggle compares equal
+ * (no phantom "unsaved changes"), while any real edit still differs.
+ *
+ * `chordsOverLyricsToChordPro` passes inline-ChordPro lines through
+ * untouched and converts chord/lyric pairs; running the pair
+ * over->CP->over->CP lands on the fixed point regardless of which
+ * format the text is currently in.
+ */
+function canonicalBody(body: string): string {
+  return chordsOverLyricsToChordPro(
+    chordProToChordsOverLyrics(chordsOverLyricsToChordPro(body)),
+  );
+}
+
 export default function SongEditPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -348,7 +368,17 @@ export default function SongEditPage(): React.ReactElement {
     if (duration !== init.duration) return true;
     if (link !== init.link) return true;
     if (audioFile !== init.audioFile) return true;
-    if (content !== init.content) return true;
+    // Compare song body in a CANONICAL form, not raw text. Toggling
+    // the editor between ChordPro and chords-over-lyrics rewrites the
+    // text (a column-based grid can't always reproduce ChordPro byte-
+    // for-byte when chords sit closer than a chord name is wide), so a
+    // raw `content !== init.content` flagged a pure format toggle as
+    // an unsaved edit and prompted to save. Both representations map
+    // to the SAME canonical ChordPro via the (now idempotent) round
+    // trip, so comparing canonical forms treats a format toggle as a
+    // no-op while still catching every real edit (a genuine change
+    // alters the canonical form too).
+    if (canonicalBody(content) !== canonicalBody(init.content)) return true;
     if (notes !== init.notes) return true;
     if (difficulty !== init.difficulty) return true;
     if (tags.length !== init.tags.length) return true;

@@ -127,14 +127,32 @@ export function chordProToChordsOverLyrics(input: string): string {
     if (chords.length === 0) { out.push(stripped); continue; }
     let chordLine = '';
     for (const { chord, col } of chords) {
-      if (col >= chordLine.length) {
-        chordLine += ' '.repeat(col - chordLine.length) + chord;
-      } else {
-        chordLine += ' ' + chord;
-      }
+      // Place each chord at its lyric column when possible, but ALWAYS
+      // keep at least one space between consecutive chords. The old
+      // code padded by `col - chordLine.length`, which is 0 when two
+      // chords are adjacent in the lyric (e.g. ChordPro
+      // "[Bm]No[G]," → cols 0 and 2 with a 2-char "Bm" already on the
+      // line) so it emitted "BmG" — a single mashed token. Round-
+      // tripping that back through chordsOverLyricsToChordPro then
+      // parsed "BmG" as ONE chord ([BmG]) and other lines (whose
+      // chords didn't collide) converted fine, producing the reported
+      // mixed/half-converted result. Forcing a separating space keeps
+      // every chord a distinct, re-parseable token so the round trip
+      // is lossless for the chord names.
+      const minStart = chordLine.length === 0 ? 0 : chordLine.length + 1;
+      const start = Math.max(col, minStart);
+      chordLine += ' '.repeat(start - chordLine.length) + chord;
     }
     out.push(chordLine);
-    out.push(stripped);
+    // Only emit the lyric line when there is actual lyric text. A
+    // chord-only ChordPro line (e.g. "[C]" or an intro like
+    // "[C] [G] [D]") has an empty `stripped`; pushing it added a
+    // spurious blank line that the inverse preserved, so every
+    // CP->over->CP toggle grew another newline and the editor saw the
+    // song as modified (phantom unsaved change). chordsOnlyToInline
+    // reconstructs a chord-only line from just the chord line, so the
+    // empty lyric line is not needed for a lossless round trip.
+    if (stripped.trim() !== '') out.push(stripped);
   }
   return out.join('\n');
 }

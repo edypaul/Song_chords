@@ -27,6 +27,10 @@ const electronAPI = {
   shell: {
     openExternal: (url: string) =>
       ipcRenderer.invoke('shell:openExternal', url),
+    /** Open a local file with the OS default app (audio -> VLC etc.).
+     *  Resolves to '' on success or an OS error string on failure. */
+    openPath: (filePath: string): Promise<string> =>
+      ipcRenderer.invoke('shell:openPath', filePath),
   },
   youtube: {
     /** Open a child BrowserWindow that loads the canonical YouTube

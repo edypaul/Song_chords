@@ -14,10 +14,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-// Upper bound on variations per chord. The selector returns only the
-// common/practical voicings and may yield fewer (1–4) — it no longer
-// pads with high-neck filler just to reach a fixed count.
-const VOICINGS_PER_CHORD = 4;
+// Upper bound on variations per chord. Product goal: as MANY common /
+// practical guitar voicings as possible (open + the standard moveable
+// barre shapes + positional alternates across frets 1–12), never
+// dropping characteristic notes. The selector still returns fewer when
+// a chord genuinely has fewer good shapes — this is just the ceiling.
+const VOICINGS_PER_CHORD = 10;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'guitar-diagrams.ts');
 

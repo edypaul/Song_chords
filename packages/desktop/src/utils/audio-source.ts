@@ -56,3 +56,56 @@ export function fileBasename(absPath: string): string {
   const parts = absPath.split(/[\\/]+/);
   return parts[parts.length - 1] ?? absPath;
 }
+
+/**
+ * Extract the YouTube video ID from any of the common URL shapes:
+ *   - https://www.youtube.com/watch?v=ID
+ *   - https://youtu.be/ID
+ *   - https://www.youtube.com/embed/ID
+ *   - https://www.youtube.com/shorts/ID
+ *   - https://m.youtube.com/watch?v=ID
+ *   - URLs with extra query params (&t=, &list=, etc.)
+ *
+ * Returns the 11-char video ID, or null when the URL isn't a
+ * recognizable YouTube link (so callers can fall back to the generic
+ * browser popup for SoundCloud / Spotify / direct audio / etc.).
+ */
+export function parseYouTubeId(rawUrl: string | undefined): string | null {
+  const url = rawUrl?.trim();
+  if (!url) return null;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\.|^m\./, '').toLowerCase();
+  const idLike = (s: string | null): string | null =>
+    s && /^[A-Za-z0-9_-]{11}$/.test(s) ? s : null;
+
+  if (host === 'youtu.be') {
+    // youtu.be/<id>
+    return idLike(u.pathname.slice(1).split('/')[0] ?? null);
+  }
+  if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    const v = u.searchParams.get('v');
+    if (v) return idLike(v);
+    // /embed/<id>, /shorts/<id>, /v/<id>
+    const m = u.pathname.match(/^\/(?:embed|shorts|v)\/([A-Za-z0-9_-]{11})/);
+    if (m) return idLike(m[1] ?? null);
+  }
+  return null;
+}
+
+/** Privacy-enhanced YouTube embed URL for a video ID. `autoplay=1`
+ *  starts playback when the panel opens; `rel=0` keeps related videos
+ *  to the same channel; `modestbranding` trims the YT chrome. */
+export function youTubeEmbedUrl(videoId: string): string {
+  const params = new URLSearchParams({
+    autoplay: '1',
+    rel: '0',
+    modestbranding: '1',
+    playsinline: '1',
+  });
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
+}

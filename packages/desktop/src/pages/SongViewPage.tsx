@@ -423,7 +423,18 @@ export default function SongViewPage(): React.ReactElement {
       el.removeEventListener('touchcancel', handleTouchEnd);
       if (zoomRafRef.current !== null) cancelAnimationFrame(zoomRafRef.current);
     };
-  }, []);
+    // Re-run when the scroll element actually exists. On a COLD first
+    // visit the song loads asynchronously, so this component first
+    // renders the "Song not found" placeholder (no scrollRef element)
+    // and only later re-renders with the real content + the
+    // `<div ref={scrollRef}>`. With `[]` deps the effect ran once
+    // against a null ref, bailed, and never re-bound — so zoom was
+    // dead until the page was remounted (second visit, song already
+    // cached). Keying on song readiness (the exact condition that
+    // gates whether the scroll div is rendered, in BOTH the normal
+    // and performance-mode branches) makes the effect re-run and bind
+    // the wheel/pinch listeners as soon as the element mounts.
+  }, [displayedSong, activeSong, performanceMode]);
 
   // Auto-save debounced. In setlist-entry context, transpose/capo save to the
   // entry (never mutating the song). Otherwise transpose/viewMode save to the

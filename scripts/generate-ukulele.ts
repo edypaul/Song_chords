@@ -19,9 +19,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-// Upper bound on variations per chord; selector may return fewer
-// (1–4) — no high-neck filler padding.
-const VOICINGS_PER_CHORD = 4;
+// Upper bound on variations per chord. Product rule (user): ukulele
+// gets 1–2 voicings, prioritising the most common OPEN positions. The
+// selector already orders by lowest/open position first, so capping
+// the count at 2 yields "the common open shape (+ at most one
+// sensible alternative)".
+const VOICINGS_PER_CHORD = 2;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'ukulele-diagrams.ts');
 

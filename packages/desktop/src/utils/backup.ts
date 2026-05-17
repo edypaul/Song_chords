@@ -100,8 +100,9 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
   for (const s of backup.songs ?? []) {
     await db.execute(
       `INSERT INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
-        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order,
+        link, audio_file, last_viewed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         s.id, s.title, s.artist ?? null, s.album ?? null, s.key ?? null,
         s.tempo ?? null, s.timeSig ?? null, s.capo,
@@ -112,6 +113,10 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
         s.favorite ? 1 : 0,
         JSON.stringify(s.preferences ?? {}),
         s.createdAt, s.updatedAt, s.sortOrder,
+        // Audio source + last-viewed were silently dropped before, so
+        // restoring a backup wiped every song's YouTube/audio link,
+        // local audio-file path, and last-viewed timestamp.
+        s.link ?? null, s.audioFile ?? null, s.lastViewedAt ?? null,
       ],
     );
   }
@@ -164,8 +169,9 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
   for (const s of backup.songs ?? []) {
     await db.execute(
       `INSERT OR IGNORE INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
-        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order,
+        link, audio_file, last_viewed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         s.id, s.title, s.artist ?? null, s.album ?? null, s.key ?? null,
         s.tempo ?? null, s.timeSig ?? null, s.capo,
@@ -176,6 +182,7 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
         s.favorite ? 1 : 0,
         JSON.stringify(s.preferences ?? {}),
         s.createdAt, s.updatedAt, s.sortOrder,
+        s.link ?? null, s.audioFile ?? null, s.lastViewedAt ?? null,
       ],
     );
   }

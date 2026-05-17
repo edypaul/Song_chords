@@ -102,7 +102,6 @@ function receiverHtml(view: CastView): string {
   }
   #frame {
     position: fixed;
-    inset: 0;
     width: 100vw;
     height: 100dvh;
     /* Always preserve the WHOLE desktop window on the receiver — top
@@ -116,22 +115,58 @@ function receiverHtml(view: CastView): string {
     object-fit: contain;
     background: #0f172a;
     display: none;
+    /* User zoom/pan is driven through these custom properties so the
+       single transform below composes cleanly with the orientation
+       rotate (set per-media-query). --fs-rot holds the base rotation
+       (none in landscape, 90deg in portrait); --z / --px / --py are
+       the live pinch-zoom scale and pan offsets. Order matters: pan
+       then zoom then base-rotate, all around the centered element. */
+    --fs-rot: rotate(0deg);
+    --z: 1;
+    --px: 0px;
+    --py: 0px;
+    transform: translate(-50%, -50%) translate(var(--px), var(--py)) scale(var(--z)) var(--fs-rot);
+    /* Centered on the viewport. NOTE: do not add the inset shorthand
+       here — it resets top/left, so listing it after these would
+       re-jam the frame into a corner (the exact centering bug fixed
+       previously for the portrait rule). Use the individual offsets
+       only. */
+    top: 50%;
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    transform-origin: center center;
+    touch-action: none;
+    /* Promote to its own compositor layer. The mirror img gets a new
+       src ~5x/sec; without this the per-frame decode/paint runs on
+       the same layer as the pan transform and the drag stutters.
+       will-change keeps the transformed element GPU-composited so
+       pan stays smooth regardless of the frame churn. */
+    will-change: transform;
+    backface-visibility: hidden;
   }
-  /* Phone in portrait orientation: rotate the source 90 degrees so
-     the wide desktop window fills the tall screen comfortably. The
-     transform-origin centers around the viewport. With width / height
-     swapped via 100vh / 100vw and the rotate, the captured frame
-     uses the full screen real estate without forcing the user to
-     hold the phone sideways. */
-  @media (max-width: 640px) and (orientation: portrait) {
+  /* ANY device held in portrait (phone OR tablet/iPad — no width
+     gate): rotate the landscape desktop capture 90 degrees so it is
+     ALWAYS cast horizontally and fills the tall screen. Previously
+     this was gated on max-width:640px, so tablets/iPads in portrait
+     showed a tiny letterboxed strip instead of rotating. Swapping
+     width/height (100vh / 100vw) before the rotate makes the rotated
+     frame occupy the full screen real estate. */
+  @media (orientation: portrait) {
     #frame {
+      /* Portrait: the frame box is sized to the SWAPPED viewport
+         (pre-rotation width = screen height, height = screen width)
+         and --fs-rot adds the 90deg turn, so the single composed
+         transform on the base rule (pan -> zoom -> rotate, around
+         the centered element) fills the portrait screen with the
+         landscape capture, AND user pinch-zoom keeps working because
+         it shares that same transform. We only override the swapped
+         dimensions and the rotation variable here. */
       width: 100vh;
+      width: 100dvh;
       height: 100vw;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) rotate(90deg);
-      transform-origin: center center;
-      inset: auto;
+      height: 100dvw;
+      --fs-rot: rotate(90deg);
     }
   }
   /* HTML payload host — fills the viewport when active. The
@@ -194,6 +229,26 @@ function receiverHtml(view: CastView): string {
   @media (hover: none) {
     /* Touch devices don't fire hover — keep the button visible. */
     #fs-toggle { opacity: 0.7; }
+  }
+  /* Pseudo-fullscreen fallback for iOS Safari on iPhone, where the
+     real Fullscreen API does NOT work for non-<video> elements (the
+     button used to do nothing there). Toggling this class makes the
+     page a fixed, full-DYNAMIC-viewport overlay: 100dvh tracks the
+     visible area as Safari's URL bar collapses, so the cast fills the
+     screen edge-to-edge as far as the OS allows. Scroll is locked so
+     the layout can't shift. */
+  html.pseudo-fs, html.pseudo-fs body {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    width: 100dvw;
+    height: 100dvh;
+    overflow: hidden;
+    touch-action: none;
+  }
+  html.pseudo-fs #frame { height: 100dvh; }
+  @media (orientation: portrait) {
+    html.pseudo-fs #frame { width: 100dvh; height: 100dvw; }
   }
 </style>
 </head>
@@ -325,37 +380,303 @@ function receiverHtml(view: CastView): string {
         }
       }, 2000);
 
-      // Fullscreen toggle — uses the browser Fullscreen API on the
-      // receiver itself so the audience can hide the URL bar / tab
-      // strip and see the cast edge-to-edge. The icon swaps between
-      // the four-corners (enter) and inset-corners (exit) glyphs.
+      // Fullscreen toggle. The native Fullscreen API works on desktop
+      // and Android Chrome, but iPhone Safari does NOT implement it
+      // for non-<video> elements (requestFullscreen is undefined /
+      // a silent no-op) — that's why the button "did nothing on iOS".
+      // So: try the real API; if it isn't actually available, fall
+      // back to a CSS pseudo-fullscreen (the .pseudo-fs class) which
+      // expands the page to the full dynamic viewport and locks
+      // scroll. Either way the button ALWAYS does something visible.
       var fsBtn = document.getElementById('fs-toggle');
       var fsEnterIcon = document.getElementById('fs-icon-enter');
       var fsExitIcon = document.getElementById('fs-icon-exit');
-      function isInFullscreen() {
+      var docEl = document.documentElement;
+
+      function nativeEnter() {
+        return docEl.requestFullscreen || docEl.webkitRequestFullscreen || null;
+      }
+      function nativeExit() {
+        return document.exitFullscreen || document.webkitExitFullscreen || null;
+      }
+      function nativeActive() {
         return !!(document.fullscreenElement || document.webkitFullscreenElement);
       }
+      function pseudoActive() {
+        return docEl.classList.contains('pseudo-fs');
+      }
+      function anyFsActive() { return nativeActive() || pseudoActive(); }
+
       function syncFsIcon() {
-        var on = isInFullscreen();
+        var on = anyFsActive();
         if (fsEnterIcon) fsEnterIcon.style.display = on ? 'none' : '';
         if (fsExitIcon) fsExitIcon.style.display = on ? '' : 'none';
       }
+
+      function enterPseudo() {
+        docEl.classList.add('pseudo-fs');
+        // Nudge Safari to collapse its URL bar.
+        window.scrollTo(0, 1);
+        syncFsIcon();
+      }
+      function exitPseudo() {
+        docEl.classList.remove('pseudo-fs');
+        syncFsIcon();
+      }
+
       if (fsBtn) {
         fsBtn.addEventListener('click', function () {
-          if (isInFullscreen()) {
-            var exit = document.exitFullscreen || document.webkitExitFullscreen;
-            if (exit) exit.call(document);
-          } else {
-            var el = document.documentElement;
-            var enter = el.requestFullscreen || el.webkitRequestFullscreen;
-            if (enter) {
-              try { enter.call(el); } catch (e) { /* user-gesture required, ignore */ }
+          if (anyFsActive()) {
+            // Exit whichever mode is active.
+            if (nativeActive()) {
+              var exit = nativeExit();
+              if (exit) { try { exit.call(document); } catch (e) {} }
             }
+            if (pseudoActive()) exitPseudo();
+            return;
+          }
+          // Try the real API first. requestFullscreen returns a
+          // Promise that REJECTS on iOS-style unsupported cases —
+          // catch that and fall back to pseudo-fullscreen. Some old
+          // WebKit returns undefined instead of a Promise; handle both.
+          var enter = nativeEnter();
+          if (enter) {
+            var ret;
+            try { ret = enter.call(docEl); } catch (e) { ret = null; }
+            if (ret && typeof ret.then === 'function') {
+              ret.catch(function () { enterPseudo(); });
+              // Safety net: if neither native nor pseudo engaged
+              // shortly after the gesture, force the pseudo fallback.
+              setTimeout(function () { if (!anyFsActive()) enterPseudo(); }, 300);
+            } else if (!nativeActive()) {
+              // No Promise AND not in fullscreen → unsupported (iOS).
+              enterPseudo();
+            }
+          } else {
+            enterPseudo();
           }
         });
         document.addEventListener('fullscreenchange', syncFsIcon);
         document.addEventListener('webkitfullscreenchange', syncFsIcon);
       }
+
+      // ── Pinch / wheel zoom + drag pan on the mirror frame ──
+      // ONLY enabled while fullscreen (native OR pseudo) is on, per
+      // product spec: the audience can zoom into a region of the cast
+      // app once it's filling the screen. Outside fullscreen the
+      // gestures are inert so normal page scroll/tap is unaffected.
+      //
+      // Zoom/pan are written to the CSS custom properties --z/--px/--py
+      // which the #frame transform composes with the orientation
+      // rotate, so this works identically in landscape and portrait.
+      // In portrait the element is rotated 90deg and the pan translate
+      // is applied BEFORE that rotate, so a raw screen delta would pan
+      // along the wrong axis — we remap the screen delta into the
+      // element's pre-rotation space (x' = y, y' = -x) so dragging
+      // always moves the image the way the finger moves on screen.
+      var MIN_Z = 1, MAX_Z = 6;
+      var z = 1, px = 0, py = 0;
+      var pointers = {};        // active pointers by id (screen coords)
+      var pinchStartDist = 0, pinchStartZ = 1;
+      var panLastX = 0, panLastY = 0, panning = false;
+      var lastTapTime = 0;
+
+      function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+      function applyZoom() {
+        // Snap to exactly 1x near the bottom of the range. Pinch /
+        // wheel approach 1.0 asymptotically (floating point), so an
+        // exact === 1 test never fired and the view could never
+        // return to the original size or clear its pan offset. Any
+        // z within 2% of 1 collapses to a clean, unpanned fit.
+        if (z < 1.02) { z = 1; px = 0; py = 0; }
+        // Clamp pan SYMMETRICALLY in screen space. In the composed
+        // transform (translate-50pct then translate px/py then scale
+        // then rotate) the px/py translate is the OUTERMOST
+        // parent/screen move — it is NOT inside the rotate — so px is
+        // always screen-X and py is always screen-Y regardless of the
+        // 90deg portrait rotation. The previous code (a) clamped py
+        // against the small innerWidth in portrait, pinning vertical
+        // pan to ~0 at low zoom (only pans sideways), and (b) the
+        // move handler remapped axes for portrait, doubling the bug.
+        // Fix: clamp both axes by zoom against the LARGER screen
+        // dimension so
+        // neither is starved, and let the user reach the whole image.
+        var span = Math.max(window.innerWidth, window.innerHeight);
+        var maxPan = Math.max(0, z - 1) * 0.5 * span;
+        px = clamp(px, -maxPan, maxPan);
+        py = clamp(py, -maxPan, maxPan);
+        img.style.setProperty('--z', String(z));
+        img.style.setProperty('--px', px + 'px');
+        img.style.setProperty('--py', py + 'px');
+      }
+      function resetZoom() {
+        z = 1; px = 0; py = 0; applyZoom();
+      }
+
+      // NOTE: zoom is intentionally NOT reset when entering/leaving
+      // fullscreen — the user wants zoom + pan to behave the same in
+      // both states, and a zoom set outside fullscreen should carry
+      // over (and vice-versa). Manual reset is still available via
+      // double-tap / double-click / pinching back to 1x.
+
+      function zoomActiveAllowed() {
+        // Active whenever the mirror image is showing — fullscreen is
+        // NOT required (product spec: same zoom/pan behaviour in and
+        // out of fullscreen).
+        return img.style.display === 'block';
+      }
+
+      function dist(a, b) {
+        var dx = a.x - b.x, dy = a.y - b.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+      function ids() { return Object.keys(pointers); }
+
+      // Track where a single-finger gesture started so pointerup can
+      // tell a TAP (down+up, barely moved) from a PAN drag. The old
+      // code did double-tap detection on the SECOND pointerdown, which
+      // collided with pan-start and made "tap twice to reset" almost
+      // impossible to trigger once zoomed — so the user couldn't get
+      // back to the original size. Now: two quick low-movement taps
+      // anywhere reset the zoom, reliably.
+      var downX = 0, downY = 0, downMoved = false;
+
+      img.addEventListener('pointerdown', function (e) {
+        if (!zoomActiveAllowed()) return;
+        pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var k = ids();
+        if (k.length >= 2) {
+          // PINCH. Do NOT use pointer capture for multi-touch: on iOS
+          // Safari capturing a 2nd pointer to the same element while
+          // the 1st is captured stops the 1st pointer's pointermove
+          // from firing, so the pinch distance never updates and zoom
+          // appears dead ("can't zoom in/out"). Release any capture
+          // taken for a prior single-finger pan; the full-screen img
+          // hit-tests every touch anyway, so both moves still arrive.
+          for (var ci = 0; ci < k.length; ci++) {
+            try { img.releasePointerCapture(Number(k[ci])); } catch (er) {}
+          }
+          var a = pointers[k[0]], b = pointers[k[1]];
+          pinchStartDist = dist(a, b);
+          pinchStartZ = z;
+          panning = false;
+        } else {
+          // SINGLE finger: capture so a pan that slides off the img
+          // still tracks. Safe for one pointer.
+          try { img.setPointerCapture(e.pointerId); } catch (er) {}
+          panLastX = e.clientX; panLastY = e.clientY;
+          downX = e.clientX; downY = e.clientY; downMoved = false;
+          panning = z > 1; // only pan when zoomed in
+        }
+        e.preventDefault();
+      });
+
+      img.addEventListener('pointermove', function (e) {
+        if (!zoomActiveAllowed()) return;
+        if (!pointers[e.pointerId]) return;
+        pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+        var k = ids();
+        if (k.length === 2) {
+          // Pinch zoom about the gesture midpoint.
+          var d = dist(pointers[k[0]], pointers[k[1]]);
+          if (pinchStartDist > 0) {
+            z = clamp(pinchStartZ * (d / pinchStartDist), MIN_Z, MAX_Z);
+            applyZoom();
+          }
+          e.preventDefault();
+        } else if (k.length === 1) {
+          var dx = e.clientX - panLastX;
+          var dy = e.clientY - panLastY;
+          // Mark the gesture as a drag once it moves past a small
+          // threshold (so a slightly-imperfect tap still counts as a
+          // tap for double-tap reset).
+          if (Math.abs(e.clientX - downX) > 6 || Math.abs(e.clientY - downY) > 6) {
+            downMoved = true;
+          }
+          if (panning) {
+            panLastX = e.clientX; panLastY = e.clientY;
+            // px/py are SCREEN-space (the translate is the outermost
+            // transform, outside the rotate), so the finger delta
+            // maps 1:1 to both axes in every orientation. The old
+            // portrait remap (px += dy / py += -dx) is what made the
+            // image only pan sideways and feel stuck — removed.
+            px += dx;
+            py += dy;
+            applyZoom();
+          }
+          e.preventDefault();
+        }
+      });
+
+      function endPointer(e) {
+        var hadOne = ids().length === 1;
+        if (pointers[e.pointerId]) delete pointers[e.pointerId];
+        try { img.releasePointerCapture(e.pointerId); } catch (er) {}
+        var k = ids();
+        if (k.length < 2) pinchStartDist = 0;
+        if (k.length === 0) {
+          panning = false;
+          // TAP detection on release: a single finger that went down
+          // and came up without moving (downMoved false). Two such
+          // taps within 300ms = reset to original size. This is the
+          // reliable "zoom back out" gesture.
+          if (hadOne && !downMoved) {
+            var now = Date.now();
+            if (now - lastTapTime < 300) { resetZoom(); lastTapTime = 0; }
+            else lastTapTime = now;
+          }
+        } else if (k.length === 1) {
+          // Continue panning with the remaining finger.
+          panLastX = pointers[k[0]].x; panLastY = pointers[k[0]].y;
+          panning = z > 1;
+        }
+      }
+      img.addEventListener('pointerup', endPointer);
+      img.addEventListener('pointercancel', endPointer);
+
+      // Desktop: wheel / trackpad zooms about center; dblclick resets.
+      // Active whenever the mirror image is showing (no fullscreen
+      // requirement). applyZoom() snaps to exactly 1x and clears pan
+      // near the bottom of the range, so scrolling back out always
+      // returns to the original fitted size.
+      img.addEventListener('wheel', function (e) {
+        if (!zoomActiveAllowed()) return;
+        e.preventDefault();
+        var factor = Math.exp(-e.deltaY * 0.0015);
+        z = clamp(z * factor, MIN_Z, MAX_Z);
+        applyZoom();
+      }, { passive: false });
+      img.addEventListener('dblclick', function (e) {
+        if (!zoomActiveAllowed()) return;
+        e.preventDefault();
+        resetZoom();
+      });
+
+      // iOS Safari pinch fallback. Safari emits non-standard
+      // gesturestart/gesturechange/gestureend with a cumulative
+      // e.scale; this is far more reliable than synthesizing pinch
+      // from two pointer events on iOS (where the 2nd touch's moves
+      // are flaky). Listening on document so the gesture is caught
+      // even if a touch starts just off the img. preventDefault also
+      // stops Safari's OWN page pinch-zoom from hijacking it.
+      var gestureStartZ = 1;
+      document.addEventListener('gesturestart', function (e) {
+        if (!zoomActiveAllowed()) return;
+        e.preventDefault();
+        gestureStartZ = z;
+      }, { passive: false });
+      document.addEventListener('gesturechange', function (e) {
+        if (!zoomActiveAllowed()) return;
+        e.preventDefault();
+        z = clamp(gestureStartZ * e.scale, MIN_Z, MAX_Z);
+        applyZoom();
+      }, { passive: false });
+      document.addEventListener('gestureend', function (e) {
+        if (!zoomActiveAllowed()) return;
+        e.preventDefault();
+        applyZoom();
+      }, { passive: false });
     })();
   </script>
 </body>

@@ -103,6 +103,16 @@ export function registerIpcHandlers(db: IDatabase): void {
     await shell.openExternal(url);
   });
 
+  // Open a local file with the OS default app (e.g. VLC for audio).
+  // Must use shell.openPath with the real filesystem path — NOT
+  // shell.openExternal with the song-audio:// URL: Windows has no app
+  // registered for that custom scheme and pops the "you'll need a new
+  // app from the Store" dialog. Returns '' on success, or the OS error
+  // string so the renderer can surface a useful message.
+  ipcMain.handle('shell:openPath', async (_event, filePath: string) => {
+    return shell.openPath(filePath);
+  });
+
   // Spawn a child BrowserWindow that loads a YouTube watch page (full
   // YouTube UI — recommendations, controls, fullscreen). Used as the
   // fallback for embed-disabled videos: the regular YouTube page has

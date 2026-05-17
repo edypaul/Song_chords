@@ -43,6 +43,7 @@ import KeyboardShortcutsOverlay from './components/common/KeyboardShortcutsModal
 import GlobalZoomShortcuts from './components/common/GlobalZoomShortcuts';
 import { NavigationGuardProvider } from './context/NavigationGuard';
 import { AudioPlayerProvider } from './context/AudioPlayer';
+import CastSync from './components/song/CastSync';
 
 export default function App(): React.ReactElement {
   const loadSongs = useSongStore((s) => s.loadSongs);
@@ -67,6 +68,7 @@ export default function App(): React.ReactElement {
     <ErrorBoundary>
       <NavigationGuardProvider>
         <AudioPlayerProvider>
+        <CastSync />
         <KeyboardShortcutsOverlay />
         <GlobalZoomShortcuts />
         <HashRouter>

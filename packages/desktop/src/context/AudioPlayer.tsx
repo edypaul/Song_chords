@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import AudioPlayerPanel from '../components/song/AudioPlayerPanel';
+import YouTubePlayerPanel from '../components/song/YouTubePlayerPanel';
+import { parseYouTubeId } from '../utils/audio-source';
 
 export interface AudioPlayerSourceInput {
   /** Local audio file path. Wins over `link` when both set. */
@@ -28,17 +30,29 @@ const Ctx = createContext<AudioPlayerCtx | null>(null);
  */
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [current, setCurrent] = useState<{ title: string; audioFile?: string; link?: string } | null>(null);
+  // Separate state for the in-app YouTube player so it can float
+  // independently of the local-file audio panel.
+  const [youtube, setYoutube] = useState<{ title: string; videoId: string; watchUrl: string } | null>(null);
 
   const open = useCallback((title: string, source: AudioPlayerSourceInput) => {
     const file = source.audioFile?.trim();
     const url = source.link?.trim();
     if (!file && !url) return;
-    // URL-only: skip the floating panel entirely and open the link
-    // in a child BrowserWindow. Avoids the iframe-embedding rabbit
-    // hole (Error 153, "Video unavailable", etc.) — every URL just
-    // opens in a real browser window that can play anything.
+    // URL-only sources:
+    //   - YouTube  → custom in-app draggable player panel (the
+    //                youtube-nocookie embed IS iframe-embeddable, so
+    //                no separate OS window is needed).
+    //   - anything else (SoundCloud / Spotify / direct mp3 / other
+    //                sites) → child BrowserWindow popup, as before:
+    //                building a custom player for arbitrary sites
+    //                isn't feasible and many block iframe embedding.
     if (!file && url) {
-      void window.electronAPI.youtube.openPopup(url);
+      const videoId = parseYouTubeId(url);
+      if (videoId) {
+        setYoutube({ title, videoId, watchUrl: url });
+      } else {
+        void window.electronAPI.youtube.openPopup(url);
+      }
       return;
     }
     // Otherwise (local file present, with or without link) the panel
@@ -47,7 +61,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setCurrent({ title, audioFile: file || undefined, link: url || undefined });
   }, []);
 
-  const close = useCallback(() => setCurrent(null), []);
+  const close = useCallback(() => {
+    setCurrent(null);
+    setYoutube(null);
+  }, []);
 
   return (
     <Ctx.Provider value={{ open, close, current }}>
@@ -57,7 +74,24 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
           title={current.title}
           audioFile={current.audioFile}
           link={current.link}
-          onClose={close}
+          onPlayUrl={(t, url) => {
+            // Close the local-file panel, then route the URL through
+            // the same `open()` logic a URL-only song uses — so a
+            // YouTube link from the chooser gets the custom in-app
+            // player, not the forced browser popup. Passing only the
+            // link (no audioFile) makes `open` take the URL branch.
+            setCurrent(null);
+            open(t, { link: url });
+          }}
+          onClose={() => setCurrent(null)}
+        />
+      )}
+      {youtube && (
+        <YouTubePlayerPanel
+          title={youtube.title}
+          videoId={youtube.videoId}
+          watchUrl={youtube.watchUrl}
+          onClose={() => setYoutube(null)}
         />
       )}
     </Ctx.Provider>

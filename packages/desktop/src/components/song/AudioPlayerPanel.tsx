@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, ExternalLink, AlertCircle, FileAudio, Globe, ArrowLeft } from 'lucide-react';
 import { fileBasename, pathToAudioUrl } from '../../utils/audio-source';
-import CustomAudioPlayer from './CustomAudioPlayer';
+import CustomAudioPlayer, { type CustomAudioPlayerHandle } from './CustomAudioPlayer';
 
 interface Props {
   /** Title shown in the panel header — the song title. */
@@ -9,10 +9,15 @@ interface Props {
   /** Optional absolute path to a local audio file. */
   audioFile?: string;
   /** Optional remote URL (YouTube / SoundCloud / Spotify / direct mp3
-   *  / etc.). Used by the chooser; URL playback always opens in a
-   *  popup `BrowserWindow` rather than an in-panel iframe — that's
-   *  the only reliable way to play sites with embed restrictions. */
+   *  / etc.). Shown in the chooser when the song also has a local
+   *  file. */
   link?: string;
+  /** Called when the user picks "Online source" from the chooser.
+   *  Delegates URL playback back to the provider so a YouTube link
+   *  gets the SAME routing as a URL-only song (custom in-app player
+   *  for embeddable videos, browser popup otherwise) instead of
+   *  always force-opening the popup window. */
+  onPlayUrl?: (title: string, link: string) => void;
   onClose: () => void;
 }
 
@@ -31,7 +36,7 @@ interface Props {
  * Picking "Online source" from the chooser closes the panel and
  * routes through the same popup IPC.
  */
-export default function AudioPlayerPanel({ title, audioFile, link, onClose }: Props): React.ReactElement | null {
+export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, onClose }: Props): React.ReactElement | null {
   const hasFile = !!(audioFile && audioFile.trim());
   const hasUrl = !!(link && link.trim());
 
@@ -48,6 +53,7 @@ export default function AudioPlayerPanel({ title, audioFile, link, onClose }: Pr
   }, [audioFile, link, initialMode]);
 
   const fileUrl = audioFile ? pathToAudioUrl(audioFile) : '';
+  const playerRef = useRef<CustomAudioPlayerHandle>(null);
 
   // Chooser is fixed-size — its content (label + two cards) doesn't
   // benefit from resizing, and a stable footprint feels purposeful.
@@ -129,14 +135,27 @@ export default function AudioPlayerPanel({ title, audioFile, link, onClose }: Pr
   if (!hasFile) return null;
 
   const openExternalAudio = () => {
-    if (audioFile) void window.electronAPI.shell.openExternal(fileUrl);
+    // Stop our own playback first so the user doesn't hear the song
+    // twice (in-app player + the external app at once).
+    playerRef.current?.pause();
+    // Open the REAL file path with the OS default audio app (VLC etc.)
+    // via shell.openPath. Passing the song-audio:// URL to
+    // openExternal made Windows show "you'll need a new app from the
+    // Store" because nothing is registered for that custom scheme.
+    if (audioFile) void window.electronAPI.shell.openPath(audioFile);
   };
 
   const handlePickUrl = () => {
-    // The chooser's "Online source" path. Hand off to the popup
-    // window IPC and close the panel — same flow URL-only songs
-    // take from the provider.
-    if (link) void window.electronAPI.youtube.openPopup(link);
+    // Delegate back to the provider so YouTube links open the custom
+    // in-app player (for embeddable videos) exactly like a URL-only
+    // song does. Falling back to the popup directly here is what made
+    // "Online source" always skip the custom player. `onPlayUrl` is
+    // optional; if a caller renders this panel without it, keep the
+    // old popup behaviour so nothing breaks.
+    if (link) {
+      if (onPlayUrl) onPlayUrl(title, link);
+      else void window.electronAPI.youtube.openPopup(link);
+    }
     onClose();
   };
 
@@ -161,7 +180,12 @@ export default function AudioPlayerPanel({ title, audioFile, link, onClose }: Pr
         overflow: 'hidden',
         background: 'var(--bg-secondary)',
         borderColor: 'var(--border)',
-        zIndex: 200,
+        // Float above all other in-renderer UI (modals z≈1000, cast
+        // popover z=1000, etc.) so the audio panel stays visible while
+        // the user interacts with the rest of the app — matching the
+        // YouTube player panel (z=9999) and the always-on-top browser
+        // popup window.
+        zIndex: 9999,
       }}
     >
       {/* Drag handle / header */}
@@ -235,6 +259,7 @@ export default function AudioPlayerPanel({ title, audioFile, link, onClose }: Pr
 
         {mode === 'file' && !loadError && fileUrl && (
           <CustomAudioPlayer
+            ref={playerRef}
             key={fileUrl}
             src={fileUrl}
             autoPlay

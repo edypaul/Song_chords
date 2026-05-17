@@ -34,11 +34,14 @@ CREATE TABLE IF NOT EXISTS setlists (
   name        TEXT NOT NULL,
   description TEXT,
   date        INTEGER,
-  position    INTEGER NOT NULL DEFAULT 0,
   created_at  INTEGER NOT NULL,
   updated_at  INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_setlists_position ON setlists(position);
+-- NOTE: the position column (Set Lists drag-to-reorder) is added by
+-- migration v14, NOT here. This DDL must stay frozen as the ORIGINAL
+-- v1 schema. Adding new columns here makes fresh installs create the
+-- column twice (via this DDL in migration v1, then again via the v14
+-- ALTER), crashing with duplicate column name.
 
 CREATE TABLE IF NOT EXISTS setlist_entries (
   id          TEXT PRIMARY KEY,
@@ -164,14 +167,27 @@ CREATE INDEX IF NOT EXISTS idx_setlist_entries_song    ON setlist_entries(song_i
     up: `ALTER TABLE songs ADD COLUMN audio_file TEXT;`,
   },
   {
-    // User-controllable ordering for the Set Lists page. Defaults to
-    // the row's existing updated_at-descending order so existing
-    // databases keep their current visible order on first load.
-    // We seed `position` from a row-number over `updated_at DESC` —
-    // smaller position = earlier (top of the list).
+    // User-controllable ordering for the Set Lists page.
+    //
+    // v14 is JUST the column add — kept isolated because a buggy
+    // earlier build also put `position` in the v1 SETLISTS_DDL, so
+    // on databases that build created this ALTER throws "duplicate
+    // column name". The SqlJs adapter's runMigrations swallows ONLY
+    // that specific error, so v14 records as applied either way and
+    // the column exists afterwards regardless of which build made
+    // the DB.
     version: 14,
+    up: `ALTER TABLE setlists ADD COLUMN position INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    // v15 seeds initial ordering and the index. Both statements are
+    // idempotent and safe on ANY database (whether `position` came
+    // from v14 or pre-existed from the buggy v1 DDL): the UPDATE just
+    // (re)assigns a sensible default order (updated_at DESC → smaller
+    // position = nearer the top), and CREATE INDEX IF NOT EXISTS is
+    // inherently a no-op when it already exists.
+    version: 15,
     up: `
-ALTER TABLE setlists ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
 UPDATE setlists SET position = (
   SELECT COUNT(*) FROM setlists s2 WHERE s2.updated_at > setlists.updated_at OR (s2.updated_at = setlists.updated_at AND s2.id > setlists.id)
 );

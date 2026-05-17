@@ -59,8 +59,23 @@ class SqlJsAdapter implements IDatabase {
 
     for (const migration of migrations) {
       if (migration.version > currentVersion) {
-        // exec handles multi-statement DDL (no params)
-        this.db.exec(migration.up);
+        try {
+          // exec handles multi-statement DDL (no params)
+          this.db.exec(migration.up);
+        } catch (err) {
+          // Self-heal known idempotent failures. A buggy earlier
+          // build shipped the `position` column in BOTH the v1 DDL
+          // and migration v14, so on databases it created the v14
+          // `ALTER TABLE ... ADD COLUMN position` throws "duplicate
+          // column name: position". The schema is already in the
+          // desired shape in that case, so swallow ONLY that error
+          // and let the migration be recorded as applied. Any other
+          // migration error still aborts startup (data-loss safety).
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!/duplicate column name/i.test(msg)) {
+            throw err;
+          }
+        }
         if (currentVersion === 0) {
           this.db.run('INSERT INTO schema_version (version) VALUES (?)', [migration.version]);
         } else {

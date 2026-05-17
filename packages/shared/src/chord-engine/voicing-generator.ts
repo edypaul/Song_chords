@@ -353,17 +353,65 @@ function validateTones(
     }
   }
 
-  // Tier 1: required — must ALL be present
+  // On UKULELE only: dense chords physically can't hold every tier1
+  // tone plus the named extension on 4 strings. Product rule (user):
+  // keep the QUALITY tones (3rd/7th + the characteristic extension);
+  // the ROOT is the one tier1 tone allowed to drop (a bass/piano
+  // covers it — standard small-instrument voicing practice). We treat
+  // a chord as "dense" when it has more distinct tones than the
+  // instrument has strings, so basic triads/7ths are unaffected and
+  // still require the root.
+  let penalty = 0;
+  const distinctChordTones = chordPitches.size;
+  const rootMayDrop =
+    ACTIVE_INSTRUMENT === 'ukulele' && distinctChordTones > NUM_STRINGS;
+
+  // Tier 1: required — must ALL be present (except the droppable root
+  // on a dense ukulele chord, which is penalty-scored instead).
   for (const idx of formula.tier1) {
-    const pitch = (rootSemitone + formula.intervals[idx]!) % 12;
-    if (!presentPitches.has(pitch)) return null;
+    const interval = formula.intervals[idx]!;
+    const pitch = (rootSemitone + interval) % 12;
+    if (!presentPitches.has(pitch)) {
+      if (rootMayDrop && interval === 0) {
+        // Missing root on a dense uke chord: allowed, but penalised so
+        // a root-present voicing (when one exists) still wins.
+        penalty += 15;
+        continue;
+      }
+      return null;
+    }
   }
 
-  // Tier 2: strongly preferred — missing = penalty
-  let penalty = 0;
+  // The chord's NAMED characteristic extension — the tone that gives
+  // an extended chord its name (the 9 in a 9/m9/maj9, the 13 in a 13,
+  // the 6/9's added 9, etc.). It's the highest interval above the b7
+  // (interval > 11 once we account for compound, but our formulas
+  // store it folded: 9→2, 11→5, 13→9). Concretely: the largest
+  // non-core interval, where "core" = root/3rd/5th/7th region. Missing
+  // THIS on a chord that's named for it makes E9 sound like E7 — a
+  // dropped CHARACTERISTIC note, which the product spec forbids. On
+  // ukulele we penalise its absence heavily (more than the droppable
+  // root) so a voicing that keeps the extension always outranks one
+  // that keeps the root instead, whenever such a voicing exists.
+  const CORE = new Set([0, 3, 4, 7, 10, 11]); // 1, b3/3, 5, b7/7
+  let namedExt = -1; // interval value of the characteristic extension
+  for (const iv of formula.intervals) {
+    if (!CORE.has(iv) && iv > namedExt) namedExt = iv;
+  }
+
+  // Tier 2: strongly preferred — missing = penalty. The named
+  // extension (when this chord has one) is weighted far higher on
+  // ukulele so the selector won't trade it away for the root.
   for (const idx of formula.tier2) {
-    const pitch = (rootSemitone + formula.intervals[idx]!) % 12;
-    if (!presentPitches.has(pitch)) penalty += 20;
+    const interval = formula.intervals[idx]!;
+    const pitch = (rootSemitone + interval) % 12;
+    if (!presentPitches.has(pitch)) {
+      if (ACTIVE_INSTRUMENT === 'ukulele' && interval === namedExt && namedExt >= 0) {
+        penalty += 60; // characteristic tone — keep it over the root
+      } else {
+        penalty += 20;
+      }
+    }
   }
 
   return penalty;
@@ -577,40 +625,55 @@ function areTooSimilar(a: RawVoicing, b: RawVoicing): boolean {
 }
 
 /**
- * Pick the most COMMON / practical voicings, 1–4 per chord.
+ * Pick the most COMMON / practical voicings, up to `count` per chord.
  *
- * Previous behaviour forced one voicing from each of five neck regions
- * (including frets 8–13 and 10–15), so every chord ended up with
- * 12th-fret shapes a normal player would never use. The product rule
- * is now: only the voicings musicians actually reach for —
- * open / low-position first, at most one extra mid-neck shape, and
- * NEVER a high-neck filler when a lower voicing already covers the
- * chord.
+ * Product goal (user, 2026): as MANY common, practical shapes as
+ * possible — the open / low shape PLUS the standard moveable barre
+ * shapes and positional alternates across frets 1–12 — never dropping
+ * characteristic notes (the tone/playability filters upstream already
+ * guarantee guide tones + named extension are present and the shape is
+ * humanly playable; this function only chooses WHICH of the valid
+ * shapes to surface and in what order).
  *
- * Algorithm:
- *  1. Sort by score (already favours root-in-bass, open strings, low
- *     frets, small stretch, low finger count).
- *  2. Drop voicings starting above `MAX_PRACTICAL_FRET` unless nothing
- *     lower exists for this chord (some high voicings are the only
- *     playable shape — keep one as a fallback).
- *  3. Take the top-scoring voicing, then add further voicings only
- *     when they are genuinely DIFFERENT (open vs barre, clearly
- *     different position) and still practical — capped at `count`.
+ * Earlier revisions deliberately throttled this (low-position-only
+ * pool, max-2-per-neck-zone, tight score band) to avoid a cramped
+ * "same diagram three times" look. The user has now asked for maximum
+ * practical coverage instead, so those throttles are lifted:
+ *
+ *  - The candidate pool is the FULL within-neck set (frets 1–12), not
+ *    just shapes whose lowest fret ≤ 7. The standard E-shape / A-shape
+ *    barres up the neck are common and now first-class alternates,
+ *    not fallback-only.
+ *  - No per-fretboard-zone cap — every distinct good shape can appear.
+ *  - A generous score band keeps barre / alternate shapes (which
+ *    naturally score below an open chord because of finger count and
+ *    position) while still rejecting genuinely poor outliers.
+ *  - `areTooSimilar` dedup is RETAINED, so near-identical shapes never
+ *    appear as literal repeats even without the zone cap.
+ *
+ * Ordering: the lowest decent shape (the open chord a player reaches
+ * for first) is emitted first; the rest follow by score then position.
  */
 function selectDiverseVoicings(voicings: RawVoicing[], count: number): RawVoicing[] {
   if (voicings.length === 0) return [];
 
-  // A voicing whose lowest fretted note is above this is "up the
-  // neck" — fine as a deliberate alternative, but not as filler.
-  const MAX_PRACTICAL_FRET = 7;
+  // Hard upper bound on the neck position we will emit: guitar
+  // voicings live between frets 1–12; nothing higher unless it is the
+  // ONLY playable shape for the chord.
+  const MAX_EMITTED_FRET = 12;
+  const maxFretOf = (v: RawVoicing): number => {
+    const ff = v.frets.filter((f): f is number => typeof f === 'number' && f > 0);
+    return ff.length ? Math.max(...ff) : 0;
+  };
+  const withinNeck = voicings.filter((v) => maxFretOf(v) <= MAX_EMITTED_FRET);
+  // Fall back to the full set only if NOTHING fits below fret 12 (so a
+  // chord that's only playable up high still returns a shape).
+  const bounded = withinNeck.length > 0 ? withinNeck : voicings;
 
-  const sorted = [...voicings].sort((a, b) => b.score - a.score);
-
-  // Prefer the practical (low) ones; keep the high ones only as a
-  // last-resort pool so chords that genuinely have no low voicing
-  // still return something.
-  const practical = sorted.filter((v) => v.lowestFret <= MAX_PRACTICAL_FRET);
-  const pool = practical.length > 0 ? practical : sorted;
+  // The pool is the ENTIRE within-neck set, best score first. No
+  // low-position-only pre-filter: common barre shapes above fret 7
+  // are legitimate alternates the user explicitly wants surfaced.
+  const pool = [...bounded].sort((a, b) => b.score - a.score);
 
   const selected: RawVoicing[] = [];
   const isDistinct = (v: RawVoicing): boolean =>
@@ -618,45 +681,74 @@ function selectDiverseVoicings(voicings: RawVoicing[], count: number): RawVoicin
 
   const topScore = pool[0]!.score;
 
-  // 1) The default voicing a player reaches for first. The raw
-  //    top-scored shape is often a full barre higher up the neck
-  //    (root-in-bass + 6 sounding strings score highly). Musicians
-  //    overwhelmingly prefer the LOWEST decent shape (open chords).
-  //    So among voicings within a tight score band of the top, pick
-  //    the one with the lowest position — that's the "common" voicing
-  //    the user expects to see first.
+  // 1) First slot = the shape a player reaches for first. The raw
+  //    top-scored shape is often a full barre up the neck (root-in-
+  //    bass + 6 sounding strings score highly), but musicians expect
+  //    the OPEN-position shape first. Among voicings within a tight
+  //    score band of the top, prefer one that actually uses OPEN
+  //    STRINGS (a true open chord — what a player grabs first), and
+  //    only fall back to lowest-fret position when comparing two
+  //    shapes of the same open/closed class (or no open shape exists).
+  //    This stops a low *fretted* shape (e.g. an A-shape barre at
+  //    fret 2) from beating a genuine open voicing for slot 1.
   const PRIMARY_BAND = 45;
   const topTier = pool.filter((v) => topScore - v.score <= PRIMARY_BAND);
-  const best = topTier.reduce((lo, v) =>
-    v.lowestFret < lo.lowestFret ? v : lo, topTier[0]!);
+  const best = topTier.reduce((bestSoFar, v) => {
+    if (v.hasOpenStrings !== bestSoFar.hasOpenStrings) {
+      return v.hasOpenStrings ? v : bestSoFar; // open beats closed
+    }
+    return v.lowestFret < bestSoFar.lowestFret ? v : bestSoFar; // else lower
+  }, topTier[0]!);
   selected.push(best);
 
-  // The lowest position any decent voicing reaches for this chord.
-  // We anchor the "stay near the action" window to THIS, not to the
-  // score-best voicing: the score-best is often a fuller barre shape
-  // higher up (root-in-bass + more strings score well), while the
-  // shape a player actually wants first is the lowest open one. If we
-  // anchored to the best voicing's fret, a chord whose best shape is
-  // at fret 5 would happily accept a fret-9 "alternative" — exactly
-  // the high-neck filler we're trying to remove.
-  const minLow = Math.min(...pool.map((v) => v.lowestFret));
+  // ── Fretboard "zone" spread cap (re-added 2026 at MAX_PER_ZONE=3) ──
+  // The renderer draws a fixed 5-fret window anchored at
+  // `computeBaseFret`. Without a cap, several shapes whose windows land
+  // on the same stretch of neck look like "the same diagram repeated"
+  // (the original Dsus4 complaint). Product rule (user): at most 3
+  // voicings per fretboard area. Zone = which 5-fret band the shape's
+  // RENDERED window starts in (same anchor the renderer uses, so the
+  // cap reflects exactly what the user sees).
+  const ZONE_SIZE = 5;
+  const zoneOf = (v: RawVoicing): number => {
+    const ff = v.frets.filter((f): f is number => typeof f === 'number' && f > 0);
+    const start = computeBaseFret(ff); // 1 = nut/open window
+    return Math.floor((start - 1) / ZONE_SIZE);
+  };
+  const MAX_PER_ZONE = 3;
+  const zoneCounts = new Map<number, number>();
+  const bumpZone = (v: RawVoicing) => {
+    const z = zoneOf(v);
+    zoneCounts.set(z, (zoneCounts.get(z) ?? 0) + 1);
+  };
+  bumpZone(best); // the first pick occupies its zone
 
-  // 2) Add further voicings only if they are (a) meaningfully
-  //    different, (b) close to the action — within 4 frets of the
-  //    LOWEST available position, and (c) still GOOD — within a score
-  //    band of the best one. The score band stops the selector from
-  //    padding out to `count` with mediocre shapes; a chord with only
-  //    one or two genuinely common voicings now returns just those
-  //    (the spec allows 1–4 — fewer is fine).
-  const SCORE_BAND = 70;
-  for (const v of pool) {
-    if (selected.length >= count) break;
-    if (selected.includes(v)) continue;
-    if (!isDistinct(v)) continue;
-    if (v.lowestFret > minLow + 4) continue;           // near the lowest position
-    if (topScore - v.score > SCORE_BAND) continue;     // must still be a good shape
-    selected.push(v);
-  }
+  // 2) Fill the remaining slots. A candidate must be (a) meaningfully
+  //    different from every already-picked shape, (b) still good
+  //    (within a wide score band — barre / positional alternates score
+  //    below an open chord only for finger count + position, not
+  //    because they're bad; foreign-note / missing-tone / heavily-
+  //    muted / contorted shapes were already removed upstream and
+  //    `areTooSimilar` blocks near-duplicates), and (c) NOT exceeding
+  //    MAX_PER_ZONE in its fretboard area. Two passes: first prefer a
+  //    NEW zone (positional variety, chord-book-like), then top up
+  //    allowing up to MAX_PER_ZONE within already-used zones.
+  const SCORE_BAND = 130;
+  const tryAdd = (preferNewZone: boolean): void => {
+    for (const v of pool) {
+      if (selected.length >= count) break;
+      if (selected.includes(v)) continue;
+      if (!isDistinct(v)) continue;
+      if (topScore - v.score > SCORE_BAND) continue; // reject only poor outliers
+      const z = zoneOf(v);
+      if ((zoneCounts.get(z) ?? 0) >= MAX_PER_ZONE) continue; // zone full
+      if (preferNewZone && (zoneCounts.get(z) ?? 0) > 0) continue; // pass 1: new zones only
+      selected.push(v);
+      bumpZone(v);
+    }
+  };
+  tryAdd(true);   // pass 1: spread across NEW zones first
+  tryAdd(false);  // pass 2: top up, up to MAX_PER_ZONE per zone
 
   return selected.slice(0, count);
 }
@@ -714,6 +806,84 @@ function toChordDiagram(voicing: RawVoicing, chordName: string): ChordDiagram {
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
+/**
+ * Drop voicings with too many muted strings. Product rule (user):
+ * a guitar voicing that mutes 3+ strings (≤3 sounding on a 6-string)
+ * is an uncommon, awkward grip and should be omitted — UNLESS the
+ * chord is a power chord (the `5` suffix), where a 2-note shape with
+ * 4 muted strings is the *correct* and expected voicing.
+ *
+ * Only applied on guitar: the ukulele only has 4 strings, so the same
+ * absolute threshold would wrongly nuke normal uke shapes.
+ */
+function filterMutedHeavy(
+  voicings: RawVoicing[],
+  formula: ChordFormula,
+): RawVoicing[] {
+  if (ACTIVE_INSTRUMENT !== 'guitar') return voicings;
+  const isPowerChord = formula.suffix === '5';
+  if (isPowerChord) return voicings;
+  const MAX_MUTED = 2; // >2 muted (i.e. ≥3) disqualifies a non-power chord
+  return voicings.filter((v) => {
+    const muted = v.frets.filter((f) => f === 'x').length;
+    return muted <= MAX_MUTED;
+  });
+}
+
+/**
+ * The chord's NAMED characteristic extension: the tone the chord is
+ * named for (the 9 in 9/m9/maj9/9sus4, the 13 in 13/maj13/m13, the
+ * added 9 in 6/9, etc.) — the largest interval OUTSIDE the core
+ * root/3rd/5th/7th region. Returns -1 when the chord has no such tone
+ * (plain triads / 7ths), in which case there is nothing extra to
+ * require.
+ *
+ * Mirrors the CORE set used by validateTones' ukulele penalty so the
+ * "characteristic tone" is defined identically everywhere.
+ */
+const CORE_INTERVALS = new Set([0, 3, 4, 7, 10, 11]); // 1, b3/3, 5, b7/7
+function namedExtensionInterval(formula: ChordFormula): number {
+  let ext = -1;
+  for (const iv of formula.intervals) {
+    if (!CORE_INTERVALS.has(iv) && iv > ext) ext = iv;
+  }
+  return ext;
+}
+
+/**
+ * HARD requirement (user): an emitted voicing of a named-extension
+ * chord MUST contain that extension. An A9 without the 9th (B) is just
+ * an A7 — dropping the characteristic note is not acceptable, even
+ * though `formulas.ts` keeps the extension in tier2 so the *search*
+ * can still find playable shapes (forcing it into tier1 historically
+ * produced unplayable / empty chords). So we let the search keep its
+ * tier2 flexibility, then FILTER the candidate pool here to only the
+ * voicings that actually sound the named extension.
+ *
+ * Fallback: if NO playable voicing contains it (genuinely possible on
+ * a 4-string ukulele for very dense chords; almost never on 6-string
+ * guitar), return the unfiltered set so the chord is never empty —
+ * the absolute physical limit wins over an empty diagram, but only
+ * then.
+ */
+function filterMissingNamedExtension(
+  voicings: RawVoicing[],
+  rootSemitone: number,
+  formula: ChordFormula,
+): RawVoicing[] {
+  const ext = namedExtensionInterval(formula);
+  if (ext < 0) return voicings; // no named extension to enforce
+  const extPitch = (rootSemitone + ext) % 12;
+  const withExt = voicings.filter((v) => {
+    for (let i = 0; i < v.frets.length; i++) {
+      const f = v.frets[i];
+      if (typeof f === 'number' && f >= 0 && pitchAt(i, f) === extPitch) return true;
+    }
+    return false;
+  });
+  return withExt.length > 0 ? withExt : voicings;
+}
+
 function generateVoicings(chordName: string, count: number): ChordDiagram[] {
   const parsed = parseChordName(chordName);
   if (!parsed) return [];
@@ -724,7 +894,20 @@ function generateVoicings(chordName: string, count: number): ChordDiagram[] {
   const rootSemitone = noteToSemitone(parsed.root);
   const rawVoicings = generateRawVoicings(rootSemitone, formula);
   const unique = deduplicateVoicings(rawVoicings);
-  const selected = selectDiverseVoicings(unique, count);
+  // Remove awkward heavily-muted shapes (power chords exempt) BEFORE
+  // selection, so the selector's diversity logic only ever picks from
+  // the common, fuller grips.
+  const playableSet = filterMutedHeavy(unique, formula);
+  // Guard: if the mute filter removed everything (rare — e.g. a chord
+  // whose only playable guitar shapes are sparse), fall back to the
+  // unfiltered set so we never emit an empty chord.
+  const muteFiltered = playableSet.length > 0 ? playableSet : unique;
+  // Then drop any shape that omits the chord's NAMED EXTENSION (the
+  // 9/11/13/6 it's named for). This is what stops "A9 with no B"
+  // (an A7 mislabelled A9) from ever being emitted — including as
+  // voicing #1. Self-falls-back if nothing has it.
+  const candidates = filterMissingNamedExtension(muteFiltered, rootSemitone, formula);
+  const selected = selectDiverseVoicings(candidates, count);
 
   selected.sort((a, b) => {
     if (a.hasOpenStrings && !b.hasOpenStrings) return -1;
@@ -822,6 +1005,21 @@ function generateSlashVoicingsInternal(
       // Must still sound at least 3 notes total (bass + chord).
       const sounding = next.filter((f) => f !== 'x').length;
       if (sounding < 3) continue;
+
+      // PHYSICAL PLAYABILITY GATE. The slash path synthesises a bass
+      // and DROPS the parent's barre, which can leave a shape that
+      // needs 5–6 independent fingers (e.g. A/G [3,7,7,6,5,5]: 6
+      // distinct fretted notes, no barre — impossible). The main
+      // generator runs every candidate through isPhysicallyPlayable
+      // (stretch + effective finger count after barre detection +
+      // split-barre / interior-mute rejection); the slash path only
+      // checked MAX_STRETCH, so unplayable grips slipped through.
+      // Re-use the SAME gate here so slash chords meet the same bar.
+      // It re-detects any barre the shape can legitimately use, so a
+      // genuinely barre-able grip still passes — only true >4-finger
+      // shapes are rejected.
+      const numericNext = next.map((f) => (f === 'x' ? -1 : f));
+      if (!isPhysicallyPlayable(numericNext)) continue;
 
       const key = next.join(',');
       if (seen.has(key)) { placed = true; break; }

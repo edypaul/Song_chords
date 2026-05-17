@@ -134,9 +134,6 @@ export default function CastPage(): React.ReactElement {
         <Cast size={20} style={{ color: 'var(--accent)' }} />
         <div className="flex flex-col">
           <h1 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Cast — Full App</h1>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Mirror the whole app to any device on your network. For per-song lyrics or chord casts, use the Cast icon in the song toolbar.
-          </p>
         </div>
         <div className="flex-1" />
         <ServerStatusBadge running={serverRunning} clients={clients} mode={mode} />
@@ -152,7 +149,7 @@ export default function CastPage(): React.ReactElement {
           <button
             onClick={() => void startMirror()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
             style={{
               background: 'var(--accent)',
               color: 'white',
@@ -160,7 +157,7 @@ export default function CastPage(): React.ReactElement {
               cursor: busy ? 'wait' : 'pointer',
             }}
           >
-            <Power size={13} />
+            <Power size={13} className="shrink-0" />
             {busy ? '...' : 'Start Casting'}
           </button>
         )}
@@ -168,7 +165,7 @@ export default function CastPage(): React.ReactElement {
           <button
             onClick={() => void startMirror()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
             style={{
               background: 'var(--accent)',
               color: 'white',
@@ -177,7 +174,7 @@ export default function CastPage(): React.ReactElement {
             }}
             title="A per-song cast is currently active. Click to switch the receiver to the full-app mirror."
           >
-            <Cast size={13} />
+            <Cast size={13} className="shrink-0" />
             {busy ? '...' : 'Switch to full app'}
           </button>
         )}
@@ -185,7 +182,7 @@ export default function CastPage(): React.ReactElement {
           <button
             onClick={() => void stopServer()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 whitespace-nowrap"
             style={{
               background: 'var(--surface-elevated)',
               color: 'var(--text-secondary)',
@@ -193,7 +190,7 @@ export default function CastPage(): React.ReactElement {
               cursor: busy ? 'wait' : 'pointer',
             }}
           >
-            <Power size={13} />
+            <Power size={13} className="shrink-0" />
             {busy ? '...' : 'Stop Casting'}
           </button>
         )}
@@ -237,21 +234,25 @@ export default function CastPage(): React.ReactElement {
 }
 
 function ServerStatusBadge({ running, clients, mode }: { running: boolean; clients: number; mode: 'mirror' | 'html' | 'idle' }): React.ReactElement {
-  const viewers = clients > 0 ? ` · ${clients} viewer${clients === 1 ? '' : 's'}` : '';
-  const label = running
-    ? mode === 'html'
-      ? `Casting song${viewers}`
-      : `Casting full app${viewers}`
+  // Single line: "Casting song (1 viewer)". The header description was
+  // removed so this fits without wrapping; nowrap guarantees it.
+  const title = running
+    ? mode === 'html' ? 'Casting song' : 'Casting full app'
     : 'Stopped';
+  const viewers = running && clients > 0
+    ? ` (${clients} viewer${clients === 1 ? '' : 's'})`
+    : '';
   return (
     <span
       className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono"
       style={{
         background: 'var(--surface-elevated)',
         color: running ? 'var(--accent)' : 'var(--text-muted)',
+        whiteSpace: 'nowrap',
       }}
     >
       <span
+        className="shrink-0"
         style={{
           width: 8,
           height: 8,
@@ -260,7 +261,7 @@ function ServerStatusBadge({ running, clients, mode }: { running: boolean; clien
           boxShadow: running ? '0 0 6px var(--accent)' : 'none',
         }}
       />
-      {label}
+      {title}{viewers}
     </span>
   );
 }

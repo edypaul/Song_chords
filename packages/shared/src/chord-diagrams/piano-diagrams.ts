@@ -149,6 +149,77 @@ function buildPianoNotes(root: string, suffix: string, bass?: string): number[] 
 }
 
 /**
+ * Build an INVERSION of a plain (non-slash) chord.
+ *
+ * `inv` = which chord tone becomes the lowest sounding note:
+ *   1 → 1st inversion (3rd in the bass), 2 → 2nd inversion (5th in
+ *   the bass), etc. Pianistically these are the standard, fully
+ *   playable re-voicings every keyboard method teaches.
+ *
+ * Method: rotate the chord's pitch-class list so the inversion's
+ * bass tone is first, then stack each successive tone at the next
+ * higher pitch (wrapping up an octave when needed) starting low in
+ * the 0..23 window. The result is a tight, hand-shaped ascending
+ * voicing. `pianoNotes[0]` is then set to the TRUE root semitone so
+ * the renderer keeps accenting the real root (it accents index 0 by
+ * pitch, regardless of order) — the lowest highlighted key still
+ * visually shows the inversion bass.
+ *
+ * Returns null if the chord has too few distinct tones for this
+ * inversion to differ from root position.
+ */
+function buildInversion(root: string, suffix: string, inv: number): number[] | null {
+  const formula = getFormula(suffix);
+  if (!formula) return null;
+  const baseRoot = rootIndex(root);
+
+  // Distinct pitch classes in chord order (root first). Dedupe by
+  // pitch class so e.g. an octave-doubled tone doesn't create a
+  // phantom extra "inversion".
+  const pcsSeen = new Set<number>();
+  const pcs: number[] = [];
+  for (const iv of formula.intervals) {
+    const pc = ((baseRoot + iv) % 12 + 12) % 12;
+    if (!pcsSeen.has(pc)) { pcsSeen.add(pc); pcs.push(pc); }
+  }
+  if (inv >= pcs.length) return null; // not enough tones to invert this far
+
+  // Rotate so the inversion's bass tone leads.
+  const ordered = [...pcs.slice(inv), ...pcs.slice(0, inv)];
+
+  // Stack ascending from a low anchor: each note is placed at the
+  // lowest octave that keeps it strictly above the previous note, so
+  // the voicing climbs like a real right-hand shape.
+  //
+  // If the strictly-ascending stack can't fit inside the 2-octave
+  // (0..23) display window — which happens for dense 6–7 tone chords
+  // like 13ths / m11 where an inversion genuinely spans >2 octaves —
+  // we BAIL (return null). Such chords are simply shown in root
+  // position only; forcing an inversion here is what produced the
+  // out-of-range (24/25) notes. The count rule already limits these
+  // dense chords to a single inversion attempt, so this just means
+  // "root position only", which is correct and playable.
+  const placed: number[] = [];
+  let prev = -1;
+  for (const pc of ordered) {
+    let n = pc; // start in the low octave (0..11)
+    while (n <= prev) n += 12;
+    if (n > 23) return null; // doesn't fit a 2-octave keyboard — skip
+    placed.push(n);
+    prev = n;
+  }
+
+  // Accent stays on the true root: put the root semitone (folded into
+  // the window) at index 0; the rest sorted ascending. Dedupe so the
+  // root isn't listed twice when it's also the lowest stacked note.
+  let rootNote = baseRoot;
+  while (rootNote > 23) rootNote -= 12;
+  while (rootNote < 0) rootNote += 12;
+  const others = placed.filter((n) => n !== rootNote).sort((a, b) => a - b);
+  return [rootNote, ...others];
+}
+
+/**
  * In-memory cache of generated piano diagrams. Built on first lookup per
  * chord name and reused thereafter.
  */
@@ -163,21 +234,50 @@ function ensurePiano(name: string): ChordDiagram[] {
     PIANO_CACHE[name] = [];
     return [];
   }
-  const notes = buildPianoNotes(parts.root, parts.suffix, parts.bass);
-  if (notes.length === 0) {
+  const root = buildPianoNotes(parts.root, parts.suffix, parts.bass);
+  if (root.length === 0) {
     PIANO_CACHE[name] = [];
     return [];
   }
-  const diagram: ChordDiagram = {
+
+  // Collect 1–3 voicings: root position first, then inversions.
+  //
+  // Count rule (product spec — "1 to 3 voicings of each chord type"):
+  //   - Slash chords keep ONLY root position: the explicit bass note
+  //     is the entire point, inverting it would contradict the name.
+  //   - Triads (3 distinct chord tones) → root + 1st + 2nd inversion
+  //     (the three a pianist actually learns).
+  //   - 4+ tone chords (7ths/9ths/extended) → root + 1st inversion
+  //     only: deeper inversions of dense chords get muddy and aren't
+  //     the common way they're voiced.
+  const voicingNotes: number[][] = [root];
+  if (!parts.bass) {
+    const formula = getFormula(parts.suffix);
+    const distinctTones = formula
+      ? new Set(formula.intervals.map((iv) => (rootIndex(parts.root) + iv) % 12)).size
+      : 3;
+    const maxInversions = distinctTones <= 3 ? 2 : 1; // → up to 3 / 2 total
+    const seenKeys = new Set<string>([root.join(',')]);
+    for (let inv = 1; inv <= maxInversions; inv++) {
+      const v = buildInversion(parts.root, parts.suffix, inv);
+      if (!v || v.length === 0) continue;
+      const key = v.join(',');
+      if (seenKeys.has(key)) continue; // skip if it collapses to an earlier one
+      seenKeys.add(key);
+      voicingNotes.push(v);
+    }
+  }
+
+  const diagrams: ChordDiagram[] = voicingNotes.map((pianoNotes) => ({
     name,
-    instrument: 'piano',
+    instrument: 'piano' as const,
     baseFret: 1,
     strings: 0,
     frets: [],
-    pianoNotes: notes,
-  };
-  PIANO_CACHE[name] = [diagram];
-  return [diagram];
+    pianoNotes,
+  }));
+  PIANO_CACHE[name] = diagrams;
+  return diagrams;
 }
 
 /**
