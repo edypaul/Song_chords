@@ -95,3 +95,74 @@ export default function ChordHighlightOverlay({
     </div>
   );
 }
+
+/**
+ * Read-only, self-scrolling chord-colored preview of a piece of song
+ * text. Used by the Song-tab "Split view": the pane whose format does
+ * NOT match the live editor shows the other representation here,
+ * derived one-way from `content`.
+ *
+ * Unlike the editable side, a preview has NO caret to keep aligned, so
+ * it does NOT need the transparent-textarea + absolute translating
+ * overlay trick. That earlier approach (a transparent spacer to
+ * establish scroll height + an `position:absolute; inset:0` overlay
+ * translated by a manual scroll listener) failed to fill the pane and
+ * never produced a scrollbar. This is just a normal block element
+ * that renders the colored text directly and scrolls natively —
+ * `flex:1` makes it fill the flex-column pane, `overflow:auto` gives
+ * a real vertical scrollbar when the song is taller than the pane.
+ */
+export function ChordPreviewPane({
+  text,
+  chordColor,
+}: {
+  text: string;
+  chordColor: string;
+}): React.ReactElement {
+  const segments = useMemo(() => {
+    const spans = tokenizeChordSpans(text);
+    const out: Array<{ text: string; chord: boolean }> = [];
+    let cursor = 0;
+    for (const s of spans) {
+      if (s.start > cursor) out.push({ text: text.slice(cursor, s.start), chord: false });
+      out.push({ text: text.slice(s.start, s.end), chord: true });
+      cursor = s.end;
+    }
+    out.push({ text: text.slice(cursor), chord: false });
+    return out;
+  }, [text]);
+
+  return (
+    <div
+      className="chord-preview-pane"
+      style={{
+        // Fill the flex-column pane and scroll natively. No absolute
+        // positioning / spacer / scroll-sync — the content itself is
+        // the scrollable flow, so it always uses the full height and
+        // shows a vertical scrollbar on overflow.
+        flex: 1,
+        minHeight: 0,
+        height: '100%',
+        overflow: 'auto',
+        background: 'var(--bg)',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'break-word',
+        padding: 16,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+        fontSize: 14,
+        lineHeight: 1.6,
+        color: 'var(--text-primary)',
+      }}
+    >
+      {segments.map((seg, i) =>
+        seg.chord ? (
+          <span key={i} style={{ color: chordColor, fontWeight: 600 }}>
+            {seg.text}
+          </span>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </div>
+  );
+}

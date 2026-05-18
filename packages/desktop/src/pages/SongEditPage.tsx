@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Save, Trash2, ArrowLeft, Hand, RotateCcw } from 'lucide-react';
-import { useSongStore, useSettingsStore, ALL_KEYS, parseChordPro, extractUniqueChords, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter, bulkReplaceChord, isValidChordName } from '@song-chords/shared';
-import ChordHighlightOverlay from '../components/song/ChordHighlightOverlay';
+import { useSongStore, useSettingsStore, ALL_KEYS, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter, bulkReplaceChord, isValidChordName, uniqueChordNames } from '@song-chords/shared';
+import ChordHighlightOverlay, { ChordPreviewPane } from '../components/song/ChordHighlightOverlay';
 import { db } from '../ipc/ipc-client';
 import type { SongCreateInput } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -201,6 +201,13 @@ export default function SongEditPage(): React.ReactElement {
   // Mirror the textarea scroll into the highlight overlay behind it.
   const [editorScroll, setEditorScroll] = useState({ top: 0, left: 0 });
 
+  // Split view: show ChordPro (left) and chords-over-lyrics (right)
+  // side by side. The pane matching the current edit `format` is the
+  // live editor; the other is a read-only live preview derived from
+  // `content` via the converters (one-way, so the not-perfectly-
+  // bijective conversion can never corrupt the source).
+  const [splitView, setSplitView] = useState(false);
+
   // ── Undo / redo history for the song content ──────────────────────────────
   // We maintain our own stack because programmatic value updates via React
   // clobber the textarea's native undo history.
@@ -293,16 +300,24 @@ export default function SongEditPage(): React.ReactElement {
   };
 
   // Extract unique chords + basic stats from the current content.
+  // `uniqueChordNames` handles BOTH formats (inline ChordPro and
+  // chords-over-lyrics) with the same canonical chord grammar the
+  // editor highlighting / bulk-replace use, so the count is correct
+  // and format-independent. The previous code branched on `format`
+  // and called `parsePlainText` for the over-lyrics case — but
+  // `parsePlainText` was never imported, so that branch threw a
+  // ReferenceError that the try/catch swallowed, leaving the count at
+  // 0 in chords-over-lyrics view (worked in ChordPro/split only
+  // because those hit the imported `parseChordPro` path).
   const stats = useMemo(() => {
     const chars = content.length;
     const lineCount = content === '' ? 0 : content.split('\n').length;
     let uniqueChords: string[] = [];
     try {
-      const parsed = format === 'chordpro' ? parseChordPro(content) : parsePlainText(content);
-      uniqueChords = extractUniqueChords(parsed);
+      uniqueChords = uniqueChordNames(content);
     } catch { /* ignore parse errors while typing */ }
     return { chars, lineCount, uniqueChords };
-  }, [content, format]);
+  }, [content]);
 
   // Snapshot of the form's initial values. Compared against the current
   // state to detect unsaved edits in `isDirty` below.
@@ -741,7 +756,12 @@ export default function SongEditPage(): React.ReactElement {
               <div className="flex items-center gap-2 flex-wrap">
                 <FormatToggle
                   format={format}
-                  onChange={(next) => {
+                  splitView={splitView}
+                  onSplit={() => setSplitView(true)}
+                  onPickFormat={(next) => {
+                    // Picking a format also leaves split view (the
+                    // three are mutually exclusive in the UI).
+                    setSplitView(false);
                     setFormat(next);
                     // Swap built-in example when the user hasn't edited yet.
                     if (content === EXAMPLE_CHORDPRO || content === EXAMPLE_PLAINTEXT) {
@@ -884,7 +904,28 @@ export default function SongEditPage(): React.ReactElement {
                 </button>
               </div>
             )}
-            <div className="flex-1 relative" style={{ background: 'var(--bg)' }}>
+            <div className="flex-1 flex min-h-0" style={{ background: 'var(--bg)' }}>
+              {/* Editable pane — ALWAYS the left side in split view;
+                  the right side is a read-only live preview derived
+                  one-way from `content`. */}
+              <div
+                className="h-full flex flex-col"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  order: 0,
+                  borderRight: splitView ? '1px solid var(--border)' : undefined,
+                }}
+              >
+                {splitView && (
+                  <div
+                    className="px-3 py-1 text-[11px] font-semibold border-b shrink-0"
+                    style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+                  >
+                    {format === 'chordpro' ? 'ChordPro' : 'Chords over lyrics'} · editing
+                  </div>
+                )}
+                <div className="relative flex-1 min-h-0">
               <ChordHighlightOverlay
                 text={content}
                 chordColor={chordColor}
@@ -956,9 +997,40 @@ export default function SongEditPage(): React.ReactElement {
                   lineHeight: 1.6,
                   whiteSpace: 'pre-wrap',
                   overflowWrap: 'break-word',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
                 }}
                 spellCheck={false}
               />
+                </div>
+              </div>
+              {splitView && (
+                <div
+                  className="h-full flex flex-col"
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    order: 1,
+                  }}
+                >
+                  <div
+                    className="px-3 py-1 text-[11px] font-semibold border-b shrink-0"
+                    style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'var(--surface)' }}
+                  >
+                    {format === 'chordpro' ? 'Chords over lyrics' : 'ChordPro'} · preview
+                  </div>
+                  <div className="flex-1 min-h-0 flex">
+                    <ChordPreviewPane
+                      text={
+                        format === 'chordpro'
+                          ? chordProToChordsOverLyrics(content)
+                          : chordsOverLyricsToChordPro(content)
+                      }
+                      chordColor={chordColor}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             {chordPopover && (
               <ChordPopover
@@ -1118,34 +1190,63 @@ function UnsavedChangesDialog({
   );
 }
 
-function FormatToggle({ format, onChange }: {
+/**
+ * One segmented control for the three editor view modes. Exactly ONE
+ * segment is active at a time and all three share identical active
+ * styling:
+ *   - "Chords over lyrics" / "ChordPro" pick the edit format AND turn
+ *     split view off.
+ *   - "Split view" turns split view on (the active format still
+ *     decides which pane is editable, handled by the caller).
+ */
+function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
   format: 'chordpro' | 'plaintext';
-  onChange: (next: 'chordpro' | 'plaintext') => void;
+  splitView: boolean;
+  onPickFormat: (next: 'chordpro' | 'plaintext') => void;
+  onSplit: () => void;
 }): React.ReactElement {
   const btnStyle = (active: boolean): React.CSSProperties => ({
     background: active ? 'var(--accent)' : 'var(--surface)',
     color: active ? 'white' : 'var(--text-secondary)',
-    border: '1px solid var(--border)',
+    border: 'none',
   });
+  const seg = 'px-2 py-1 text-xs font-medium';
   return (
-    <div className="inline-flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+    <div
+      className="inline-flex rounded overflow-hidden"
+      style={{ border: '1px solid var(--border)' }}
+      role="group"
+      aria-label="Editor view"
+    >
       <button
         type="button"
-        onClick={() => onChange('plaintext')}
-        className="px-2 py-1 text-xs font-medium"
-        style={btnStyle(format === 'plaintext')}
+        onClick={() => onPickFormat('plaintext')}
+        className={seg}
+        style={{ ...btnStyle(!splitView && format === 'plaintext'), borderRight: '1px solid var(--border)' }}
+        aria-pressed={!splitView && format === 'plaintext'}
         title="Chord names on one line, lyric directly below. Converted to ChordPro on save."
       >
         Chords over lyrics
       </button>
       <button
         type="button"
-        onClick={() => onChange('chordpro')}
-        className="px-2 py-1 text-xs font-medium"
-        style={btnStyle(format === 'chordpro')}
+        onClick={() => onPickFormat('chordpro')}
+        className={seg}
+        style={{ ...btnStyle(!splitView && format === 'chordpro'), borderRight: '1px solid var(--border)' }}
+        aria-pressed={!splitView && format === 'chordpro'}
         title="Inline ChordPro format: [G]Amazing [C]grace"
       >
         ChordPro
+      </button>
+      <button
+        type="button"
+        onClick={onSplit}
+        className={seg}
+        style={btnStyle(splitView)}
+        aria-pressed={splitView}
+        title="Show ChordPro and chords-over-lyrics side by side. The pane matching the selected format stays editable; the other is a live preview."
+      >
+        ⇆ Split view
       </button>
     </div>
   );

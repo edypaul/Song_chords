@@ -3,8 +3,85 @@ import { GUITAR_DIAGRAMS } from './guitar-diagrams';
 import { UKULELE_DIAGRAMS } from './ukulele-diagrams';
 import { GUITAR_SLASH_DIAGRAMS, UKULELE_SLASH_DIAGRAMS } from './slash-diagrams';
 import { PIANO_DIAGRAMS, getAllPianoChordNames } from './piano-diagrams';
+import { noteToSemitone } from '../chord-engine/formulas';
 
 type DiagramMap = Record<string, ChordDiagram[]>;
+
+// ── Enharmonic resolution ────────────────────────────────────────────
+//
+// The baked guitar/ukulele tables (and the curated slash table) use
+// ONE spelling per pitch class — the generator's root list:
+//   C C# D Eb E F F# G Ab A Bb B
+// so e.g. `Abm7b5` exists but `G#m7b5` does not, even though they are
+// the SAME chord. Lookups are exact object-key, so a user who writes
+// the other valid spelling (G#, D#, A#, Db, Gb, Cb, B#, E#, Fb …) got
+// no diagram at all. This maps any note spelling to the table's
+// canonical spelling via pitch class so every enharmonic equivalent
+// resolves; the returned diagram is then re-labelled to the spelling
+// the user actually typed so the chart header matches the song.
+const CANONICAL_ROOT_BY_PC = [
+  'C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
+] as const;
+
+/** Match a leading note name: A–G, optional accidental(s). Accepts the
+ *  common single #/b plus the rarer double and natural-spelling cases
+ *  noteToSemitone understands. */
+const LEADING_NOTE_RE = /^([A-G](?:#|b)?)/;
+
+// The note spellings `noteToSemitone` actually maps. Anything else
+// (Cb, E#, double accidentals…) is NOT in its table and would silently
+// fall back to 0 (= C), which would MIS-map Cb→C instead of B. Guard
+// with this allow-list so an unrecognized spelling is left as-is
+// rather than wrongly re-spelled.
+const KNOWN_NOTES = new Set([
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F',
+  'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
+]);
+
+/** Re-spell a single note to the table's canonical spelling for its
+ *  pitch class. Notes outside the known-spelling set are returned
+ *  unchanged (no guessing). */
+function canonicalNote(note: string): string {
+  if (!KNOWN_NOTES.has(note)) return note;
+  const pc = ((noteToSemitone(note) % 12) + 12) % 12;
+  return CANONICAL_ROOT_BY_PC[pc] ?? note;
+}
+
+/**
+ * Re-spell a chord name's ROOT (and slash-bass, if any) to the
+ * canonical baked spelling, leaving the quality/suffix untouched.
+ * Returns null when there's no leading note to normalize, or when the
+ * result is identical to the input (so callers can skip the retry).
+ */
+function toCanonicalChordName(chordName: string): string | null {
+  const m = LEADING_NOTE_RE.exec(chordName);
+  if (!m) return null;
+  const root = m[1]!;
+  let rest = chordName.slice(root.length);
+
+  // Normalize a slash-bass note too: "C/G#" must find the curated
+  // "C/Ab" entry. Only the part after the LAST '/' that is itself a
+  // bare note name is a bass (quality suffixes like 6/9 are not).
+  const slash = rest.lastIndexOf('/');
+  if (slash >= 0) {
+    const bass = rest.slice(slash + 1);
+    const bm = /^([A-G](?:#|b)?)$/.exec(bass);
+    if (bm) {
+      rest = rest.slice(0, slash + 1) + canonicalNote(bm[1]!);
+    }
+  }
+
+  const canonical = canonicalNote(root) + rest;
+  return canonical === chordName ? null : canonical;
+}
+
+/** Return copies of `diagrams` with `name` set to `displayName` so the
+ *  rendered chart header shows the spelling the user wrote, not the
+ *  canonical table key. */
+function relabel(diagrams: ChordDiagram[], displayName: string): ChordDiagram[] {
+  if (diagrams.length === 0) return diagrams;
+  return diagrams.map((d) => (d.name === displayName ? d : { ...d, name: displayName }));
+}
 
 /** Look up a chord by name in the relevant built-in library. Piano is
  *  generated lazily, so its `[name]` access always returns an array
@@ -34,10 +111,29 @@ function customForInstrument(custom: DiagramMap | undefined, instrument: Instrum
 }
 
 function lookup(chordName: string, instrument: InstrumentType, custom?: DiagramMap): ChordDiagram[] {
-  const builtin = getBuiltin(chordName, instrument);
   const custMap = customForInstrument(custom, instrument);
+
+  // 1) Exact match on the spelling the user wrote (custom overrides
+  //    keyed by that exact spelling are honoured here too).
+  const builtin = getBuiltin(chordName, instrument);
   const userVariants = custMap[chordName] ?? [];
-  return [...builtin, ...userVariants];
+  const exact = [...builtin, ...userVariants];
+  if (exact.length) return exact;
+
+  // 2) Enharmonic fallback: the baked tables use one spelling per
+  //    pitch class (Ab not G#, Eb not D#, …). Re-spell the root (and
+  //    slash bass) to that canonical spelling, look that up, then
+  //    re-label the result back to what the user typed so the chart
+  //    header still reads "G#m7b5", not "Abm7b5".
+  const canonical = toCanonicalChordName(chordName);
+  if (canonical) {
+    const cb = getBuiltin(canonical, instrument);
+    const cu = custMap[canonical] ?? [];
+    const enh = [...cb, ...cu];
+    if (enh.length) return relabel(enh, chordName);
+  }
+
+  return [];
 }
 
 /** Exact match — returns first variation. */
