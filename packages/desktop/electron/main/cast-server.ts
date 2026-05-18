@@ -230,26 +230,45 @@ function receiverHtml(view: CastView): string {
     /* Touch devices don't fire hover — keep the button visible. */
     #fs-toggle { opacity: 0.7; }
   }
-  /* Pseudo-fullscreen fallback for iOS Safari on iPhone, where the
-     real Fullscreen API does NOT work for non-<video> elements (the
-     button used to do nothing there). Toggling this class makes the
-     page a fixed, full-DYNAMIC-viewport overlay: 100dvh tracks the
-     visible area as Safari's URL bar collapses, so the cast fills the
-     screen edge-to-edge as far as the OS allows. Scroll is locked so
-     the layout can't shift. */
-  html.pseudo-fs, html.pseudo-fs body {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    width: 100dvw;
+  /* Pseudo-fullscreen fallback for iOS (every iOS browser is WebKit
+     and none do real element fullscreen). True OS-chrome hiding is
+     impossible for non-<video> content on iOS — that is an Apple
+     platform limit we cannot bypass. What we CAN do, and what makes
+     the button actually do something visible on iOS, is:
+       1. let the page be 1px taller than the viewport and scroll to
+          the top so iOS Safari/Chrome COLLAPSES its URL bar (this is
+          the only way to reclaim that strip; the previous code locked
+          the body with position:fixed + overflow:hidden, which made
+          the URL-bar-collapsing scroll a no-op — so pseudo-fs did
+          nothing visible on iOS, the reported bug);
+       2. paint the page background opaque black and push the cast
+          frame under the safe-area insets so it fills the maximum
+          real estate the OS allows, edge to edge.
+     100dvh already tracks the post-collapse height. We deliberately
+     do NOT set position:fixed on html/body here. */
+  html.pseudo-fs {
+    /* 1px taller than the visual viewport so a one-shot scroll can
+       trigger the URL-bar collapse; dvh keeps it exact afterwards. */
+    min-height: calc(100dvh + 1px);
+    background: #000;
+  }
+  html.pseudo-fs body { background: #000; }
+  html.pseudo-fs #frame {
+    /* Cover the whole dynamic viewport INCLUDING the safe-area inset
+       region (notch / home indicator) so nothing letterboxes. */
     height: 100dvh;
-    overflow: hidden;
-    touch-action: none;
+    height: calc(100dvh + env(safe-area-inset-top) + env(safe-area-inset-bottom));
   }
-  html.pseudo-fs #frame { height: 100dvh; }
   @media (orientation: portrait) {
-    html.pseudo-fs #frame { width: 100dvh; height: 100dvw; }
+    html.pseudo-fs #frame {
+      width: 100dvh;
+      width: calc(100dvh + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+      height: 100dvw;
+    }
   }
+  /* Hide the receiver's own chrome while pseudo-fs is on so the cast
+     is as clean as a real fullscreen — only the exit button remains. */
+  html.pseudo-fs #status { display: none !important; }
 </style>
 </head>
 <body>
@@ -393,7 +412,25 @@ function receiverHtml(view: CastView): string {
       var fsExitIcon = document.getElementById('fs-icon-exit');
       var docEl = document.documentElement;
 
+      // EVERY browser on iOS / iPadOS is WebKit (Chrome, Edge, Firefox
+      // on iOS are all Safari underneath) and NONE support the
+      // Fullscreen API for a non-<video> element. webkitRequestFullscreen
+      // often EXISTS on the element (so a feature test passes) yet is a
+      // silent no-op that returns undefined and never throws — so the
+      // old "try native, fall back on reject" logic could neither
+      // succeed nor reliably detect failure on iOS Chrome. Detect iOS
+      // up front and skip straight to the CSS pseudo-fullscreen path.
+      // (iPadOS 13+ reports as "MacIntel" with touch, hence the
+      // maxTouchPoints check.)
+      function isIOS() {
+        var ua = navigator.userAgent || '';
+        if (/iPad|iPhone|iPod/.test(ua)) return true;
+        return navigator.platform === 'MacIntel' &&
+          (navigator.maxTouchPoints || 0) > 1;
+      }
+
       function nativeEnter() {
+        if (isIOS()) return null; // force the pseudo-fs fallback
         return docEl.requestFullscreen || docEl.webkitRequestFullscreen || null;
       }
       function nativeExit() {
@@ -415,9 +452,18 @@ function receiverHtml(view: CastView): string {
 
       function enterPseudo() {
         docEl.classList.add('pseudo-fs');
-        // Nudge Safari to collapse its URL bar.
-        window.scrollTo(0, 1);
         syncFsIcon();
+        // Collapse the iOS URL bar. The page is now 1px taller than
+        // the viewport (see .pseudo-fs CSS); scrolling to the bottom
+        // makes iOS hide the address bar. A single synchronous
+        // scrollTo is unreliable — iOS needs it AFTER the class's
+        // layout change and sometimes a second nudge — so retry on
+        // rAF and a short timeout. Harmless on non-iOS (page isn't
+        // scrollable there, scrollTo is a no-op).
+        var nudge = function () { window.scrollTo(0, document.body.scrollHeight); };
+        requestAnimationFrame(function () { requestAnimationFrame(nudge); });
+        setTimeout(nudge, 120);
+        setTimeout(nudge, 360);
       }
       function exitPseudo() {
         docEl.classList.remove('pseudo-fs');

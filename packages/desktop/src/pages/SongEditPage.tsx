@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Save, Trash2, ArrowLeft, Hand, RotateCcw } from 'lucide-react';
-import { useSongStore, ALL_KEYS, parseChordPro, extractUniqueChords, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter } from '@song-chords/shared';
+import { useSongStore, useSettingsStore, ALL_KEYS, parseChordPro, extractUniqueChords, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter, bulkReplaceChord, isValidChordName } from '@song-chords/shared';
+import ChordHighlightOverlay from '../components/song/ChordHighlightOverlay';
 import { db } from '../ipc/ipc-client';
 import type { SongCreateInput } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -186,6 +187,19 @@ export default function SongEditPage(): React.ReactElement {
   // Clipboard for "Copy chords / Paste chords" — stores the chord pattern
   // extracted from one selection so it can be re-applied to another.
   const [chordClipboard, setChordClipboard] = useState<ChordPattern | null>(null);
+
+  // Chord find & bulk-replace bar (Song tab).
+  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findChord, setFindChord] = useState('');
+  const [replaceChord, setReplaceChord] = useState('');
+  const [lastReplaceMsg, setLastReplaceMsg] = useState<string | null>(null);
+
+  // Editor chord color comes from the user's active style preset so the
+  // editor previews the same accent the Song View will render with.
+  const chordColor = useSettingsStore((s) => s.settings.songViewStyle?.chords?.color) || 'var(--accent)';
+
+  // Mirror the textarea scroll into the highlight overlay behind it.
+  const [editorScroll, setEditorScroll] = useState({ top: 0, left: 0 });
 
   // ── Undo / redo history for the song content ──────────────────────────────
   // We maintain our own stack because programmatic value updates via React
@@ -758,6 +772,18 @@ export default function SongEditPage(): React.ReactElement {
                   style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                   title="Redo (Ctrl+Shift+Z / Ctrl+Y)">↷ Redo</button>
                 <SectionInsert onPick={(section) => insertAtCursor(`{c: ${section}}\n`)} />
+                <button
+                  type="button"
+                  onClick={() => { setShowFindReplace((v) => !v); setLastReplaceMsg(null); }}
+                  className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)]"
+                  style={{
+                    color: showFindReplace ? 'var(--accent)' : 'var(--text-secondary)',
+                    border: '1px solid var(--border)',
+                  }}
+                  title="Find a chord and replace every occurrence (lyrics are never touched)."
+                >
+                  Find / Replace chords
+                </button>
                 {format === 'chordpro' && (
                   <>
                     <button
@@ -799,14 +825,84 @@ export default function SongEditPage(): React.ReactElement {
                 )}
               </div>
             </div>
-            <textarea
-              ref={textareaRef}
-              value={content}
-              onChange={(e) => {
-                const v = e.target.value;
-                setContent(v);
-                scheduleTypingCommit(v);
-              }}
+            {showFindReplace && (
+              <div
+                className="px-4 py-2 border-b flex items-center gap-2 flex-wrap text-xs"
+                style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+              >
+                <span style={{ color: 'var(--text-muted)' }}>Replace chord</span>
+                <input
+                  value={findChord}
+                  onChange={(e) => { setFindChord(e.target.value); setLastReplaceMsg(null); }}
+                  placeholder="e.g. D"
+                  className="input-field"
+                  style={{ width: 90 }}
+                  spellCheck={false}
+                />
+                <span style={{ color: 'var(--text-muted)' }}>with</span>
+                <input
+                  value={replaceChord}
+                  onChange={(e) => { setReplaceChord(e.target.value); setLastReplaceMsg(null); }}
+                  placeholder="e.g. E"
+                  className="input-field"
+                  style={{ width: 90 }}
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  disabled={!isValidChordName(findChord) || !isValidChordName(replaceChord) || findChord.trim() === replaceChord.trim()}
+                  onClick={() => {
+                    const { text: nextText, count } = bulkReplaceChord(content, findChord, replaceChord);
+                    if (count > 0) {
+                      flushTypingCommit();
+                      setContent(nextText);
+                      commitHistory(nextText);
+                    }
+                    setLastReplaceMsg(
+                      count === 0
+                        ? `No "${findChord.trim()}" chords found`
+                        : `Replaced ${count} occurrence${count === 1 ? '' : 's'}`,
+                    );
+                  }}
+                  className="px-2 py-1 rounded text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ background: 'var(--accent)', color: '#fff' }}
+                  title="Replace every standalone occurrence of this exact chord. Lyrics and other chords (e.g. Dm when replacing D) are left untouched."
+                >
+                  Replace all
+                </button>
+                {lastReplaceMsg && (
+                  <span style={{ color: 'var(--text-secondary)' }}>{lastReplaceMsg}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setShowFindReplace(false); setLastReplaceMsg(null); }}
+                  className="ml-auto px-2 py-1 rounded hover:bg-[var(--surface-elevated)]"
+                  style={{ color: 'var(--text-muted)' }}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="flex-1 relative" style={{ background: 'var(--bg)' }}>
+              <ChordHighlightOverlay
+                text={content}
+                chordColor={chordColor}
+                scrollTop={editorScroll.top}
+                scrollLeft={editorScroll.left}
+              />
+              <textarea
+                ref={textareaRef}
+                value={content}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  setEditorScroll({ top: el.scrollTop, left: el.scrollLeft });
+                }}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setContent(v);
+                  scheduleTypingCommit(v);
+                }}
               onPaste={(e) => {
                 // After the browser applies the paste, look at the resulting
                 // text and align the toggle with whichever format the pasted
@@ -838,10 +934,32 @@ export default function SongEditPage(): React.ReactElement {
                 // contextmenu fires, so selectionStart is the clicked position.
                 setChordPopover({ x: e.clientX, y: e.clientY, start: el.selectionStart, end: el.selectionEnd });
               }}
-              className="flex-1 p-4 font-mono text-sm outline-none resize-none"
-              style={{ background: 'var(--bg)', color: 'var(--text-primary)', lineHeight: 1.6 }}
-              spellCheck={false}
-            />
+                className="outline-none resize-none song-body-editor"
+                style={{
+                  // Fill the relative wrapper, sitting ON TOP of the
+                  // ChordHighlightOverlay.
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  // Text is transparent so the colored overlay shows
+                  // through; the caret stays visible via caret-color.
+                  // Selection highlight still works (browser default).
+                  background: 'transparent',
+                  color: 'transparent',
+                  caretColor: 'var(--text-primary)',
+                  // MUST match ChordHighlightOverlay's inner box exactly
+                  // or the colored chords drift from the caret.
+                  padding: 16,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  whiteSpace: 'pre-wrap',
+                  overflowWrap: 'break-word',
+                }}
+                spellCheck={false}
+              />
+            </div>
             {chordPopover && (
               <ChordPopover
                 x={chordPopover.x}
@@ -880,6 +998,12 @@ export default function SongEditPage(): React.ReactElement {
           outline: none;
         }
         .input-field:focus { border-color: var(--accent); }
+        /* The song-body editor textarea has transparent text (the
+           colored chord overlay shows through), so the browser's
+           default selection — which tints the transparent glyphs —
+           would be invisible. Force a visible selection band. */
+        .song-body-editor::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+        .song-body-editor::-moz-selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
       `}</style>
 
       {showDelete && existing && (
