@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, AlertCircle, Trash2, Pencil, ListPlus, ListMusic, Star, ClipboardPaste, Copy } from 'lucide-react';
-import { importFromString, useSongStore, useSetListStore } from '@song-chords/shared';
+import { importFromString, useSongStore, useSetListStore, useSettingsStore } from '@song-chords/shared';
 import type { Song, SongCreateInput } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import { toTitleCase } from '../utils/text';
 import SetListPickerModal from '../components/song/SetListPickerModal';
+import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
 
 interface PendingImport {
   id: string;                     // temporary id for list keys
@@ -106,6 +107,15 @@ export default function ImportPage(): React.ReactElement {
   useEffect(() => { saveStaging(pending); }, [pending]);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Per-session dismiss for the chord-spelling banner under the
+  // page heading. Reappears on the next visit unless the user picks
+  // "Don't show again", which is persisted in settings below.
+  const [warningDismissed, setWarningDismissed] = useState(false);
+  // Persistent "Don't show again" flag from settings — once set,
+  // the banner is hidden across app restarts.
+  const dismissedHints = useSettingsStore((s) => s.settings.dismissedHints);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const showWarning = !warningDismissed && !dismissedHints?.chordSpelling;
 
   const allSelected = pending.length > 0 && pending.every((p) => p.selected || p.error);
   const pendingCount = pending.filter((p) => !p.error).length;
@@ -341,7 +351,21 @@ export default function ImportPage(): React.ReactElement {
           </div>
         </div>
       )}
-      <h1 className="text-2xl font-bold mb-6" style={{ color: 'var(--text-primary)' }}>Import Songs</h1>
+      <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Import Songs</h1>
+
+      {showWarning && (
+        <div className="mb-6">
+          <ChordSpellingWarning
+            onClose={() => setWarningDismissed(true)}
+            onDontShowAgain={() => {
+              void updateSetting(db, 'dismissedHints', {
+                ...(dismissedHints ?? {}),
+                chordSpelling: true,
+              });
+            }}
+          />
+        </div>
+      )}
 
       <div
         className="flex flex-col items-center justify-center gap-3 p-10 rounded-2xl border-2 border-dashed transition-colors cursor-pointer mb-8"

@@ -6,6 +6,7 @@ import {
   useSettingsStore,
   extractUniqueChords, getDiagramExact, getDiagramByIndex,
   SONG_STYLE_PRESETS,
+  resolveChordVariation,
 } from '@song-chords/shared';
 import ChordDiagramSVG from '../chord-diagram/ChordDiagramSVG';
 import ChordGrid from './ChordGrid';
@@ -45,6 +46,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const customChords = useSettingsStore((s) => s.settings.customChords ?? {});
+  const globalDefaultVariations = useSettingsStore((s) => s.settings.defaultChordVariations);
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const [layout, setLayout] = useState<ExportLayout>('chords');
   // Inline chord diagrams aren't meaningful for piano (keyboard
@@ -112,8 +114,12 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
   // selected variation (`song.preferences.chordVariations`) and any custom
   // chord shape from settings.
   const diagramSvgFor = (s: Song, name: string): string => {
-    const variations = s.preferences?.chordVariations ?? {};
-    const varIdx = variations[name] ?? 0;
+    // Per-song override > global default for this instrument > 0,
+    // resolved through the shared helper so exports match what the
+    // song view renders for the same chord.
+    const varIdx = resolveChordVariation(
+      name, instrument, s.preferences?.chordVariations, globalDefaultVariations,
+    );
     const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
     const found = varIdx > 0
       ? getDiagramByIndex(name, instrument, varIdx, customChords)

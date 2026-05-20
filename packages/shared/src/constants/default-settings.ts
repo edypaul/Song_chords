@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chordBarPosition: 'top',
   inlineChordDiagrams: false,
   customChords: {},
+  defaultChordVariations: {},
   perfMetroEnabled: true,
   perfScrollEnabled: true,
   perfZoom: 1,
@@ -59,4 +60,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
     createdAt: true,
   },
   shortcuts: { ...DEFAULT_SHORTCUTS },
+  dismissedHints: {},
 };

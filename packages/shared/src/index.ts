@@ -45,6 +45,7 @@ export { extractUniqueChords } from './utils/extract-chords';
 export { chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat } from './utils/chords-over-lyrics';
 export { bulkReplaceChord, tokenizeChordSpans, uniqueChordNames, isValidChordName } from './utils/chord-edit';
 export type { ChordSpan, BulkReplaceResult } from './utils/chord-edit';
+export { resolveChordVariation } from './utils/chord-variation';
 export { importFromString } from './utils/file-importer';
 export { toLatin, fromLatin, formatChord, formatKey, normalizeContentToLetter } from './utils/chord-notation';
 

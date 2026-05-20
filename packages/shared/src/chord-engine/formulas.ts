@@ -205,9 +205,74 @@ export const CHORD_FORMULAS: ChordFormula[] = [
     tier1: [0, 1, 2, 3], tier2: [], tier3: [] },
 ];
 
-/** Lookup formula by suffix */
+/**
+ * Common chord-suffix aliases users import from other apps / chart
+ * sources. We accept these spellings everywhere a chord is looked up
+ * (library, song view, diagram lookup, piano runtime) by re-spelling
+ * the suffix to its canonical form before consulting CHORD_FORMULAS.
+ * The original user spelling is preserved on the rendered chart
+ * header — only the resolution lookup is canonicalized.
+ *
+ * Each entry is anchored to the START of the SUFFIX (i.e. just after
+ * the root). So `Caug7` → `+7` (alias `aug` → `+` at suffix start),
+ * `Cdim7` → `°7`. The parenthesised variants `(add9)`, `(sus2)`,
+ * `(sus4)` are only collapsed when they are the WHOLE suffix (or
+ * followed by a slash-bass) — that way the existing canonical forms
+ * `m(add9)`, `m(maj7)`, `m9(maj7)`, `7b5(#9)` are NOT mangled.
+ *
+ * Ordering matters: longest / most specific patterns first.
+ */
+const SUFFIX_ALIASES: ReadonlyArray<readonly [RegExp, string]> = [
+  // Parenthesised aliases — only when they ARE the whole suffix (end
+  // of string or pre-slash). Anchored with $ so we never touch the
+  // parens inside m(add9), m(maj7), m9(maj7), etc.
+  [/^\(add9\)$/, 'add9'],
+  [/^\(sus2\)$/, 'sus2'],
+  [/^\(sus4\)$/, 'sus4'],
+  // Bare `sus` means `sus4` (standard convention). Anchored to suffix
+  // start, must NOT be followed by another digit — so `Csus2`,
+  // `Csus4`, `C7sus4` stay as-is.
+  [/^sus(?!\d)/, 'sus4'],
+  // `7sus` / `9sus` / `13sus` (bare sus AFTER an extension number)
+  // means the same chord with `sus4` (the dominant-sus convention).
+  // Only matches at end-of-suffix so we never touch `7sus4` / `9sus4`
+  // / `13sus4` which already exist as canonical formulas.
+  [/^(7|9|13)sus$/, '$1sus4'],
+  // `aug` / `dim` are quality words for `+` / `°`. They appear at the
+  // start of the suffix (after the root) and may be followed by an
+  // extension (`aug7`, `dim7`). Match the prefix only.
+  [/^aug/, '+'],
+  [/^dim/, '°'],
+  // `ø` is the standard musical symbol for HALF-DIMINISHED, which is
+  // exactly `m7b5`. Whole-suffix match (anchored start/end) so it is
+  // never confused with anything else — `Cø` → `Cm7b5`. Extended
+  // forms like `ø9` are intentionally not aliased here (the engine's
+  // canonical name is `m9b5`, and users writing the symbol almost
+  // always mean the plain half-diminished 7).
+  [/^ø$/, 'm7b5'],
+];
+
+/** Apply the alias table to a suffix and return the canonicalised
+ *  form. Returns the input unchanged when no alias matches. Exported
+ *  so the diagram lookup layer can also normalise lookup keys. */
+export function canonicalizeSuffix(suffix: string): string {
+  for (const [pattern, replacement] of SUFFIX_ALIASES) {
+    if (pattern.test(suffix)) return suffix.replace(pattern, replacement);
+  }
+  return suffix;
+}
+
+/** Lookup formula by suffix. Accepts canonical suffixes (`+7`, `°7`,
+ *  `sus4`, `add9`, …) AND the common aliases users encounter in
+ *  imported charts (`aug7`, `dim7`, `sus`, `(add9)`, `(sus2)`,
+ *  `(sus4)`). The literal spelling is tried first so a perfectly
+ *  canonical name pays no extra cost. */
 export function getFormula(suffix: string): ChordFormula | undefined {
-  return CHORD_FORMULAS.find((f) => f.suffix === suffix);
+  const direct = CHORD_FORMULAS.find((f) => f.suffix === suffix);
+  if (direct) return direct;
+  const canonical = canonicalizeSuffix(suffix);
+  if (canonical === suffix) return undefined;
+  return CHORD_FORMULAS.find((f) => f.suffix === canonical);
 }
 
 /** Note name to semitone value */

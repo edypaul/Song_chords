@@ -2,12 +2,13 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, MoreVertical } from 'lucide-react';
-import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations, formatKey, formatChord } from '@song-chords/shared';
+import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, getDiagramExact, getDiagramVariations, formatKey, formatChord, resolveChordVariation } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
 import MetronomeControl from '../components/controls/MetronomeControl';
 import ChordDiagramBar from '../components/chord-diagram/ChordDiagramBar';
+import { useEffectiveChordVariations } from '../hooks/useEffectiveChordVariations';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
 import SongExportModal from '../components/song/SongExportModal';
@@ -96,6 +97,11 @@ export default function SongViewPage(): React.ReactElement {
   const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  // Merged chord-variation map (per-song overrides win over the global
+  // default for this instrument). Pass this to every renderer instead
+  // of the raw per-song map so the Chord-Library "Set as default for
+  // all songs" voicings reach the rendered diagrams.
+  const effectiveChordVariations = useEffectiveChordVariations(instrument);
   const accidentalMode = useSettingsStore((s) => s.settings.accidentalMode ?? 'auto');
   const chordNotation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
   const refreshDisplayed = usePlayerStore((s) => s.refreshDisplayed);
@@ -597,7 +603,7 @@ export default function SongViewPage(): React.ReactElement {
 
         {/* Chord bar top (performance) */}
         {chordBarVisible && chordBarPosition === 'top' && displayedSong && (
-          <ChordDiagramBar song={displayedSong} position="top" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+          <ChordDiagramBar song={displayedSong} position="top" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
 
         <div className="flex-1 flex min-h-0" style={{ flexDirection: chordBarVisible && chordBarPosition === 'right' ? 'row' : 'column' }}>
@@ -608,20 +614,20 @@ export default function SongViewPage(): React.ReactElement {
             {activeSong.artist && <p className="mt-1" style={{ color: svs.details.color || 'var(--text-secondary)', fontSize: svs.details.fontSize || undefined, fontFamily: svs.fontFamily || undefined }}>{activeSong.artist}</p>}
             <SongDetails centered={songCentered} />
           </div>
-          <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={activeSong?.preferences?.chordVariations} />
+          <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
           </div>
           <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${perfZoom}|${zoomLevel}|${viewMode}`} />
         </div>
 
         {/* Chord bar right (performance) */}
         {chordBarVisible && chordBarPosition === 'right' && displayedSong && (
-          <ChordDiagramBar song={displayedSong} position="right" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+          <ChordDiagramBar song={displayedSong} position="right" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
         </div>
 
         {/* Chord bar bottom (performance) */}
         {chordBarVisible && chordBarPosition === 'bottom' && displayedSong && (
-          <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+          <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
 
         {/* Floating "back to top" button — bottom-right of the perf view,
@@ -1061,7 +1067,7 @@ export default function SongViewPage(): React.ReactElement {
 
       {/* Chord bar top */}
       {chordBarVisible && chordBarPosition === 'top' && displayedSong && (
-        <ChordDiagramBar song={displayedSong} position="top" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+        <ChordDiagramBar song={displayedSong} position="top" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
       )}
 
       {/* Content area — flex-row when chord bar is on the right */}
@@ -1081,7 +1087,7 @@ export default function SongViewPage(): React.ReactElement {
             fontSize={svs.lyrics.fontSize || 16}
             viewMode={viewMode}
             onChordClick={(chord) => setSelectedChord(chord)}
-            chordVariations={activeSong?.preferences?.chordVariations}
+            chordVariations={effectiveChordVariations}
           />
           </div>
           <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${zoomLevel}|${viewMode}`} />
@@ -1089,13 +1095,13 @@ export default function SongViewPage(): React.ReactElement {
 
         {/* Chord bar right */}
         {chordBarVisible && chordBarPosition === 'right' && displayedSong && (
-          <ChordDiagramBar song={displayedSong} position="right" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+          <ChordDiagramBar song={displayedSong} position="right" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
       </div>
 
       {/* Chord bar bottom */}
       {chordBarVisible && chordBarPosition === 'bottom' && displayedSong && (
-        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={activeSong?.preferences?.chordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
+        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
       )}
 
       {/* Floating "back to top" button — bottom-right of the normal view,
@@ -1213,12 +1219,23 @@ function ChordModal({ chord, onClose, songId, songPrefs }: {
   const variations = getDiagramVariations(chord, instrument, custom);
   const hasDiagram = variations.length > 0;
   const allDiags = hasDiagram ? variations : [emptyDiag];
-  const savedIdx = songPrefs?.chordVariations?.[chord] ?? 0;
+  // Initial voicing: per-song override > global default for this
+  // instrument > 0. Resolved through the shared helper so the modal
+  // opens on the same voicing the song actually renders.
+  const globalDefaults = useSettingsStore((s) => s.settings.defaultChordVariations);
+  const savedIdx = resolveChordVariation(
+    chord, instrument, songPrefs?.chordVariations, globalDefaults,
+  );
   const [currentIdx, setCurrentIdx] = useState(Math.min(savedIdx, allDiags.length - 1));
   const [creatingCustom, setCreatingCustom] = useState(false);
 
   const diag = allDiags[currentIdx] ?? allDiags[0]!;
-  const isRemembered = savedIdx === currentIdx && songPrefs?.chordVariations?.[chord] !== undefined;
+  // "Remembered ✓" still strictly means "this SONG pinned this index"
+  // — the per-song layer, not the global default. The label has to
+  // stay narrow because clicking the button writes a per-song
+  // override regardless of any global default.
+  const isRemembered =
+    songPrefs?.chordVariations?.[chord] === currentIdx;
 
   const saveCustomDiagram = (d: import('@song-chords/shared').ChordDiagram) => {
     const existing = { ...custom };

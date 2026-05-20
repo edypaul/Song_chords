@@ -6,6 +6,7 @@ import ChordHighlightOverlay, { ChordPreviewPane } from '../components/song/Chor
 import { db } from '../ipc/ipc-client';
 import type { SongCreateInput } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
 import { useNavigationGuard } from '../context/NavigationGuard';
 import { toTitleCase } from '../utils/text';
 import { extractChordPattern, applyChordPattern, patternHasChords, type ChordPattern } from '../utils/chord-pattern';
@@ -207,6 +208,16 @@ export default function SongEditPage(): React.ReactElement {
   // `content` via the converters (one-way, so the not-perfectly-
   // bijective conversion can never corrupt the source).
   const [splitView, setSplitView] = useState(false);
+
+  // Per-session dismiss for the chord-spelling banner at the top of
+  // the Song tab. Resets next time the user opens an edit page
+  // unless the user picks "Don't show again" — that's persisted in
+  // settings (`dismissedHints.chordSpelling`) below.
+  const [spellingBannerDismissed, setSpellingBannerDismissed] = useState(false);
+  const dismissedHints = useSettingsStore((s) => s.settings.dismissedHints);
+  const updateAppSetting = useSettingsStore((s) => s.updateSetting);
+  const showSpellingBanner =
+    !spellingBannerDismissed && !dismissedHints?.chordSpelling;
 
   // ── Undo / redo history for the song content ──────────────────────────────
   // We maintain our own stack because programmatic value updates via React
@@ -752,6 +763,23 @@ export default function SongEditPage(): React.ReactElement {
         {/* Song tab */}
         {tab === 'song' && (
           <div className="h-full flex flex-col">
+            {/* Spelling-format reminder shown at the top of the Song
+                tab — also visible after the user imports a song and
+                opens it for editing, so blank diagrams on a chord
+                read as a notation choice rather than a bug. */}
+            {showSpellingBanner && (
+              <div className="px-4 pt-3">
+                <ChordSpellingWarning
+                  onClose={() => setSpellingBannerDismissed(true)}
+                  onDontShowAgain={() => {
+                    void updateAppSetting(db, 'dismissedHints', {
+                      ...(dismissedHints ?? {}),
+                      chordSpelling: true,
+                    });
+                  }}
+                />
+              </div>
+            )}
             <div className="px-4 py-3 text-xs border-b" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
               <div className="flex items-center gap-2 flex-wrap">
                 <FormatToggle

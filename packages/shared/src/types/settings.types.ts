@@ -102,6 +102,22 @@ export interface AppSettings {
   chordBarPosition: 'top' | 'bottom' | 'right' | 'off';
   inlineChordDiagrams: boolean;
   customChords: Record<string, import('../types/chord.types').ChordDiagram[]>;
+  /**
+   * Global default chord voicing per instrument. When the user picks a
+   * voicing in the Chord Library and clicks "Set as default for all
+   * songs", we store its index here keyed by instrument + chord name.
+   * Per-song overrides (`song.preferences.chordVariations`) ALWAYS
+   * win over this for the song they belong to — these globals are only
+   * the fallback when a song hasn't pinned that chord itself.
+   *
+   * Shape: `defaultChordVariations[instrument][chordName] = index`.
+   * Optional/partial so older settings load cleanly with `?? {}` /
+   * `?? undefined` chains; treat any missing entry as "no default".
+   */
+  defaultChordVariations?: Partial<Record<
+    import('../types/chord.types').InstrumentType,
+    Record<string, number>
+  >>;
   perfMetroEnabled: boolean;
   perfScrollEnabled: boolean;
   perfZoom: number;
@@ -115,4 +131,18 @@ export interface AppSettings {
   /** Which columns appear in every song-list table. Title is always shown. */
   songListColumns: Record<SongListColumn, boolean>;
   shortcuts: KeyboardShortcuts;
+  /**
+   * Per-user persistent "don't show again" flags for in-app hint
+   * banners. Keyed by a stable hint id (e.g. `chordSpelling`) so a
+   * single setting covers multiple banners and future hint widgets
+   * without schema churn. A missing key (or `false`) means the
+   * banner is still shown.
+   *
+   * Used by the chord-spelling warning on the Import page and the
+   * new-song / song-edit Song tab. The chord-spelling notice INSIDE
+   * the Settings library-restore confirmation dialog is intentionally
+   * not gated by this — that one is part of the destructive-action
+   * confirmation and must always show.
+   */
+  dismissedHints?: Record<string, boolean>;
 }

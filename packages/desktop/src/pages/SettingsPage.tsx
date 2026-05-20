@@ -5,6 +5,7 @@ import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyl
 import ShortcutRecorder from '../components/common/ShortcutRecorder';
 import { Download, Upload, Trash2, Palette, Music as MusicIcon, Layout, Keyboard, Database, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '../components/common/ConfirmDialog';
+import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
 import {
   downloadJson, pickJsonFile, timestampSlug,
   exportLibrary, importLibrary, mergeLibrary, buildChordsBackup, buildPresetsBackup,
@@ -453,6 +454,12 @@ export default function SettingsPage(): React.ReactElement {
       </Section>)}
 
       {showCat('data') && (<Section title="Backup & Restore">
+        {/* The chord-spelling warning lives ONLY inside the library
+            import confirmation dialog (rendered further down via
+            <ImportModeDialog showChordSpellingWarning>). The previous
+            duplicate banner in this section was removed at the user's
+            request — the dialog already shows it right before the
+            irreversible action, which is where the caveat belongs. */}
         <BackupRow
           label="Songs library"
           hint="All songs, set lists, and favorites. Restoring replaces everything."
@@ -582,6 +589,10 @@ export default function SettingsPage(): React.ReactElement {
             else runPresetsImport('combine');
           }}
           onCancel={() => setPendingImport(null)}
+          // Only the LIBRARY import brings in song bodies (and therefore
+          // chord names). The chord/preset backups don't, so the
+          // spelling warning would be misleading for them.
+          showChordSpellingWarning={pendingImport.kind === 'library'}
         />
       )}
 
@@ -842,6 +853,7 @@ function DeleteCheck({
 function ImportModeDialog({
   title, description, replaceWarning, combineHint,
   onReplace, onCombine, onCancel,
+  showChordSpellingWarning = false,
 }: {
   title: string;
   description: string;
@@ -850,6 +862,8 @@ function ImportModeDialog({
   onReplace: () => void;
   onCombine: () => void;
   onCancel: () => void;
+  /** Show the chord-spelling notice (library imports only). */
+  showChordSpellingWarning?: boolean;
 }): React.ReactElement {
   React.useEffect(() => {
     // Capture phase + stopImmediatePropagation so page-level Escape handlers
@@ -882,6 +896,12 @@ function ImportModeDialog({
         <p className="text-sm mt-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
           The backup contains <strong>{description}</strong>. How should it be applied?
         </p>
+
+        {showChordSpellingWarning && (
+          <div className="mb-4">
+            <ChordSpellingWarning variant="inline" />
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 mb-5">
           <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>

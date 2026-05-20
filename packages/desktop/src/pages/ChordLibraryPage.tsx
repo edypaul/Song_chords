@@ -211,7 +211,13 @@ export default function ChordLibraryPage(): React.ReactElement {
           {filtered.map(([name, { diagrams }]) => (
             <div key={name}
               className="rounded-lg cursor-pointer transition-colors hover:border-[var(--accent)] flex flex-col items-center justify-between"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border)', position: 'relative', width: 110, height: 140, padding: '4px 6px' }}
+              // `min-height` not a fixed `height`: ukulele diagrams are
+              // taller for the same width (4 strings → wider, taller
+              // cells than guitar's 6), so a hard 140px clipped the
+              // "N var" caption beyond the card border. Let the card
+              // grow to fit its SVG + caption; cards stay uniform
+              // within one instrument (rows wrap, not a CSS grid).
+              style={{ background: 'var(--surface)', border: '1px solid var(--border)', position: 'relative', width: 110, minHeight: 140, padding: '4px 6px 8px' }}
               onClick={() => setSelectedChord(name)}>
               {hasCustom(name) && (
                 <span className="absolute top-0.5 right-0.5" style={{ color: 'var(--accent)', fontSize: 12 }} title="Has custom variations">★</span>
@@ -242,6 +248,28 @@ export default function ChordLibraryPage(): React.ReactElement {
           customChords={customChords}
           instrument={instrument}
           svs={svs}
+          // Global default for this instrument+chord (if any). When the
+          // user clicks "Set as default for all songs" we save the
+          // currently-shown variation index here; songs with no
+          // per-song override for the chord then render this voicing.
+          // Songs that DO have a per-song override (via the song view's
+          // "Remember for this song" button) keep winning — the
+          // resolver always prefers per-song > global.
+          globalDefaultIdx={settings.defaultChordVariations?.[instrument]?.[selectedChord]}
+          onSetGlobalDefault={(idx) => {
+            const all = { ...(settings.defaultChordVariations ?? {}) };
+            const forInst: Record<string, number> = { ...(all[instrument] ?? {}) };
+            forInst[selectedChord] = idx;
+            all[instrument] = forInst;
+            void updateSetting(db, 'defaultChordVariations', all);
+          }}
+          onClearGlobalDefault={() => {
+            const all = { ...(settings.defaultChordVariations ?? {}) };
+            const forInst: Record<string, number> = { ...(all[instrument] ?? {}) };
+            delete forInst[selectedChord];
+            all[instrument] = forInst;
+            void updateSetting(db, 'defaultChordVariations', all);
+          }}
           onClose={() => setSelectedChord(null)}
           onAddVariation={addCustomChord}
           onUpdateCustom={updateCustomChord}
@@ -262,22 +290,36 @@ export default function ChordLibraryPage(): React.ReactElement {
 
 /* ── Chord Detail Modal ─────────────────────────────────────────────────── */
 
-function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, instrument, svs, onClose, onAddVariation, onUpdateCustom, onDeleteCustom }: {
+function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, instrument, svs, globalDefaultIdx, onSetGlobalDefault, onClearGlobalDefault, onClose, onAddVariation, onUpdateCustom, onDeleteCustom }: {
   chordName: string;
   diagrams: ChordDiagram[];
   builtinCount: number;
   customChords: Record<string, ChordDiagram[]>;
   instrument: InstrumentType;
   svs: { lyrics: { color: string }; chords: { color: string } };
+  /** Currently-saved global default voicing index for this instrument
+   *  + chord, or undefined when no default has been set. */
+  globalDefaultIdx?: number;
+  /** Save `idx` as the global default voicing for this chord. */
+  onSetGlobalDefault: (idx: number) => void;
+  /** Drop the saved global default for this chord (revert to 0). */
+  onClearGlobalDefault: () => void;
   onClose: () => void;
   onAddVariation: (d: ChordDiagram) => void;
   onUpdateCustom: (name: string, customIdx: number, d: ChordDiagram) => void;
   onDeleteCustom: (name: string, customIdx: number) => void;
 }): React.ReactElement {
-  const [currentIdx, setCurrentIdx] = useState(0);
+  // Open the slider on the user's saved global default so they
+  // can see / un-set it directly without scrolling to find it.
+  const initialIdx = typeof globalDefaultIdx === 'number'
+    ? Math.min(globalDefaultIdx, Math.max(0, diagrams.length - 1))
+    : 0;
+  const [currentIdx, setCurrentIdx] = useState(initialIdx);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
+  const isCurrentTheDefault =
+    typeof globalDefaultIdx === 'number' && globalDefaultIdx === currentIdx;
 
   const isCustomVariation = (idx: number) => idx >= builtinCount;
   const customIdx = (idx: number) => idx - builtinCount;
@@ -356,6 +398,37 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
                 className="text-xs px-3 py-1 rounded" style={{ color: 'var(--text-secondary)', background: 'var(--surface-elevated)' }}>Edit</button>
               <button onClick={() => { onDeleteCustom(chordName, customIdx(currentIdx)); setCurrentIdx(Math.max(0, currentIdx - 1)); }}
                 className="text-xs px-3 py-1 rounded" style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>Delete</button>
+            </div>
+          )}
+          {/* Set / clear the global default voicing for this chord on
+              this instrument. Per-song "Remember for this song" still
+              overrides this default for the song that saved it — see
+              resolveChordVariation (per-song > global > 0). */}
+          {diagrams.length > 1 && (
+            <div className="flex flex-col items-center gap-1.5 mt-1">
+              <button
+                onClick={() => {
+                  if (isCurrentTheDefault) onClearGlobalDefault();
+                  else onSetGlobalDefault(currentIdx);
+                }}
+                className="text-xs px-3 py-1 rounded transition-colors"
+                style={{
+                  background: isCurrentTheDefault ? 'var(--surface-elevated)' : 'var(--accent)',
+                  color: isCurrentTheDefault ? 'var(--text-muted)' : 'white',
+                }}
+                title={
+                  isCurrentTheDefault
+                    ? 'Click to remove the global default for this chord. Songs that pinned their own voicing for this chord keep theirs.'
+                    : 'Use this voicing for this chord in every song. Songs that pin a different voicing via "Remember for this song" still override it.'
+                }
+              >
+                {isCurrentTheDefault ? 'Default for all songs ✓' : 'Set as default for all songs'}
+              </button>
+              {typeof globalDefaultIdx === 'number' && !isCurrentTheDefault && (
+                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  Current default: variation {globalDefaultIdx + 1}
+                </span>
+              )}
             </div>
           )}
         </div>

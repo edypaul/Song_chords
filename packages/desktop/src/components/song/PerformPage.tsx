@@ -9,6 +9,7 @@ import type { Song } from '@song-chords/shared';
 import SongRenderer from './SongRenderer';
 import SongDetails from './SongDetails';
 import ChordDiagramBar from '../chord-diagram/ChordDiagramBar';
+import { useEffectiveChordVariations } from '../../hooks/useEffectiveChordVariations';
 import TransposeControl from '../controls/TransposeControl';
 import AutoScrollControl from '../controls/AutoScrollControl';
 import MetronomeControl from '../controls/MetronomeControl';
@@ -83,6 +84,9 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const chordBarPosition = useSettingsStore((s) => s.settings.chordBarPosition ?? 'top');
   const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
+  // Merged chord-variation map (per-song overrides win over the global
+  // default for this instrument). See useEffectiveChordVariations.
+  const effectiveChordVariations = useEffectiveChordVariations(instrument);
   const showChordDiagrams = useSettingsStore((s) => s.settings.showChordDiagrams ?? true);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
@@ -661,7 +665,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
       {/* Chord bar — top */}
       {chordBarVisible && chordBarPosition === 'top' && displayedSong && !isNoteActive && (
-        <ChordDiagramBar song={displayedSong} position="top" chordVariations={activeSong?.preferences?.chordVariations} />
+        <ChordDiagramBar song={displayedSong} position="top" chordVariations={effectiveChordVariations} />
       )}
 
       {/* Main content + optional right-side chord bar */}
@@ -746,12 +750,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           )}
         </div>
         {chordBarVisible && chordBarPosition === 'right' && displayedSong && !isNoteActive && (
-          <ChordDiagramBar song={displayedSong} position="right" chordVariations={activeSong?.preferences?.chordVariations} />
+          <ChordDiagramBar song={displayedSong} position="right" chordVariations={effectiveChordVariations} />
         )}
       </div>
 
       {chordBarVisible && chordBarPosition === 'bottom' && displayedSong && !isNoteActive && (
-        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={activeSong?.preferences?.chordVariations} />
+        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={effectiveChordVariations} />
       )}
 
       {showSongNotes && activeSong && !isNoteActive && (

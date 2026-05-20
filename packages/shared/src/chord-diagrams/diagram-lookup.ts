@@ -3,7 +3,7 @@ import { GUITAR_DIAGRAMS } from './guitar-diagrams';
 import { UKULELE_DIAGRAMS } from './ukulele-diagrams';
 import { GUITAR_SLASH_DIAGRAMS, UKULELE_SLASH_DIAGRAMS } from './slash-diagrams';
 import { PIANO_DIAGRAMS, getAllPianoChordNames } from './piano-diagrams';
-import { noteToSemitone } from '../chord-engine/formulas';
+import { noteToSemitone, canonicalizeSuffix } from '../chord-engine/formulas';
 
 type DiagramMap = Record<string, ChordDiagram[]>;
 
@@ -83,6 +83,33 @@ function relabel(diagrams: ChordDiagram[], displayName: string): ChordDiagram[] 
   return diagrams.map((d) => (d.name === displayName ? d : { ...d, name: displayName }));
 }
 
+/**
+ * Re-spell a chord name's SUFFIX to its canonical form via the
+ * suffix-alias table (`aug` → `+`, `dim` → `°`, `sus` → `sus4`,
+ * `(add9)` → `add9`, etc.). Root and slash-bass are preserved
+ * verbatim — only the quality/extension portion is rewritten.
+ * Returns null when no alias applied (so callers can skip the retry).
+ */
+function toAliasCanonicalChordName(chordName: string): string | null {
+  const m = LEADING_NOTE_RE.exec(chordName);
+  if (!m) return null;
+  const root = m[1]!;
+  const rest = chordName.slice(root.length);
+  // Split off the slash bass (if any) so the alias rules see ONLY
+  // the suffix proper. Same "last slash whose RHS is a note name"
+  // rule the enharmonic path uses.
+  const slash = rest.lastIndexOf('/');
+  let suffix = rest;
+  let bass = '';
+  if (slash >= 0 && /^[A-G](?:#|b)?$/.test(rest.slice(slash + 1))) {
+    suffix = rest.slice(0, slash);
+    bass = rest.slice(slash);
+  }
+  const canonicalSuffix = canonicalizeSuffix(suffix);
+  if (canonicalSuffix === suffix) return null;
+  return root + canonicalSuffix + bass;
+}
+
 /** Look up a chord by name in the relevant built-in library. Piano is
  *  generated lazily, so its `[name]` access always returns an array
  *  (possibly empty for unrecognized names). */
@@ -133,6 +160,30 @@ function lookup(chordName: string, instrument: InstrumentType, custom?: DiagramM
     if (enh.length) return relabel(enh, chordName);
   }
 
+  // 3) Suffix-alias fallback: re-spell `aug`/`dim`/`sus`/`(add9)`/
+  //    `(sus2)`/`(sus4)` to the canonical suffix and re-look. Users
+  //    importing songs from other apps frequently spell chords this
+  //    way; the engine should treat them as the same chord.
+  const aliasName = toAliasCanonicalChordName(chordName);
+  if (aliasName && aliasName !== chordName) {
+    const ab = getBuiltin(aliasName, instrument);
+    const au = custMap[aliasName] ?? [];
+    const alias = [...ab, ...au];
+    if (alias.length) return relabel(alias, chordName);
+
+    // 3b) Combined: alias canonicalisation MAY have changed the
+    //     suffix but left a non-canonical enharmonic root (e.g.
+    //     "Dbaug" → "Db+", still keyed under "C#+"). Apply the
+    //     enharmonic re-spell on the alias-canonical name too.
+    const both = toCanonicalChordName(aliasName);
+    if (both) {
+      const bb = getBuiltin(both, instrument);
+      const bu = custMap[both] ?? [];
+      const combo = [...bb, ...bu];
+      if (combo.length) return relabel(combo, chordName);
+    }
+  }
+
   return [];
 }
 
@@ -179,12 +230,75 @@ export function hasCustomVariations(chordName: string, custom?: DiagramMap): boo
   return !!custom?.[chordName]?.length;
 }
 
-/** Get built-in diagram map directly. Piano returns a snapshot of the
+// Enharmonic alternative spelling per pitch class, used to surface
+// both spellings in the Chord Library enumeration. Indexed by pc:
+//   C C# D D# E F F# G G# A A# B
+// White-key pcs (0,2,4,5,7,9,11) have no alternative.
+const ALT_ROOT_BY_PC: ReadonlyArray<string | null> = [
+  null, // C
+  'Db', // C# -> Db
+  null, // D
+  'Eb', // D# -> Eb
+  null, // E
+  null, // F
+  'Gb', // F# -> Gb
+  null, // G
+  'Ab', // G# -> Ab
+  null, // A
+  'Bb', // A# -> Bb
+  null, // B
+];
+
+/**
+ * Expand a baked diagram map with both spellings per enharmonic root.
+ * The baked tables (and the piano enumeration) each use ONE canonical
+ * spelling per pitch class — guitar/uke pick `Ab` over `G#`, piano
+ * picks `G#` over `Ab`. The Chord Library page shows a single 12-key
+ * filter and users expect every common spelling to resolve; before
+ * this, picking the "other" spelling in the dropdown silently
+ * returned nothing for 1 root (guitar/uke) or 4 roots (piano).
+ *
+ * For every baked chord with a sharp/flat root, we add a duplicate
+ * entry keyed by the alternative spelling AND re-label its
+ * `ChordDiagram.name` so the rendered chart header matches the
+ * user's chosen spelling. Slash-bass notes inside the suffix are
+ * intentionally left untouched here — the per-name `getDiagram`
+ * lookup already handles enharmonic bass notes for actual queries;
+ * this only widens what the library ENUMERATES.
+ */
+function expandEnharmonics(map: DiagramMap): DiagramMap {
+  const out: DiagramMap = { ...map };
+  for (const [name, diagrams] of Object.entries(map)) {
+    const rm = /^([A-G])(#|b)?/.exec(name);
+    if (!rm) continue;
+    const root = rm[0];
+    if (!KNOWN_NOTES.has(root)) continue;
+    const pc = ((noteToSemitone(root) % 12) + 12) % 12;
+    const alt = ALT_ROOT_BY_PC[pc];
+    if (!alt || alt === root) continue;
+    const rest = name.slice(root.length);
+    const altName = alt + rest;
+    if (out[altName]) continue; // already present (custom or baked) — don't clobber
+    out[altName] = diagrams.map((d) =>
+      d.name === altName ? d : { ...d, name: altName },
+    );
+  }
+  return out;
+}
+
+/** Get built-in diagram map directly, with BOTH enharmonic spellings
+ *  surfaced per pitch class so the chord-library filter (which offers
+ *  one fixed dropdown of 12 keys) finds every chord regardless of
+ *  which spelling the user picks. Piano returns a snapshot of the
  *  generated library — sufficient for callers that only iterate names.
  *  Use the lookup helpers above when querying by name. */
 export function getBuiltinDiagrams(instrument: InstrumentType): DiagramMap {
-  if (instrument === 'guitar') return { ...GUITAR_DIAGRAMS, ...GUITAR_SLASH_DIAGRAMS };
-  if (instrument === 'ukulele') return { ...UKULELE_DIAGRAMS, ...UKULELE_SLASH_DIAGRAMS };
+  if (instrument === 'guitar') {
+    return expandEnharmonics({ ...GUITAR_DIAGRAMS, ...GUITAR_SLASH_DIAGRAMS });
+  }
+  if (instrument === 'ukulele') {
+    return expandEnharmonics({ ...UKULELE_DIAGRAMS, ...UKULELE_SLASH_DIAGRAMS });
+  }
   // Piano: materialize the full set so callers that iterate (e.g. chord
   // library) get every name. The library is small (~300 entries) so the
   // up-front cost is fine.
@@ -193,7 +307,7 @@ export function getBuiltinDiagrams(instrument: InstrumentType): DiagramMap {
     const list = PIANO_DIAGRAMS[name];
     if (list && list.length) out[name] = list;
   }
-  return out;
+  return expandEnharmonics(out);
 }
 
 /** Fuzzy lookup with fallbacks. */
