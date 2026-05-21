@@ -33,6 +33,7 @@ import SetListPlayerPage from './pages/SetListPlayerPage';
 import SettingsPage from './pages/SettingsPage';
 import ImportPage from './pages/ImportPage';
 import ChordLibraryPage from './pages/ChordLibraryPage';
+import TunerPage from './pages/TunerPage';
 import CategoriesPage from './pages/CategoriesPage';
 import CategoryPlayerPage from './pages/CategoryPlayerPage';
 import DashboardPage from './pages/DashboardPage';
@@ -84,6 +85,7 @@ export default function App(): React.ReactElement {
             <Route path="setlists/:id/player" element={<SetListPlayerPage />} />
             <Route path="import" element={<ImportPage />} />
             <Route path="chords" element={<ChordLibraryPage />} />
+            <Route path="tuner" element={<TunerPage />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="categories/:category" element={<CategoriesPage />} />

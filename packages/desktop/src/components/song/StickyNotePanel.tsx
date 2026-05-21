@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StickyNote, X, Edit2 } from 'lucide-react';
 
 interface Props {
@@ -26,10 +26,93 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
   const DEFAULT_WIDTH = 340;
   const DEFAULT_HEIGHT = 260;
   const margin = 20;
+  // Initial position is measured from the live DOM after mount: the
+  // note is horizontally centred in the gutter between the sidebar's
+  // right edge and the first section heading's left edge. The static
+  // value below is a pre-measurement fallback; the useLayoutEffect
+  // overwrites it before paint.
   const [pos, setPos] = useState(() => ({
-    x: Math.max(margin, (typeof window !== 'undefined' ? window.innerWidth : 1200) - DEFAULT_WIDTH - margin),
-    y: 80,
+    x: margin,
+    y: 280,
   }));
+  /** Set to true on first successful DOM measurement so the panel
+   *  isn't visible at the fallback position for one frame. */
+  const [measured, setMeasured] = useState(false);
+
+  // Measure the page on mount and anchor the note in the gutter
+  // between the sidebar and the song body. Two layout rules apply:
+  //
+  //   • If the gutter is WIDE enough to comfortably hold the default
+  //     panel width with a margin on both sides (typical desktop +
+  //     expanded sidebar), the panel's LEFT edge is placed a small
+  //     fixed distance from the sidebar — close to the sidebar,
+  //     with the song body well clear to the right. That matches
+  //     the reference layout the user supplied.
+  //
+  //   • If the gutter is NARROWER than the default panel width
+  //     (typical narrow window + collapsed sidebar), the panel
+  //     shrinks to fit and centres in the gutter so it doesn't
+  //     touch either edge.
+  //
+  // We retry briefly (up to ~10 frames) because the song content can
+  // still be hydrating when the sticky-note mounts — the first
+  // section heading may not exist in the DOM yet on frame 1.
+  useLayoutEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+    const measure = () => {
+      if (cancelled) return;
+      // Sidebar's right edge: the app's left <nav> is the first nav
+      // element on the page. Falls back to 0 if not present (e.g.
+      // fullscreen mode hides the sidebar).
+      const navEl = document.querySelector('nav');
+      const navRight = navEl ? navEl.getBoundingClientRect().right : 0;
+      // First section heading visible anywhere in the document. The
+      // SongRenderer marks every section label with this attribute.
+      const sectionEl = document.querySelector<HTMLElement>('[data-section-heading]');
+      const sectionLeft = sectionEl?.getBoundingClientRect().left;
+      if (sectionLeft === undefined || sectionLeft <= navRight) {
+        // Section content isn't laid out yet — retry next frame.
+        if (++attempts < 10) requestAnimationFrame(measure);
+        return;
+      }
+      // Gutter geometry with a small inset on each side so the panel
+      // never visually touches the sidebar or the song body.
+      const gapFromSidebar = 20;
+      const gapFromBody = 20;
+      const gutterLeft = navRight + gapFromSidebar;
+      const gutterRight = sectionLeft - gapFromBody;
+      const gutterWidth = Math.max(0, gutterRight - gutterLeft);
+      let w: number, x: number;
+      if (gutterWidth >= DEFAULT_WIDTH) {
+        // Wide gutter — anchor the panel's LEFT edge to the
+        // sidebar-side of the gutter so it sits close to the nav,
+        // matching the reference screenshot. Don't centre.
+        w = DEFAULT_WIDTH;
+        x = gutterLeft;
+      } else {
+        // Narrow gutter — shrink to fit and centre in it so it
+        // doesn't overlap either edge.
+        w = Math.max(220, gutterWidth);
+        const gutterCentre = (gutterLeft + gutterRight) / 2;
+        x = Math.max(margin, gutterCentre - w / 2);
+      }
+      // Vertical: align the note's TOP border with the top border
+      // of the first section label so the two visually start at the
+      // same horizontal line — that's the alignment the user wants.
+      const sectionRect = sectionEl!.getBoundingClientRect();
+      const y = Math.max(margin, sectionRect.top);
+      // Final horizontal nudge: move the note 20 px to the right of
+      // the computed gutter position, clamped so it can't be pushed
+      // off-screen on narrow windows.
+      const finalX = Math.min(window.innerWidth - w - margin, x + 20);
+      setPos({ x: finalX, y });
+      setSize({ w, h: DEFAULT_HEIGHT });
+      setMeasured(true);
+    };
+    measure();
+    return () => { cancelled = true; };
+  }, []);
   const [size, setSize] = useState({ w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
   const dragRef = useRef<{ dx: number; dy: number; id: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -76,6 +159,10 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
       style={{
         left: pos.x,
         top: pos.y,
+        // Hide the panel for the single frame between mount and the
+        // gutter measurement so it doesn't visibly snap from the
+        // fallback position to its real one.
+        visibility: measured ? 'visible' : 'hidden',
         width: size.w,
         height: size.h,
         minWidth: 220,

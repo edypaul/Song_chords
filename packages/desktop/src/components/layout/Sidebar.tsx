@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Library, ListMusic, Upload, Settings, Menu, Guitar, Tags, LayoutDashboard, LogOut, Star, Cast } from 'lucide-react';
+import TuningForkIcon from '../common/TuningForkIcon';
 import { useNavigationGuard } from '../../context/NavigationGuard';
 
 const NAV_ITEMS = [
@@ -10,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/categories', label: 'Categories', icon: Tags },
   { to: '/setlists',   label: 'Set Lists',  icon: ListMusic },
   { to: '/chords',     label: 'Chords',     icon: Guitar },
+  { to: '/tuner',      label: 'Tuner',      icon: TuningForkIcon },
   { to: '/import',     label: 'Import',     icon: Upload },
   { to: '/cast',       label: 'Cast',       icon: Cast },
 ];
