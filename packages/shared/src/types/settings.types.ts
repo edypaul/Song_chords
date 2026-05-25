@@ -58,7 +58,8 @@ export type ShortcutAction =
   | 'prevSong'
   | 'zoomIn'
   | 'zoomOut'
-  | 'zoomReset';
+  | 'zoomReset'
+  | 'openSearch';
 
 export interface KeyboardShortcuts {
   toggleInlineDiagrams: string;
@@ -81,6 +82,8 @@ export interface KeyboardShortcuts {
   zoomIn: string;
   zoomOut: string;
   zoomReset: string;
+  /** Opens the global search overlay from anywhere in the app. */
+  openSearch: string;
   /** Modifier used for capo shortcuts — combined with a digit 0-9 to set
    *  the capo to that fret. */
   capoModifier: 'Alt' | 'Ctrl' | 'Shift' | 'Meta';

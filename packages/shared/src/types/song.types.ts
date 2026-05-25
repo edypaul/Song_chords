@@ -3,6 +3,13 @@ export interface SongPreferences {
   viewMode?: 'chords' | 'lyrics-only' | 'chords-only';
   /** Maps chord name → selected variation index (0-based) */
   chordVariations?: Record<string, number>;
+  /** Auto-scroll pacing mode for this song:
+   *  - 'duration': cover the song in exactly its `duration` (needs a valid
+   *     duration; falls back to speed when none is set).
+   *  - 'speed': pace by the manual speed slider (`autoScrollSpeed`).
+   *  When unset, defaults to 'duration' if the song has a duration, else
+   *  'speed'. The user can switch modes at any time. */
+  autoScrollMode?: 'duration' | 'speed';
 }
 
 export interface Song {

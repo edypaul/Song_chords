@@ -9,6 +9,7 @@ import type { Song } from '@song-chords/shared';
 import SongRenderer from './SongRenderer';
 import SongDetails from './SongDetails';
 import ChordDiagramBar from '../chord-diagram/ChordDiagramBar';
+import ChordModal from '../chord-diagram/ChordModal';
 import { useEffectiveChordVariations } from '../../hooks/useEffectiveChordVariations';
 import TransposeControl from '../controls/TransposeControl';
 import AutoScrollControl from '../controls/AutoScrollControl';
@@ -159,6 +160,19 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
+  // Chord clicked in the song body / diagram bar — opens the shared
+  // chord diagram modal (same as the standard song view).
+  const [selectedChord, setSelectedChord] = useState<string | null>(null);
+
+  // The perform page runs in native fullscreen. Closing the chord
+  // modal with Escape makes the browser drop fullscreen (a
+  // non-cancelable UA action), so re-request it synchronously inside
+  // the modal's Escape keydown to stay fullscreen. Unlike the song
+  // view, perform mode has no fullscreenchange→navigate teardown, so
+  // simply re-requesting is enough.
+  const keepFullscreenAfterModal = () => {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
   const customPresets = useSettingsStore((s) => s.settings.customPresets ?? {});
@@ -665,7 +679,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
       {/* Chord bar — top */}
       {chordBarVisible && chordBarPosition === 'top' && displayedSong && !isNoteActive && (
-        <ChordDiagramBar song={displayedSong} position="top" chordVariations={effectiveChordVariations} />
+        <ChordDiagramBar song={displayedSong} position="top" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
       )}
 
       {/* Main content + optional right-side chord bar */}
@@ -741,7 +755,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                 </div>
               )}
               {displayedSong && (
-                <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} />
+                <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
               )}
             </div>
           )}
@@ -750,12 +764,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           )}
         </div>
         {chordBarVisible && chordBarPosition === 'right' && displayedSong && !isNoteActive && (
-          <ChordDiagramBar song={displayedSong} position="right" chordVariations={effectiveChordVariations} />
+          <ChordDiagramBar song={displayedSong} position="right" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
         )}
       </div>
 
       {chordBarVisible && chordBarPosition === 'bottom' && displayedSong && !isNoteActive && (
-        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={effectiveChordVariations} />
+        <ChordDiagramBar song={displayedSong} position="bottom" chordVariations={effectiveChordVariations} onChordClick={(chord) => setSelectedChord(chord)} />
       )}
 
       {showSongNotes && activeSong && !isNoteActive && (
@@ -763,7 +777,18 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           title={activeSong.title}
           notes={activeSong.notes ?? ''}
           onClose={() => setShowSongNotes(false)}
-          onSave={async (next) => { await updateSongInStore(db, activeSong.id, { notes: next }); }}
+          onSave={async (next) => {
+            await updateSongInStore(db, activeSong.id, { notes: next });
+            // `updateSong` persists + refreshes the SONG store, but the
+            // perform view reads `activeSong` from the PLAYER store, which
+            // it doesn't touch — so the panel kept showing the old note.
+            // Mirror the new notes onto the player store's activeSong so the
+            // change is reflected live.
+            const cur = usePlayerStore.getState().activeSong;
+            if (cur && cur.id === activeSong.id) {
+              usePlayerStore.setState({ activeSong: { ...cur, notes: next } });
+            }
+          }}
         />
       )}
 
@@ -786,6 +811,18 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           song={displayedSong}
           scrollRef={scrollRef}
           recomputeKey={`${perfZoom}|${viewMode}|${activeSong?.id}`}
+        />
+      )}
+
+      {/* Chord diagram modal — opens when a chord in the song body or
+          the diagram bar is clicked, same as the standard song view. */}
+      {selectedChord && (
+        <ChordModal
+          chord={selectedChord}
+          onClose={() => setSelectedChord(null)}
+          songId={activeSong?.id}
+          songPrefs={activeSong?.preferences}
+          onKeepFullscreen={keepFullscreenAfterModal}
         />
       )}
 

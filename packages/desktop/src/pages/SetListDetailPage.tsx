@@ -15,6 +15,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { toTitleCase } from '../utils/text';
 import PlayLinkButton from '../components/song/PlayLinkButton';
+import NotesLinkButton from '../components/song/NotesLinkButton';
 
 export default function SetListDetailPage(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -331,6 +332,7 @@ function SortableEntry({
         {artist && <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{artist}</p>}
       </button>
       <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
+      <NotesLinkButton title={song.title} notes={song.notes} />
       {displayKey && (
         <span
           className="text-xs font-mono"

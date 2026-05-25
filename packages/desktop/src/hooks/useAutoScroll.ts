@@ -17,7 +17,7 @@ function parseDurationToSeconds(duration: string | undefined): number | null {
 }
 
 export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void {
-  const { autoScrollActive, autoScrollSpeed, activeSong, toggleAutoScroll, perfStop } = usePlayerStore();
+  const { autoScrollActive, autoScrollSpeed, autoScrollMode, activeSong, toggleAutoScroll, perfStop } = usePlayerStore();
   const animRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
 
@@ -134,10 +134,15 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
           // Duration-based speed: cover the full scrollable height in exactly durationSeconds.
           // Fallback to the speed slider when no duration is set.
           const totalScrollable = Math.max(0, el.scrollHeight - el.clientHeight - spacerHeight);
-          const pxPerSec =
-            durationSeconds && durationSeconds > 0
-              ? totalScrollable / durationSeconds
-              : (autoScrollSpeed / 100) * 120; // slider 1–100 → 1.2–120 px/s
+          // Mode selects the pacing. 'duration' covers the song in exactly
+          // its duration — but only when a valid duration exists; otherwise
+          // it falls back to the speed slider so the toggle still scrolls.
+          // 'speed' always uses the slider.
+          const useDuration =
+            autoScrollMode === 'duration' && !!durationSeconds && durationSeconds > 0;
+          const pxPerSec = useDuration
+            ? totalScrollable / durationSeconds!
+            : (autoScrollSpeed / 100) * 120; // slider 1–100 → 1.2–120 px/s
 
           posRef.current += pxPerSec * (deltaMs / 1000);
 
@@ -152,6 +157,10 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
           // the top-bar buttons flip too.
           if (totalScrollable > 0 && el.scrollTop >= totalScrollable - 1) {
             const { perfRunning } = usePlayerStore.getState();
+            // Mark that this stop was caused by reaching the BOTTOM (not a
+            // manual stop) so the UI can keep the toolbar hidden and leave
+            // the page parked at the end instead of reflowing/jumping up.
+            usePlayerStore.setState({ autoScrollHitBottom: true });
             if (perfRunning) perfStop();
             else toggleAutoScroll();
             return;
@@ -171,5 +180,5 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
         lastTimeRef.current = null;
       }
     };
-  }, [autoScrollActive, autoScrollSpeed, activeSong?.duration, containerRef, toggleAutoScroll, perfStop]);
+  }, [autoScrollActive, autoScrollSpeed, autoScrollMode, activeSong?.duration, containerRef, toggleAutoScroll, perfStop]);
 }

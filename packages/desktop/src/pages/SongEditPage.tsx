@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Save, Trash2, ArrowLeft, Hand, RotateCcw } from 'lucide-react';
+import { Save, Trash2, ArrowLeft, Hand, RotateCcw, X, GripVertical } from 'lucide-react';
 import { useSongStore, useSettingsStore, ALL_KEYS, chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongFormat, fromLatin, normalizeContentToLetter, bulkReplaceChord, isValidChordName, uniqueChordNames } from '@song-chords/shared';
 import ChordHighlightOverlay, { ChordPreviewPane } from '../components/song/ChordHighlightOverlay';
 import { db } from '../ipc/ipc-client';
@@ -12,6 +12,16 @@ import { toTitleCase } from '../utils/text';
 import { extractChordPattern, applyChordPattern, patternHasChords, type ChordPattern } from '../utils/chord-pattern';
 
 const SECTION_DIRECTIVES = ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Solo', 'Instrumental', 'Outro'];
+
+// Starter chord-chart (grid) template inserted by the "+ Section" menu.
+// A {sog}…{eog} block with one example row: two bars, the first a single
+// chord, the second showing two chords on different beats (a `.` is a
+// beat dot). The user edits the chord names / adds bars from here.
+//   | Am7 . . . | Am7 . G/B . |
+// renders as the staff-style chart with barlines + beat dots.
+const GRID_TEMPLATE = `{sog}
+| Am7 . . . | Am7 . G/B . |
+{eog}`;
 const COMMON_GENRES = [
   'Pop', 'Rock', 'Country', 'Worship', 'Gospel', 'R&B', 'Soul', 'Jazz', 'Blues',
   'Folk', 'Classical', 'Latin', 'Alternative', 'Indie', 'Hip-Hop', 'Electronic',
@@ -176,13 +186,26 @@ export default function SongEditPage(): React.ReactElement {
   const [tags, setTags] = useState<string[]>(existing?.tags ?? []);
   const [difficulty, setDifficulty] = useState<number>(existing?.difficulty ?? 0);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<'details' | 'song'>('details');
+  // New songs (and pending drafts) open on Details — the user fills in
+  // title/artist/etc. first. Editing an existing song opens on Song, so
+  // the chords/lyrics they came to change are front and center.
+  const [tab, setTab] = useState<'details' | 'song'>(
+    isNew || isPending ? 'details' : 'song',
+  );
   const [showDelete, setShowDelete] = useState(false);
   /** Pending navigation intent shown in the unsaved-changes dialog. When set,
    *  the user sees three choices (Save / Discard / Cancel). On confirm the
    *  handler in `.run` performs the actual navigation / close action. */
   const [pendingLeave, setPendingLeave] = useState<{ run: () => void } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Last known caret/selection in the textarea, kept current via the
+  // textarea's onSelect. Toolbar controls like the "+ Section" <select>
+  // steal focus from the textarea before their handler runs, and a
+  // blurred textarea can report a stale/reset selection — so reading
+  // `selectionStart` at click time inserted at the wrong place (the end
+  // of the song) and scrolled the page there. Insertions use this saved
+  // range instead so the section lands exactly where the cursor was.
+  const lastSelectionRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   // Right-click popover state — position in viewport + caret range at click.
   const [chordPopover, setChordPopover] = useState<{ x: number; y: number; start: number; end: number } | null>(null);
   // Clipboard for "Copy chords / Paste chords" — stores the chord pattern
@@ -194,13 +217,28 @@ export default function SongEditPage(): React.ReactElement {
   const [findChord, setFindChord] = useState('');
   const [replaceChord, setReplaceChord] = useState('');
   const [lastReplaceMsg, setLastReplaceMsg] = useState<string | null>(null);
+  // Floating "Pause auto-scroll" prompt: when the user picks Pause from
+  // the section dropdown we capture the caret range AND its on-screen
+  // position, then show a small floating seconds input at that line.
+  // Confirming inserts a {pause: N} directive at the captured range.
+  const [pausePrompt, setPausePrompt] = useState<{ start: number; end: number; x: number; y: number } | null>(null);
+  const [pauseSeconds, setPauseSeconds] = useState('5');
 
   // Editor chord color comes from the user's active style preset so the
   // editor previews the same accent the Song View will render with.
   const chordColor = useSettingsStore((s) => s.settings.songViewStyle?.chords?.color) || 'var(--accent)';
+  // Section directive ({c: …}) styling, taken from the active style
+  // preset so the editor highlights sections with the SAME colors the
+  // song view chips use.
+  const sectionColor = useSettingsStore((s) => s.settings.songViewStyle?.section?.color) || 'white';
+  const sectionBackground = useSettingsStore((s) => s.settings.songViewStyle?.section?.background) || 'var(--accent)';
 
   // Mirror the textarea scroll into the highlight overlay behind it.
   const [editorScroll, setEditorScroll] = useState({ top: 0, left: 0 });
+  // Split-view live-follow: the read-only preview pane auto-scrolls so
+  // the line currently being edited in the left textarea stays visible.
+  // `previewScrollRef` is the preview's scrollable element.
+  const previewScrollRef = useRef<HTMLDivElement>(null);
 
   // Split view: show ChordPro (left) and chords-over-lyrics (right)
   // side by side. The pane matching the current edit `format` is the
@@ -289,25 +327,148 @@ export default function SongEditPage(): React.ReactElement {
   // Insert text into `content` at an explicit caret range, then place the
   // caret after the inserted text. Programmatic edits are committed to
   // history immediately (no debounce).
-  const insertAtRange = (start: number, end: number, text: string) => {
+  const insertAtRange = (start: number, end: number, text: string, caretOffset?: number) => {
     flushTypingCommit();
     const next = content.slice(0, start) + text + content.slice(end);
+    // Preserve the textarea's scroll position across the programmatic
+    // focus/select below — calling focus()/setSelectionRange() makes the
+    // browser scroll the caret into view, which (combined with a stolen
+    // focus from a toolbar control) was yanking the editor to the
+    // bottom. Restoring scrollTop keeps the view exactly where it was.
+    const prevScrollTop = textareaRef.current?.scrollTop ?? 0;
+    const prevScrollLeft = textareaRef.current?.scrollLeft ?? 0;
     setContent(next);
     commitHistory(next);
+    // By default the caret lands after the whole inserted text. Callers
+    // can pass `caretOffset` (relative to `start`) to place it inside the
+    // insertion instead — e.g. a section insert ending in "\n" wants the
+    // caret to stay on the section's line, before that newline.
+    const caret = start + (caretOffset ?? text.length);
+    // Keep the tracked selection in sync so a follow-up insert (without
+    // re-focusing the textarea) still lands in the right place.
+    lastSelectionRef.current = { start: caret, end: caret };
     requestAnimationFrame(() => {
       const el = textareaRef.current;
       if (!el) return;
-      el.focus();
-      const caret = start + text.length;
+      // preventScroll stops the browser from scrolling any ancestor
+      // (the page) to bring the textarea into view on focus.
+      el.focus({ preventScroll: true });
       el.setSelectionRange(caret, caret);
+      el.scrollTop = prevScrollTop;
+      el.scrollLeft = prevScrollLeft;
     });
   };
 
-  // Insert at the textarea's current selection.
-  const insertAtCursor = (text: string) => {
+  // Insert at the textarea's current selection. Prefer the LIVE
+  // selection when the textarea still has focus; otherwise fall back to
+  // the last-tracked selection (a toolbar control that stole focus has
+  // a blurred textarea whose live selection may be stale/reset).
+  const insertAtCursor = (text: string, caretOffset?: number) => {
     const el = textareaRef.current;
     if (!el) { setContent(content + text); return; }
-    insertAtRange(el.selectionStart, el.selectionEnd, text);
+    const focused = document.activeElement === el;
+    const start = focused ? el.selectionStart : lastSelectionRef.current.start;
+    const end = focused ? el.selectionEnd : lastSelectionRef.current.end;
+    insertAtRange(start, end, text, caretOffset);
+  };
+
+  // Insert a multi-line BLOCK (e.g. a chord-chart grid) on its own
+  // lines: prepend a newline when the caret isn't already at the start
+  // of a line, and append one so following content drops below the
+  // block instead of merging into its last line. The caret is left at
+  // the end of the inserted block.
+  const insertBlockAtCursor = (block: string) => {
+    const el = textareaRef.current;
+    const focused = el && document.activeElement === el;
+    const start = focused ? el!.selectionStart : lastSelectionRef.current.start;
+    const end = focused ? el!.selectionEnd : lastSelectionRef.current.end;
+    const atLineStart = start === 0 || content[start - 1] === '\n';
+    const text = (atLineStart ? '' : '\n') + block + '\n';
+    insertAtRange(start, end, text);
+  };
+
+  // Screen position (viewport coords) of the line a given caret offset
+  // sits on, used to anchor the floating pause prompt to that line.
+  // Textareas don't expose a caret pixel position, so we derive it from
+  // the textarea's geometry: line index × line-height, minus scroll,
+  // plus the textarea's top-left + padding. X is pinned to the line's
+  // left edge (the directive is inserted at line scope), Y is the line
+  // BELOW the caret line so the popover doesn't cover the text.
+  const caretLineScreenPos = (offset: number): { x: number; y: number } => {
+    const el = textareaRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const PADDING = 16;       // matches the textarea's padding
+    const LINE_H = 14 * 1.6;  // fontSize × lineHeight, in px
+    const value = el.value;
+    const lineIdx = value.slice(0, offset).split('\n').length - 1; // 0-based
+    const x = rect.left + PADDING;
+    // Top of the line, then drop one line height so the popover sits
+    // just under the caret line rather than over it.
+    const y = rect.top + PADDING + (lineIdx + 1) * LINE_H - el.scrollTop;
+    return { x, y };
+  };
+
+  // Split view: keep the read-only preview lined up with the line the
+  // user is editing in the left textarea, so the live conversion of
+  // that line is visible while typing.
+  //
+  // The two panes can have a DIFFERENT number of rendered lines for the
+  // same song (ChordPro packs chords inline on one line; chords-over-
+  // lyrics splits them onto a chord line + a lyric line), so a 1:1 line
+  // map is wrong. Instead we scroll the preview to the SAME FRACTIONAL
+  // position the caret sits at within the editor's text — caret line /
+  // total lines — and center it in the visible area. That keeps the
+  // edited region in view in both panes without assuming equal heights.
+  const syncPreviewToCaret = () => {
+    if (!splitView) return;
+    const ta = textareaRef.current;
+    const preview = previewScrollRef.current;
+    if (!ta || !preview) return;
+    // Read live from the textarea (not React state) so the line counts
+    // are exact even within the same tick as a keystroke.
+    const value = ta.value;
+    const caret = ta.selectionStart;
+    const totalLines = value.length === 0 ? 1 : value.split('\n').length;
+    // 1-based line index of the caret.
+    const caretLine = value.slice(0, caret).split('\n').length;
+    // Fraction (0..1) of the caret line through the document.
+    const frac = totalLines <= 1 ? 0 : (caretLine - 1) / (totalLines - 1);
+    const maxScroll = preview.scrollHeight - preview.clientHeight;
+    if (maxScroll <= 0) return;
+    // Target the fractional position, then nudge up by half the
+    // viewport so the edited line sits roughly centered rather than at
+    // the very top/bottom edge.
+    const target = frac * preview.scrollHeight - preview.clientHeight / 2;
+    preview.scrollTop = Math.max(0, Math.min(maxScroll, target));
+  };
+
+  // Split view single-scrollbar: the EDITOR textarea owns the only
+  // visible scrollbar (the preview's is hidden via CSS). Every editor
+  // scroll is mirrored onto the preview PROPORTIONALLY — by the same
+  // fraction-through-the-document — so dragging the one bar (or wheeling
+  // over the editor) scrolls both panes together even though the two
+  // formats render to different total heights.
+  const syncPreviewToEditorScroll = () => {
+    if (!splitView) return;
+    const ta = textareaRef.current;
+    const preview = previewScrollRef.current;
+    if (!ta || !preview) return;
+    const taMax = ta.scrollHeight - ta.clientHeight;
+    const pvMax = preview.scrollHeight - preview.clientHeight;
+    if (taMax <= 0 || pvMax <= 0) return;
+    const frac = ta.scrollTop / taMax;
+    preview.scrollTop = frac * pvMax;
+  };
+
+  // Confirm the inline "Pause auto-scroll" prompt: insert a {pause: N}
+  // directive at the captured caret range. N is clamped to a positive
+  // number of seconds (the parser / auto-scroll hook ignore <= 0).
+  const confirmPause = () => {
+    if (!pausePrompt) return;
+    const seconds = Math.max(1, Math.round(parseFloat(pauseSeconds) || 0));
+    insertAtRange(pausePrompt.start, pausePrompt.end, `{pause: ${seconds}}`);
+    setPausePrompt(null);
   };
 
   // Extract unique chords + basic stats from the current content.
@@ -365,12 +526,31 @@ export default function SongEditPage(): React.ReactElement {
       setDuration(existing.duration ?? '');
       setLink(existing.link ?? '');
       setAudioFile(existing.audioFile ?? '');
-      setContent(existing.content);
-      setFormat('chordpro');
+      // Default the Song tab to the "Chords over lyrics" view even
+      // when editing an existing song (matching the default a brand-
+      // new song already uses). The editor textarea shows `content`
+      // verbatim — it does NOT auto-convert by format — so we must
+      // convert the stored content into chords-over-lyrics here, not
+      // just flip the format flag, otherwise the textarea would show
+      // raw ChordPro under a "Chords over lyrics" label.
+      //
+      // `detectSongFormat` guards against double-conversion: stored
+      // content is normally canonical ChordPro, but a song imported as
+      // plaintext may already be chords-over-lyrics, in which case we
+      // leave it untouched.
+      const loadedIsChordPro = detectSongFormat(existing.content) === 'chordpro';
+      const overLyrics = loadedIsChordPro
+        ? chordProToChordsOverLyrics(existing.content)
+        : existing.content;
+      setContent(overLyrics);
+      setFormat('plaintext');
       setNotes(existing.notes ?? '');
       setTags(existing.tags ?? []);
       setDifficulty(existing.difficulty ?? 0);
-      resetHistory(existing.content);
+      // Seed the undo baseline with what's actually in the editor
+      // (the converted chords-over-lyrics text), not the raw stored
+      // ChordPro — otherwise the first undo would jump to ChordPro.
+      resetHistory(overLyrics);
       // Re-seed the "initial" snapshot when the loaded song changes so
       // navigating between edits doesn't carry over a stale baseline.
       initialSnapshotRef.current = {
@@ -819,7 +999,29 @@ export default function SongEditPage(): React.ReactElement {
                   className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                   title="Redo (Ctrl+Shift+Z / Ctrl+Y)">↷ Redo</button>
-                <SectionInsert onPick={(section) => insertAtCursor(`{c: ${section}}\n`)} />
+                <SectionInsert
+                  onPick={(section) => {
+                    // No trailing newline: that was adding an unwanted empty
+                    // line below the section. The default caret position (end
+                    // of the inserted text) leaves the cursor right after the
+                    // section directive, on its own line.
+                    insertAtCursor(`{c: ${section}}`);
+                  }}
+                  onPickPause={() => {
+                    // Capture the caret BEFORE the seconds input steals focus
+                    // (the dropdown already blurred the textarea, so use the
+                    // tracked last selection), plus its on-screen position so
+                    // the floating prompt appears on that line.
+                    const el = textareaRef.current;
+                    const focused = el && document.activeElement === el;
+                    const start = focused ? el!.selectionStart : lastSelectionRef.current.start;
+                    const end = focused ? el!.selectionEnd : lastSelectionRef.current.end;
+                    const { x, y } = caretLineScreenPos(start);
+                    setPauseSeconds('5');
+                    setPausePrompt({ start, end, x, y });
+                  }}
+                  onPickGrid={() => insertBlockAtCursor(GRID_TEMPLATE)}
+                />
                 <button
                   type="button"
                   onClick={() => { setShowFindReplace((v) => !v); setLastReplaceMsg(null); }}
@@ -957,6 +1159,8 @@ export default function SongEditPage(): React.ReactElement {
               <ChordHighlightOverlay
                 text={content}
                 chordColor={chordColor}
+                sectionColor={sectionColor}
+                sectionBackground={sectionBackground}
                 scrollTop={editorScroll.top}
                 scrollLeft={editorScroll.left}
               />
@@ -966,11 +1170,44 @@ export default function SongEditPage(): React.ReactElement {
                 onScroll={(e) => {
                   const el = e.currentTarget;
                   setEditorScroll({ top: el.scrollTop, left: el.scrollLeft });
+                  // The editor is the sole scroll driver in split view;
+                  // mirror its position onto the (scrollbar-hidden) preview.
+                  syncPreviewToEditorScroll();
                 }}
                 onChange={(e) => {
-                  const v = e.target.value;
+                  const el = e.currentTarget;
+                  const v = el.value;
+                  // Chromium resets a CONTROLLED textarea's scrollTop to 0
+                  // when React re-assigns its `value` during commit — which
+                  // made the editor jump to the top on Enter (the keystroke
+                  // that grows the content past the viewport). Snapshot the
+                  // browser's post-keystroke scroll (the caret is already in
+                  // view here) and restore it after the commit so the view
+                  // stays put.
+                  const keepScrollTop = el.scrollTop;
+                  const keepScrollLeft = el.scrollLeft;
                   setContent(v);
                   scheduleTypingCommit(v);
+                  lastSelectionRef.current = { start: el.selectionStart, end: el.selectionEnd };
+                  requestAnimationFrame(() => {
+                    const ta = textareaRef.current;
+                    if (ta && ta.scrollTop !== keepScrollTop) {
+                      ta.scrollTop = keepScrollTop;
+                      ta.scrollLeft = keepScrollLeft;
+                    }
+                    // Keep the split-view preview lined up with the caret.
+                    syncPreviewToCaret();
+                  });
+                }}
+                onSelect={(e) => {
+                  // Track the caret/selection continuously so toolbar
+                  // controls that blur the textarea (e.g. "+ Section")
+                  // can still insert at the right place.
+                  const el = e.currentTarget;
+                  lastSelectionRef.current = { start: el.selectionStart, end: el.selectionEnd };
+                  // Follow the caret in the split-view preview (covers
+                  // clicks + arrow-key navigation, not just typing).
+                  syncPreviewToCaret();
                 }}
               onPaste={(e) => {
                 // After the browser applies the paste, look at the resulting
@@ -1047,7 +1284,20 @@ export default function SongEditPage(): React.ReactElement {
                   >
                     {format === 'chordpro' ? 'Chords over lyrics' : 'ChordPro'} · preview
                   </div>
-                  <div className="flex-1 min-h-0 flex">
+                  <div
+                    className="flex-1 min-h-0 flex"
+                    onWheel={(e) => {
+                      // The preview's own scrollbar is hidden and the
+                      // editor is the single scroll driver. Redirect wheel
+                      // gestures over the preview onto the editor textarea
+                      // so both panes still scroll together from here.
+                      const ta = textareaRef.current;
+                      if (!ta) return;
+                      e.preventDefault();
+                      ta.scrollTop += e.deltaY;
+                      // onScroll on the textarea mirrors onto the preview.
+                    }}
+                  >
                     <ChordPreviewPane
                       text={
                         format === 'chordpro'
@@ -1055,6 +1305,9 @@ export default function SongEditPage(): React.ReactElement {
                           : chordsOverLyricsToChordPro(content)
                       }
                       chordColor={chordColor}
+                      sectionColor={sectionColor}
+                      sectionBackground={sectionBackground}
+                      scrollRef={previewScrollRef}
                     />
                   </div>
                 </div>
@@ -1070,6 +1323,16 @@ export default function SongEditPage(): React.ReactElement {
                   setChordPopover(null);
                 }}
                 onClose={() => setChordPopover(null)}
+              />
+            )}
+            {pausePrompt && (
+              <PausePopover
+                x={pausePrompt.x}
+                y={pausePrompt.y}
+                seconds={pauseSeconds}
+                onSecondsChange={setPauseSeconds}
+                onConfirm={confirmPause}
+                onClose={() => setPausePrompt(null)}
               />
             )}
             <div className="px-4 py-2 text-xs border-t flex items-center gap-4 flex-wrap" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
@@ -1098,6 +1361,12 @@ export default function SongEditPage(): React.ReactElement {
           outline: none;
         }
         .input-field:focus { border-color: var(--accent); }
+        /* Split view uses ONE scrollbar (the editor textarea's). The
+           preview pane still scrolls programmatically — driven by the
+           editor — but its own scrollbar is hidden so there's a single
+           control for both panes. */
+        .chord-preview-pane { scrollbar-width: none; -ms-overflow-style: none; }
+        .chord-preview-pane::-webkit-scrollbar { width: 0; height: 0; display: none; }
         /* The song-body editor textarea has transparent text (the
            colored chord overlay shows through), so the browser's
            default selection — which tints the transparent glyphs —
@@ -1280,22 +1549,41 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
   );
 }
 
-function SectionInsert({ onPick }: { onPick: (section: string) => void }): React.ReactElement {
+/** Sentinel value the "Pause" option emits, so the parent can branch
+ *  into the seconds prompt instead of inserting a section title. */
+const PAUSE_OPTION = '__pause__';
+/** Sentinel for the "Chord chart" option — inserts a {sog}…{eog} grid. */
+const GRID_OPTION = '__grid__';
+
+function SectionInsert({ onPick, onPickPause, onPickGrid }: {
+  onPick: (section: string) => void;
+  /** Picked the "Pause auto-scroll" entry — parent prompts for seconds
+   *  and inserts a {pause: N} directive. */
+  onPickPause: () => void;
+  /** Picked the "Chord chart" entry — parent inserts a grid block. */
+  onPickGrid: () => void;
+}): React.ReactElement {
   return (
     <select
       value=""
       onChange={(e) => {
         const v = e.target.value;
-        if (v) { onPick(v); e.target.value = ''; }
+        if (!v) return;
+        if (v === PAUSE_OPTION) onPickPause();
+        else if (v === GRID_OPTION) onPickGrid();
+        else onPick(v);
+        e.target.value = '';
       }}
       className="px-2 py-1 rounded text-xs"
       style={{ background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-      title="Insert a section directive at the cursor"
+      title="Insert a section directive, a chord chart, or an auto-scroll pause at the cursor"
     >
       <option value="">+ Section</option>
       {SECTION_DIRECTIVES.map((s) => (
         <option key={s} value={s}>{s}</option>
       ))}
+      <option value={GRID_OPTION}>Chord chart (grid)</option>
+      <option value={PAUSE_OPTION}>Pause (auto-scroll)…</option>
     </select>
   );
 }
@@ -1364,6 +1652,131 @@ function ChordPopover({ x, y, inSong, onPick, onClose }: {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Small floating prompt for the auto-scroll pause directive. Appears at
+ * the caret line (where the {pause: N} will be inserted) rather than as
+ * a full-width toolbar row, so it reads as "insert here". The user can
+ * drag it by its grip handle to move it out of the way. Mirrors
+ * ChordPopover's outside-click / Escape dismissal.
+ */
+function PausePopover({ x, y, seconds, onSecondsChange, onConfirm, onClose }: {
+  x: number; y: number;
+  seconds: string;
+  onSecondsChange: (v: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}): React.ReactElement {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Position is local state so the popover can be dragged. Seeded once
+  // from the caret-derived props, then clamped to the viewport.
+  const WIDTH = 230;
+  const HEIGHT_GUESS = 44;
+  const [pos, setPos] = useState(() => ({
+    left: Math.max(8, Math.min(x, window.innerWidth - WIDTH - 8)),
+    top: y + HEIGHT_GUESS > window.innerHeight ? Math.max(8, y - HEIGHT_GUESS - 24) : y,
+  }));
+  const dragRef = useRef<{ dx: number; dy: number; id: number } | null>(null);
+
+  useEffect(() => {
+    const onDocDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      // Capture + stopImmediatePropagation so page-level Escape handlers
+      // don't also fire while this prompt is open.
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', onDocDown);
+    document.addEventListener('keydown', onKey, { capture: true });
+    return () => {
+      document.removeEventListener('mousedown', onDocDown);
+      document.removeEventListener('keydown', onKey, { capture: true });
+    };
+  }, [onClose]);
+
+  // Drag handlers — bound to the grip handle only, so dragging never
+  // conflicts with the number input or the Insert/Cancel buttons.
+  const onDragPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const rect = ref.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top, id: e.pointerId };
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  };
+  const onDragPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    const left = Math.max(0, Math.min(window.innerWidth - 40, e.clientX - d.dx));
+    const top = Math.max(0, Math.min(window.innerHeight - 24, e.clientY - d.dy));
+    setPos({ left, top });
+  };
+  const onDragPointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d) return;
+    try { (e.currentTarget as Element).releasePointerCapture(d.id); } catch { /* ignore */ }
+  };
+
+  return (
+    <div
+      ref={ref}
+      className="fixed flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg shadow-lg z-50 text-xs"
+      style={{ left: pos.left, top: pos.top, background: 'var(--surface)', border: '1px solid var(--border)' }}
+    >
+      {/* Drag handle */}
+      <span
+        onPointerDown={onDragPointerDown}
+        onPointerMove={onDragPointerMove}
+        onPointerUp={onDragPointerUp}
+        onPointerCancel={onDragPointerUp}
+        className="flex items-center self-stretch px-0.5 rounded hover:bg-[var(--surface-elevated)]"
+        style={{ cursor: 'grab', touchAction: 'none', color: 'var(--text-muted)' }}
+        title="Drag to move"
+      >
+        <GripVertical size={13} />
+      </span>
+      <span style={{ color: 'var(--text-muted)' }}>Pause</span>
+      <input
+        autoFocus
+        type="number"
+        min={1}
+        value={seconds}
+        onChange={(e) => onSecondsChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); onConfirm(); }
+          else if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+        }}
+        className="input-field"
+        style={{ width: 52, padding: '2px 6px' }}
+      />
+      <span style={{ color: 'var(--text-muted)' }}>s</span>
+      <button
+        type="button"
+        onClick={onConfirm}
+        className="px-2 py-0.5 rounded font-semibold"
+        style={{ background: 'var(--accent)', color: '#fff' }}
+        title="Insert {pause: N} at the cursor"
+      >
+        Insert
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="p-0.5 rounded hover:bg-[var(--surface-elevated)]"
+        style={{ color: 'var(--text-muted)' }}
+        title="Cancel"
+      >
+        <X size={13} />
+      </button>
     </div>
   );
 }

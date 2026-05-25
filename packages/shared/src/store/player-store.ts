@@ -33,6 +33,14 @@ interface PlayerStore {
   fontSize: number;
   autoScrollActive: boolean;
   autoScrollSpeed: number;
+  /** Auto-scroll pacing mode for the active song. Seeded from the song's
+   *  preferences / duration on load; the user can switch it at any time. */
+  autoScrollMode: 'duration' | 'speed';
+  /** True when auto-scroll stopped because it reached the BOTTOM of the
+   *  song (vs the user stopping it manually). Lets the UI keep the toolbar
+   *  hidden so the page doesn't reflow/jump away from the bottom. Reset
+   *  whenever auto-scroll is (re)started or the song changes. */
+  autoScrollHitBottom: boolean;
   viewMode: ViewMode;
 
   // Performance mode state
@@ -51,6 +59,9 @@ interface PlayerStore {
   setFontSize: (size: number) => void;
   toggleAutoScroll: () => void;
   setScrollSpeed: (speed: number) => void;
+  /** Switch the active song's auto-scroll pacing mode and persist it to
+   *  the song's preferences. */
+  setScrollMode: (mode: 'duration' | 'speed', persist?: (prefs: SongPreferences) => void) => void;
   setViewMode: (mode: ViewMode) => void;
   getPreferences: () => SongPreferences;
   enterPerformance: () => void;
@@ -107,6 +118,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   fontSize: 16,
   autoScrollActive: false,
   autoScrollSpeed: 40,
+  autoScrollMode: 'duration',
+  autoScrollHitBottom: false,
   viewMode: 'chords',
 
   performanceMode: false,
@@ -130,6 +143,12 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     const playingKey = song.key ? transposeKey(song.key, -capo) : undefined;
     const preferFlats = resolveFlatsForKey(playingKey, false);
 
+    // Auto-scroll mode: honour the saved per-song preference; otherwise
+    // default to duration-based when the song has a duration, else speed.
+    const hasDuration = typeof song.duration === 'string' && song.duration.trim() !== '';
+    const autoScrollMode: 'duration' | 'speed' =
+      prefs.autoScrollMode ?? (hasDuration ? 'duration' : 'speed');
+
     set({
       activeSong: song,
       parsedSong: parsed,
@@ -137,6 +156,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       transposeSteps,
       capo,
       preferFlats,
+      autoScrollMode,
+      autoScrollHitBottom: false,
       viewMode: (prefs.viewMode as ViewMode) ?? 'chords',
     });
   },
@@ -179,14 +200,35 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   },
 
   setFontSize: (fontSize) => set({ fontSize }),
-  toggleAutoScroll: () => set((s) => ({ autoScrollActive: !s.autoScrollActive })),
+  toggleAutoScroll: () => set((s) => {
+    const turningOn = !s.autoScrollActive;
+    return {
+      autoScrollActive: turningOn,
+      // Clear the "hit bottom" flag only when STARTING. On stop we leave it
+      // as-is: the hook sets it true just before calling this on an
+      // end-of-content stop, and a manual stop leaves it false — so the UI
+      // can tell the two apart.
+      ...(turningOn ? { autoScrollHitBottom: false } : {}),
+    };
+  }),
   setScrollSpeed: (autoScrollSpeed) => set({ autoScrollSpeed }),
+  setScrollMode: (autoScrollMode, persist) => {
+    set({ autoScrollMode });
+    // Reflect the choice on the in-memory activeSong's preferences and let
+    // the caller persist it to the DB (the player store is DB-agnostic).
+    const { activeSong } = get();
+    if (activeSong) {
+      const nextPrefs: SongPreferences = { ...(activeSong.preferences ?? {}), autoScrollMode };
+      set({ activeSong: { ...activeSong, preferences: nextPrefs } });
+      persist?.(nextPrefs);
+    }
+  },
   setViewMode: (viewMode) => set({ viewMode }),
   getPreferences: () => {
-    const { transposeSteps, viewMode, activeSong } = get();
+    const { transposeSteps, viewMode, autoScrollMode, activeSong } = get();
     // Preserve chordVariations (managed separately by the chord modal)
     const existing = activeSong?.preferences ?? {};
-    return { ...existing, transposeSteps, viewMode };
+    return { ...existing, transposeSteps, viewMode, autoScrollMode };
   },
 
   enterPerformance: () => set({ performanceMode: true }),
@@ -196,8 +238,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     perfPaused: false,
     autoScrollActive: false,
   }),
-  perfStart: () => set({ perfRunning: true, perfPaused: false }),
+  perfStart: () => set({ perfRunning: true, perfPaused: false, autoScrollHitBottom: false }),
   perfStop: () => set({ perfRunning: false, perfPaused: false, autoScrollActive: false }),
   perfPause: () => set({ perfPaused: true, autoScrollActive: false }),
-  perfResume: () => set({ perfPaused: false }),
+  perfResume: () => set({ perfPaused: false, autoScrollHitBottom: false }),
 }));

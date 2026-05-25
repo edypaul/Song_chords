@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Keyboard, X, Music, FileText, ZoomIn,
   Play, Timer, User as UserIcon, Command,
-  Undo2, Tag, AlertCircle,
+  Undo2, Tag, AlertCircle, Search,
 } from 'lucide-react';
 import { useSettingsStore } from '@song-chords/shared';
 import type { ShortcutAction } from '@song-chords/shared';
@@ -40,6 +40,7 @@ const ACTION_LABELS: Record<ShortcutAction, string> = {
   zoomIn:               'Zoom in',
   zoomOut:              'Zoom out',
   zoomReset:            'Reset zoom',
+  openSearch:           'Open global search',
 };
 
 const STATIC_GROUPS: Group[] = [
@@ -159,11 +160,13 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
 
   const dynamicGroups = useMemo<Group[]>(() => {
     if (!shortcuts) return [];
+    const global: Shortcut[] = [];
     const songPerform: Shortcut[] = [];
     const songOnly: Shortcut[] = [];
     const setlistNav: Shortcut[] = [];
     const zoom: Shortcut[] = [];
     const routing: Array<{ action: ShortcutAction; target: Shortcut[] }> = [
+      { action: 'openSearch',           target: global },
       { action: 'toggleInlineDiagrams', target: songPerform },
       { action: 'toggleChordBar',       target: songPerform },
       { action: 'toggleLyricsOnly',     target: songPerform },
@@ -193,6 +196,7 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
     songPerform.push({ keys: [`${shortcuts.capoModifier} + 0…9`], desc: 'Set capo to that fret' });
 
     const out: Group[] = [];
+    if (global.length)      out.push({ title: 'Search', icon: <Search size={14} />, shortcuts: global });
     if (songPerform.length) out.push({ title: 'Song view & Perform', icon: <Music size={14} />, shortcuts: songPerform });
     if (songOnly.length)    out.push({ title: 'Song actions',        icon: <FileText size={14} />, shortcuts: songOnly });
     if (setlistNav.length)  out.push({ title: 'Set list navigation', icon: <Play size={14} />, shortcuts: setlistNav });

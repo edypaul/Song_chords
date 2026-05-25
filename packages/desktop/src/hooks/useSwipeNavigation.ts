@@ -20,6 +20,15 @@ interface Options {
  * gestures for panning/back-navigation, so `pointerup` never fires on the
  * element. Setting pan-y tells the browser to keep only vertical panning
  * and hand horizontal gestures to our handlers.
+ *
+ * IMPORTANT — pointer capture is LAZY: we only `setPointerCapture` once a
+ * gesture has actually moved far enough horizontally to be a swipe. The
+ * earlier version captured eagerly on `pointerdown`, which redirected every
+ * following pointer event (and the synthesized `click`) to the scroll
+ * container — so a plain tap on a chord never reached the chord's own
+ * `onClick`, and tapping a chord in the perform view did nothing. Capturing
+ * only after the swipe threshold is crossed lets taps fall through as normal
+ * clicks while still keeping pointerup for genuine swipes.
  */
 export function useSwipeNavigation({
   onNext, onPrev,
@@ -27,20 +36,36 @@ export function useSwipeNavigation({
   horizontalRatio = 1.5,
   maxDuration = 800,
 }: Options) {
-  const start = useRef<{ x: number; y: number; t: number; id: number } | null>(null);
+  const start = useRef<{ x: number; y: number; t: number; id: number; captured: boolean } | null>(null);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    // Capture the pointer so we still receive pointerup even if the finger
-    // leaves the element's bounds during the swipe.
-    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    start.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId };
+    // Do NOT capture here — capturing eagerly swallows taps (the click
+    // gets retargeted to this element). We capture lazily in
+    // onPointerMove once the movement is clearly a horizontal swipe.
+    start.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, captured: false };
   }, []);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const s = start.current;
+    if (!s || s.id !== e.pointerId || s.captured) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    // Once the gesture has clearly committed to a horizontal swipe,
+    // capture the pointer so we still receive pointerup even if the
+    // finger leaves the element's bounds.
+    if (Math.abs(dx) >= threshold && Math.abs(dx) >= Math.abs(dy) * horizontalRatio) {
+      try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+      s.captured = true;
+    }
+  }, [threshold, horizontalRatio]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const s = start.current;
     start.current = null;
-    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (s?.captured) {
+      try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
     if (!s || s.id !== e.pointerId) return;
     const dx = e.clientX - s.x;
     const dy = e.clientY - s.y;
@@ -52,12 +77,16 @@ export function useSwipeNavigation({
   }, [onNext, onPrev, threshold, horizontalRatio, maxDuration]);
 
   const onPointerCancel = useCallback((e: React.PointerEvent) => {
+    const s = start.current;
     start.current = null;
-    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (s?.captured) {
+      try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
   }, []);
 
   return {
     onPointerDown,
+    onPointerMove,
     onPointerUp,
     onPointerCancel,
     style: { touchAction: 'pan-y' } as React.CSSProperties,

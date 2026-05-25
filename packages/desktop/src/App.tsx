@@ -75,7 +75,7 @@ export default function App(): React.ReactElement {
         <HashRouter>
         <Routes>
           <Route path="/" element={<AppShell />}>
-            <Route index element={<Navigate to="/library" replace />} />
+            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="library" element={<LibraryPage />} />
             <Route path="song/:id" element={<SongViewPage />} />
             <Route path="song/:id/edit" element={<SongEditPage />} />

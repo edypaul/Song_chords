@@ -8,6 +8,7 @@ import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
 import PlayLinkButton from '../components/song/PlayLinkButton';
+import NotesLinkButton from '../components/song/NotesLinkButton';
 
 export default function LibraryPage(): React.ReactElement {
   const navigate = useNavigate();
@@ -175,8 +176,11 @@ function SongRow({
           {toTitleCase(song.title)}
         </span>
       </td>
-      <td className="w-10 px-2 py-2" onClick={(e) => e.stopPropagation()}>
-        <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
+      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+        <span className="inline-flex items-center">
+          <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
+          <NotesLinkButton title={song.title} notes={song.notes} />
+        </span>
       </td>
       {show('artist')     && <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{song.artist ? toTitleCase(song.artist) : '—'}</td>}
       {show('genre')      && <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{song.genre ? toTitleCase(song.genre) : '—'}</td>}

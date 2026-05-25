@@ -22,6 +22,7 @@ export const DEFAULT_SHORTCUTS: KeyboardShortcuts = {
   zoomIn: 'Ctrl+=',
   zoomOut: 'Ctrl+-',
   zoomReset: 'Ctrl+0',
+  openSearch: 'Ctrl+Space',
   capoModifier: 'Alt',
 };
 

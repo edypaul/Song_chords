@@ -645,6 +645,7 @@ const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   zoomIn:               'Zoom in',
   zoomOut:              'Zoom out',
   zoomReset:            'Reset zoom',
+  openSearch:           'Open global search',
 };
 
 interface ShortcutGroup {
@@ -655,6 +656,11 @@ interface ShortcutGroup {
 }
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
+  {
+    title: 'Global',
+    hint: 'Available from anywhere in the app.',
+    actions: ['openSearch'],
+  },
   {
     title: 'View & Display',
     hint: 'Active in the Song view and Perform pages.',
