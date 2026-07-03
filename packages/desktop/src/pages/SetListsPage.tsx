@@ -23,6 +23,16 @@ import { CSS } from '@dnd-kit/utilities';
 export default function SetListsPage(): React.ReactElement {
   const navigate = useNavigate();
   const { setlists, createSetList, updateSetList, deleteSetList, duplicateSetList, reorderSetLists, isLoading } = useSetListStore();
+  // Track the entries length of whatever setlist was last opened. When it
+  // changes (add / remove entries in the detail view), we refetch the
+  // per-setlist counts on this page so cards reflect reality after the
+  // user navigates back. Without this, the count effect below only fires
+  // when the top-level `setlists` array changes — which it doesn't when
+  // you just add or remove entries inside an existing setlist — so the
+  // "8 songs / 2 notes" pill goes stale.
+  const activeEntriesSignal = useSetListStore(
+    (s) => `${s.activeSetList?.id ?? ''}:${s.activeSetList?.entries.length ?? 0}`,
+  );
   const songs = useSongStore((s) => s.songs);
   const [pendingExport, setPendingExport] = useState<{ songs: Song[]; title: string } | null>(null);
 
@@ -82,13 +92,16 @@ export default function SetListsPage(): React.ReactElement {
     await reorderSetLists(db, newOrder);
   };
 
-  // Reload songs/notes counts whenever the setlist collection changes (new
-  // list, deleted list, entries added from elsewhere in the app).
+  // Reload songs/notes counts whenever the setlist collection changes
+  // (new list, deleted list, entries added from elsewhere in the app)
+  // AND whenever the entries of the currently-open setlist change
+  // (add / remove inside SetListDetailPage) so the cards are correct
+  // when the user navigates back here.
   useEffect(() => {
     const repo = new SetListRepository(db);
     void repo.getEntryCountsByType().then(setCounts).catch(() => setCounts({}));
     void repo.getSetlistDurations().then(setDurations).catch(() => setDurations({}));
-  }, [setlists]);
+  }, [setlists, activeEntriesSignal]);
 
   const resetCreateForm = () => {
     setNewName('');

@@ -41,6 +41,38 @@
   padding: 0;
 }
 
+/*
+ * Global focus reset.
+ *
+ * Chromium renders its default :focus outline in the OS accent colour —
+ * which on Windows dark themes reads as bright orange and is jarring
+ * against the app's own palette. We suppress it here and rely on the
+ * app's hover / active-state colours to indicate the focused element
+ * for POINTER interactions.
+ *
+ * For KEYBOARD users we keep an outline via :focus-visible only, and
+ * paint it in the app's own accent colour so the focus ring lives in
+ * the same palette as everything else. `:focus-visible` fires for
+ * keyboard navigation but NOT for mouse-down / tap, matching the
+ * intent: the button you just clicked shouldn't linger with a ring,
+ * but Tab-navigation still shows one.
+ */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+/* Native text inputs / textareas / selects still receive the default
+   caret + selection UI from the browser; the focus ring on them is
+   redundant and often collides with their own border. Drop it there
+   too — the caret and border colour already communicate focus. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;

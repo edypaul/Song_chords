@@ -194,4 +194,37 @@ UPDATE setlists SET position = (
 CREATE INDEX IF NOT EXISTS idx_setlists_position ON setlists(position);
 `,
   },
+  {
+    // Per-entry preference overrides for setlist entries. When these
+    // columns are NULL the entry falls back to the underlying song's
+    // preference at read time — existing entries continue to inherit
+    // the song's defaults with no bulk migration needed. The user's
+    // first change in setlist context starts populating them so from
+    // that point on the entry paces / renders independently.
+    //
+    // NOTE: `chord_variations` is a legacy column added during an
+    // earlier scope of this feature. The code no longer writes to it
+    // (chord voicings stay song-scoped), but the column is kept so
+    // databases that already ran v16 don't need a rebuild.
+    version: 16,
+    up: `
+ALTER TABLE setlist_entries ADD COLUMN view_mode TEXT;
+ALTER TABLE setlist_entries ADD COLUMN auto_scroll_mode TEXT;
+ALTER TABLE setlist_entries ADD COLUMN chord_variations TEXT;
+`,
+  },
+  {
+    // Add the remaining per-entry preference columns. `tempo_multiplier`
+    // stores 0.5 / 1 / 2 as a REAL. `chord_bar_visible` and
+    // `inline_chord_diagrams` are nullable booleans (0/1) — NULL means
+    // "inherit the app-wide setting", so existing entries keep using
+    // the global default until the user toggles the flag from the
+    // setlist-viewed song.
+    version: 17,
+    up: `
+ALTER TABLE setlist_entries ADD COLUMN tempo_multiplier REAL;
+ALTER TABLE setlist_entries ADD COLUMN chord_bar_visible INTEGER;
+ALTER TABLE setlist_entries ADD COLUMN inline_chord_diagrams INTEGER;
+`,
+  },
 ];

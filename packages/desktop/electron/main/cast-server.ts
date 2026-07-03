@@ -1,5 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse, Server as HttpServer } from 'http';
 import { networkInterfaces } from 'os';
+import { createSocket } from 'dgram';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { BrowserWindow } from 'electron';
 
@@ -36,7 +37,19 @@ const DEFAULT_PORT = 4321;
 const FRAME_INTERVAL_MS = 200;
 const JPEG_QUALITY = 70;
 
-function getLocalIp(): string {
+/** Fallback IP resolver: iterate `networkInterfaces()` and pick the
+ *  first plausible RFC1918 address. Used when we can't get a routing
+ *  answer from the OS (e.g. the async probe hasn't returned yet).
+ *
+ *  NOTE: on Windows this list can include lingering ghost adapters
+ *  from a previous network — an old Wi-Fi's DHCP lease can outlive
+ *  the connection by minutes. That's exactly what caused the "QR
+ *  code always shows the old IP after switching networks" bug —
+ *  `getLocalIpFromInterfaces()` would find the stale 192.168.x from
+ *  the previous network and hand it back. `getRoutingIp()` below
+ *  fixes it by asking the OS which interface it would ACTUALLY route
+ *  to, which never lies. */
+function getLocalIpFromInterfaces(): string {
   const ifaces = networkInterfaces();
   const candidates: string[] = [];
   for (const name of Object.keys(ifaces)) {
@@ -59,6 +72,63 @@ function getLocalIp(): string {
   const real = candidates.find((ip) => !ip.startsWith('169.254.'));
   if (real) return real;
   return candidates[0] ?? '127.0.0.1';
+}
+
+/** Ask the OS which local IP it would use to reach the internet.
+ *
+ *  The trick: open an unconnected UDP socket, tell it to "connect" to
+ *  a public non-routable-in-LAN address (8.8.8.8 works — DNS root),
+ *  then read `.address().address`. `dgram.connect()` never sends a
+ *  packet — it only sets the socket's destination, which triggers
+ *  the OS to bind the socket to the local interface it would use for
+ *  that destination. That's the LIVE routing decision, so it always
+ *  reflects the CURRENT network, ignoring ghost adapters from a
+ *  previous connection.
+ *
+ *  This is the standard "get outbound IP" pattern used by many
+ *  Node.js LAN-discovery tools. Resolves to `null` if the probe
+ *  fails (no network, all interfaces down, permission error, …); the
+ *  caller falls back to the interface scan then. */
+function getRoutingIp(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const socket = createSocket('udp4');
+    const cleanup = () => { try { socket.close(); } catch { /* ignore */ } };
+    const done = (ip: string | null) => {
+      cleanup();
+      resolve(ip);
+    };
+    // Give the OS a hard budget — if the network stack is misbehaving
+    // we don't want status() polls to stack up waiting on this.
+    const timer = setTimeout(() => done(null), 500);
+    socket.once('error', () => { clearTimeout(timer); done(null); });
+    try {
+      // Google DNS. No packet is actually sent — connect() on a UDP
+      // socket only sets the destination address, which is enough to
+      // trigger source-address selection by the OS.
+      socket.connect(53, '8.8.8.8', () => {
+        clearTimeout(timer);
+        try {
+          const addr = socket.address();
+          const ip = typeof addr === 'object' && addr !== null && 'address' in addr
+            ? (addr as { address: string }).address
+            : null;
+          // Reject 0.0.0.0 (unbound) and anything that isn't a
+          // sensible IPv4 — treat those as "probe failed" so the
+          // caller falls through to the interface scan.
+          if (!ip || ip === '0.0.0.0' || ip.startsWith('169.254.')) {
+            done(null);
+          } else {
+            done(ip);
+          }
+        } catch {
+          done(null);
+        }
+      });
+    } catch {
+      clearTimeout(timer);
+      done(null);
+    }
+  });
 }
 
 /**
@@ -737,6 +807,11 @@ class CastServer {
   private view: CastView = 'performance';
   private port: number = DEFAULT_PORT;
   private host: string = '127.0.0.1';
+  /** True while a routing-IP probe is in flight. Prevents `refreshHost`
+   *  from stacking up parallel probes when status() is polled faster
+   *  than the OS answers (rare, but the ~500ms probe timeout window
+   *  would otherwise allow 2+ overlapping probes). */
+  private probingHost = false;
   private mirrorWindow: BrowserWindow | null = null;
   private capturing = false;
   private firstFrameLogged = false;
@@ -748,11 +823,35 @@ class CastServer {
   private htmlPayload: string | null = null;
 
   async start(window: BrowserWindow, view: CastView): Promise<{ host: string; port: number }> {
-    if (this.http) return { host: this.host, port: this.port };
+    if (this.http) {
+      // Server already running — but the machine may have switched Wi-Fi
+      // networks since it last started, which would have changed the LAN
+      // IP. The socket is bound to 0.0.0.0 so it still accepts on the new
+      // interface; we just need to report the fresh IP to the caller
+      // (otherwise the returned host — and the QR code generated from it —
+      // is stale and can't be reached by the phone on the new network).
+      //
+      // Await the routing probe here (not just the fire-and-forget
+      // refresh) so the caller gets the CURRENT-network IP right away,
+      // not the last-known one from a previous poll.
+      const routed = await getRoutingIp();
+      const next = routed ?? getLocalIpFromInterfaces();
+      if (next && next !== this.host) {
+        // eslint-disable-next-line no-console
+        console.log(`[cast] host changed ${this.host} → ${next} (network switch on restart)`);
+        this.host = next;
+      }
+      return { host: this.host, port: this.port };
+    }
 
     this.mirrorWindow = window;
     this.view = view;
-    this.host = getLocalIp();
+    // Initial IP: try the routing probe first (accurate, ignores
+    // ghost adapters). If it fails or times out, fall back to the
+    // interface scan so the server can still return a plausible URL
+    // — the caller sees SOMETHING immediately rather than 127.0.0.1.
+    const routed = await getRoutingIp();
+    this.host = routed ?? getLocalIpFromInterfaces();
     // Default to mirror mode for backward compatibility with the Cast
     // page's full-app mirror behaviour.
     this.mode = 'mirror';
@@ -853,6 +952,14 @@ class CastServer {
   }
 
   status(): CastStatus {
+    // Re-resolve the LAN IP on every status poll so a Wi-Fi switch (or a
+    // VPN toggle / cable un-plug / dock change) is reflected in the URL
+    // the renderer shows and the QR code it generates. os.networkInterfaces()
+    // is a cheap in-memory syscall and status() is polled at 2–2.5 s from
+    // the renderer — negligible overhead. Without this, `this.host` stays
+    // frozen at whatever the IP was when start() first ran, and the QR
+    // code can't be reached by any device on the current network.
+    if (this.http) this.refreshHost();
     return {
       running: this.http !== null,
       host: this.http ? this.host : null,
@@ -861,6 +968,29 @@ class CastServer {
       view: this.view,
       mode: this.mode,
     };
+  }
+
+  /** Recompute the LAN IP and update `this.host` in place. Logs a line
+   *  when the IP actually changes so a network switch is easy to spot in
+   *  the dev tools / terminal. Safe to call at any frequency.
+   *
+   *  The routing probe is async, so this method returns immediately
+   *  and updates `this.host` when the probe resolves (typically <5 ms
+   *  on a healthy stack, up to 500 ms if the network is misbehaving).
+   *  Callers see the fresh IP on the NEXT status() poll — good enough
+   *  since polls come every ~2.5 s. If the probe fails we fall back
+   *  to the interface scan so we still catch obvious changes. */
+  private refreshHost(): void {
+    if (this.probingHost) return;
+    this.probingHost = true;
+    void getRoutingIp().then((routed) => {
+      const next = routed ?? getLocalIpFromInterfaces();
+      if (next && next !== this.host) {
+        // eslint-disable-next-line no-console
+        console.log(`[cast] host changed ${this.host} → ${next} (network switch detected)`);
+        this.host = next;
+      }
+    }).finally(() => { this.probingHost = false; });
   }
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {

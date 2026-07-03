@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import QRCode from 'qrcode';
 import { Cast, X, Power, LayoutGrid, Copy, Check } from 'lucide-react';
-import { usePlayerStore, useSettingsStore } from '@song-chords/shared';
+import { usePlayerStore } from '@song-chords/shared';
 import { buildCastHtml, type CastMode as HtmlCastMode } from '../../utils/cast-html';
 import { useCastSyncStore } from '../../store/cast-sync-store';
 
@@ -40,7 +40,7 @@ export default function CastQuickButton(): React.ReactElement {
   // so the popover can be portaled to <body> and avoid being clipped
   // by toolbars that use `overflow: hidden`. Recomputed on open and on
   // window resize.
-  const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
 
   // Reflect the REAL cast-server state on mount (and keep it fresh),
   // independent of whether the popover is open. This component is
@@ -145,15 +145,32 @@ export default function CastQuickButton(): React.ReactElement {
   // `useLayoutEffect` so the popover is placed before paint — no
   // visible flash. Recomputed on resize / scroll so the popover stays
   // anchored when the user resizes the window or the toolbar shifts.
+  //
+  // Placement rule: anchor the popover under the icon and CLAMP its
+  // horizontal position to the viewport. Previously we pinned the
+  // popover's right edge to the icon's right edge, which pushed the
+  // popover off the LEFT of the screen when the icon lived on the far
+  // left of the window (e.g. the sidebar's cast button). By computing
+  // an unclamped left first and then clamping to `[margin,
+  // viewport - width - margin]`, the popover always sits fully inside
+  // the visible area no matter where the trigger button lives.
   useLayoutEffect(() => {
     if (!open) return;
+    const POPOVER_WIDTH = 320;
+    const MARGIN = 8;
     const place = () => {
       const btn = buttonRef.current;
       if (!btn) return;
       const r = btn.getBoundingClientRect();
+      // Preferred anchor: align the popover's RIGHT edge with the
+      // icon's right edge (the original behavior, which reads well
+      // when the icon sits in a top-right toolbar).
+      const preferredLeft = r.right - POPOVER_WIDTH;
+      const maxLeft = Math.max(MARGIN, window.innerWidth - POPOVER_WIDTH - MARGIN);
+      const clampedLeft = Math.min(Math.max(preferredLeft, MARGIN), maxLeft);
       setPopoverPos({
         top: r.bottom + 8,
-        right: window.innerWidth - r.right,
+        left: clampedLeft,
       });
     };
     place();
@@ -165,23 +182,15 @@ export default function CastQuickButton(): React.ReactElement {
     };
   }, [open]);
 
-  // Re-build + re-push the HTML payload whenever the player or
-  // settings store changes, while an HTML cast is active. Covers song
-  // navigation, transpose, capo, view-mode, theme/preset switches,
-  // accidental mode, etc. — the receiver's content stays in sync with
-  // the desktop's player state.
-  useEffect(() => {
-    if (!mode) return;
-    const push = () => {
-      const active = usePlayerStore.getState().activeSong;
-      if (!active) return;
-      const html = buildCastHtml(active, mode);
-      void window.electronAPI.cast.setHtml(html);
-    };
-    const unsubPlayer = usePlayerStore.subscribe(() => push());
-    const unsubSettings = useSettingsStore.subscribe(() => push());
-    return () => { unsubPlayer(); unsubSettings(); };
-  }, [mode]);
+  // Re-push on payload-affecting changes is handled centrally by
+  // `CastSync` mounted at the app root: it watches the same durable
+  // `useCastSyncStore.htmlMode` this popover writes to. Duplicating
+  // that subscription here caused every player / settings mutation to
+  // fire TWO IPC pushes and (worse) subscribed to the whole stores
+  // without a selector, so unrelated writes like auto-scroll toggle,
+  // fullscreen, or inline-diagrams triggered a re-push and made the
+  // receiver iframe reload. `CastSync` uses selective subscriptions
+  // that only fire on fields `buildCastHtml` actually consumes.
 
   /** Build the HTML payload for whatever song the player store has
    *  active right now and push it to the server. Bails out gracefully
@@ -248,7 +257,7 @@ export default function CastQuickButton(): React.ReactElement {
           style={{
             position: 'fixed',
             top: popoverPos.top,
-            right: popoverPos.right,
+            left: popoverPos.left,
             background: 'var(--surface)',
             border: '1px solid var(--border)',
             width: 320,

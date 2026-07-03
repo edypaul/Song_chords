@@ -25,6 +25,15 @@ interface SetListEntryRow {
   tempo: number | null;
   time_sig: string | null;
   notes: string | null;
+  view_mode: string | null;
+  auto_scroll_mode: string | null;
+  /** Legacy JSON column from v16. Kept for backwards compat with
+   *  databases that already ran that migration; not populated by
+   *  current code. */
+  chord_variations: string | null;
+  tempo_multiplier: number | null;
+  chord_bar_visible: number | null;
+  inline_chord_diagrams: number | null;
 }
 
 export interface SetListEntrySnapshot {
@@ -56,6 +65,15 @@ function parseDurationSeconds(d: string | null): number {
 }
 
 function rowToEntry(row: SetListEntryRow): SetListEntry {
+  const viewMode = row.view_mode as SetListEntry['viewMode'];
+  const autoScrollMode = row.auto_scroll_mode as SetListEntry['autoScrollMode'];
+  // tempo_multiplier is stored as REAL; guard against unexpected
+  // values so a corrupted row can't crash the player when the
+  // metronome multiplies by it.
+  let tempoMultiplier: SetListEntry['tempoMultiplier'];
+  if (row.tempo_multiplier === 0.5 || row.tempo_multiplier === 1 || row.tempo_multiplier === 2) {
+    tempoMultiplier = row.tempo_multiplier;
+  }
   return {
     id: row.id,
     setlistId: row.setlist_id,
@@ -70,6 +88,13 @@ function rowToEntry(row: SetListEntryRow): SetListEntry {
     tempo: row.tempo ?? undefined,
     timeSig: row.time_sig ?? undefined,
     notes: row.notes ?? undefined,
+    viewMode: viewMode ?? undefined,
+    autoScrollMode: autoScrollMode ?? undefined,
+    tempoMultiplier,
+    // Nullable booleans: NULL means "inherit the app-wide setting", so
+    // leave the field undefined. `0` and `1` are explicit overrides.
+    chordBarVisible: row.chord_bar_visible === null ? undefined : row.chord_bar_visible === 1,
+    inlineChordDiagrams: row.inline_chord_diagrams === null ? undefined : row.inline_chord_diagrams === 1,
   };
 }
 
@@ -157,16 +182,33 @@ export class SetListRepository {
     return map;
   }
 
-  /** Songs vs notes breakdown per setlist — used on the Set Lists page. */
+  /** Songs vs notes breakdown per setlist — used on the Set Lists page.
+   *
+   * SONG rows only count when the referenced song still exists. The
+   * detail view (`openSetList`) silently drops entries whose `song_id`
+   * no longer resolves (e.g. the underlying song was deleted), so if
+   * we counted every row here we'd show more songs on the SetListsPage
+   * card than the detail page ever renders. Left-joining `songs` and
+   * ignoring rows where the join fails matches the detail view's
+   * reality exactly.
+   *
+   * NOTE rows have no `song_id` reference to check, so they count
+   * unconditionally. */
   async getEntryCountsByType(): Promise<Record<string, { songs: number; notes: number }>> {
-    const rows = await this.db.query<{ setlist_id: string; type: string | null; count: number }>(
-      "SELECT setlist_id, type, COUNT(*) as count FROM setlist_entries GROUP BY setlist_id, type",
+    const rows = await this.db.query<{ setlist_id: string; songs: number; notes: number }>(
+      "SELECT se.setlist_id, " +
+      "  SUM(CASE WHEN (se.type IS NULL OR se.type = 'song') AND s.id IS NOT NULL THEN 1 ELSE 0 END) AS songs, " +
+      "  SUM(CASE WHEN se.type = 'note' THEN 1 ELSE 0 END) AS notes " +
+      "FROM setlist_entries se " +
+      "LEFT JOIN songs s ON s.id = se.song_id " +
+      "GROUP BY se.setlist_id",
     );
     const map: Record<string, { songs: number; notes: number }> = {};
     for (const r of rows) {
-      const bucket = map[r.setlist_id] ?? (map[r.setlist_id] = { songs: 0, notes: 0 });
-      if (r.type === 'note') bucket.notes += r.count;
-      else bucket.songs += r.count; // legacy rows with null `type` count as songs
+      // COUNT / SUM come back as JS numbers under the current adapter,
+      // but coerce defensively — a string like "8" would otherwise
+      // concatenate later if we ever chained additions.
+      map[r.setlist_id] = { songs: Number(r.songs) || 0, notes: Number(r.notes) || 0 };
     }
     return map;
   }
@@ -272,7 +314,7 @@ export class SetListRepository {
 
   async updateEntrySettings(
     entryId: string,
-    settings: Partial<Pick<SetListEntry, 'transpose' | 'capo' | 'key' | 'tempo' | 'timeSig' | 'notes'>>,
+    settings: Partial<Pick<SetListEntry, 'transpose' | 'capo' | 'key' | 'tempo' | 'timeSig' | 'notes' | 'viewMode' | 'autoScrollMode' | 'tempoMultiplier' | 'chordBarVisible' | 'inlineChordDiagrams'>>,
   ): Promise<void> {
     if (settings.transpose !== undefined) {
       await this.db.execute('UPDATE setlist_entries SET transpose=? WHERE id=?', [settings.transpose, entryId]);
@@ -291,6 +333,25 @@ export class SetListRepository {
     }
     if (settings.notes !== undefined) {
       await this.db.execute('UPDATE setlist_entries SET notes=? WHERE id=?', [settings.notes, entryId]);
+    }
+    if (settings.viewMode !== undefined) {
+      await this.db.execute('UPDATE setlist_entries SET view_mode=? WHERE id=?', [settings.viewMode ?? null, entryId]);
+    }
+    if (settings.autoScrollMode !== undefined) {
+      await this.db.execute('UPDATE setlist_entries SET auto_scroll_mode=? WHERE id=?', [settings.autoScrollMode ?? null, entryId]);
+    }
+    if (settings.tempoMultiplier !== undefined) {
+      await this.db.execute('UPDATE setlist_entries SET tempo_multiplier=? WHERE id=?', [settings.tempoMultiplier ?? null, entryId]);
+    }
+    if (settings.chordBarVisible !== undefined) {
+      // Booleans encoded as 0/1. Explicit undefined leaves the column
+      // alone; explicit null (or `undefined` reached via `?? null`) would
+      // mean "clear the override", which we don't currently expose in
+      // the UI, so we always write 0 / 1 when the setting is present.
+      await this.db.execute('UPDATE setlist_entries SET chord_bar_visible=? WHERE id=?', [settings.chordBarVisible ? 1 : 0, entryId]);
+    }
+    if (settings.inlineChordDiagrams !== undefined) {
+      await this.db.execute('UPDATE setlist_entries SET inline_chord_diagrams=? WHERE id=?', [settings.inlineChordDiagrams ? 1 : 0, entryId]);
     }
   }
 

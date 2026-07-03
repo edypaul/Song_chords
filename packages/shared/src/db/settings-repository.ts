@@ -31,6 +31,30 @@ export class SettingsRepository {
           // Merge with defaults so new actions added in later versions are
           // populated automatically instead of being missing/undefined.
           settings.shortcuts = { ...DEFAULT_SETTINGS.shortcuts, ...(parsed as object) };
+        } else if (row.key === 'dashboardCards' && typeof parsed === 'object' && parsed !== null) {
+          // Same merge story as shortcuts: when new cards are added later
+          // they default to visible for users who already have a stored
+          // dashboardCards blob from a previous version.
+          settings.dashboardCards = { ...DEFAULT_SETTINGS.dashboardCards, ...(parsed as object) };
+        } else if (row.key === 'songListColumnOrder' && Array.isArray(parsed)) {
+          // Sanitise the persisted column order so it always matches the
+          // current known column set: drop any keys the app no longer
+          // knows about (older builds), and append any keys the user
+          // hasn't seen yet (new columns added in a later version) so
+          // they're visible instead of silently missing from the header.
+          const def = DEFAULT_SETTINGS.songListColumnOrder;
+          const knownSet = new Set<string>(def);
+          const seen = new Set<string>();
+          const cleaned: typeof def = [];
+          for (const k of parsed as unknown[]) {
+            if (typeof k !== 'string') continue;
+            if (!knownSet.has(k)) continue;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            cleaned.push(k as typeof def[number]);
+          }
+          for (const k of def) if (!seen.has(k)) cleaned.push(k);
+          settings.songListColumnOrder = cleaned;
         } else {
           (settings as unknown as Record<string, unknown>)[row.key] = parsed;
         }

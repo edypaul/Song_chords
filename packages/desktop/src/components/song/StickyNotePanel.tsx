@@ -6,7 +6,31 @@ interface Props {
   notes: string;
   onClose: () => void;
   onSave?: (next: string) => void | Promise<void>;
+  /**
+   * Stable identity for the "same panel" across close/reopen cycles.
+   * When set, the FIRST successful mount measures the DOM and caches its
+   * chosen position + size under this key; every later mount with the
+   * same key reuses those cached values instead of re-measuring — so
+   * closing the panel and reopening it from the toggle brings it back
+   * exactly where it was, not somewhere else because the DOM shifted
+   * (scroll position, hydration timing, etc.) in the interim.
+   *
+   * A different key (e.g. a different song id) invalidates the cache
+   * and triggers a fresh measurement — that's what you want when the
+   * gutter geometry may have changed for real.
+   *
+   * The cache is per-process (module-level), so it also survives if
+   * the parent unmounts/remounts the panel for other reasons.
+   */
+  positionKey?: string;
 }
+
+/** Module-level cache of the first-measured position/size per `positionKey`.
+ *  See the JSDoc on `Props.positionKey` for the rationale. */
+const positionCache = new Map<string, {
+  pos: { x: number; y: number };
+  size: { w: number; h: number };
+}>();
 
 /**
  * Floating, draggable & resizable panel that shows a song's notes. Used from
@@ -18,7 +42,7 @@ interface Props {
  * - Resizable via native CSS `resize: both` corner handle.
  * - When `onSave` is provided the header exposes an inline edit mode.
  */
-export default function StickyNotePanel({ title, notes, onClose, onSave }: Props): React.ReactElement {
+export default function StickyNotePanel({ title, notes, onClose, onSave, positionKey }: Props): React.ReactElement {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes);
   useEffect(() => { if (!editing) setDraft(notes); }, [notes, editing]);
@@ -26,18 +50,24 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
   const DEFAULT_WIDTH = 340;
   const DEFAULT_HEIGHT = 260;
   const margin = 20;
+  // If we have a cached position for this key (from an earlier mount
+  // of the same panel that already measured the DOM), seed from it —
+  // and skip the measurement effect entirely below. That's what makes
+  // close-then-reopen restore the exact same spot.
+  const cached = positionKey ? positionCache.get(positionKey) : undefined;
   // Initial position is measured from the live DOM after mount: the
   // note is horizontally centred in the gutter between the sidebar's
   // right edge and the first section heading's left edge. The static
   // value below is a pre-measurement fallback; the useLayoutEffect
   // overwrites it before paint.
-  const [pos, setPos] = useState(() => ({
+  const [pos, setPos] = useState(() => cached?.pos ?? ({
     x: margin,
     y: 280,
   }));
   /** Set to true on first successful DOM measurement so the panel
-   *  isn't visible at the fallback position for one frame. */
-  const [measured, setMeasured] = useState(false);
+   *  isn't visible at the fallback position for one frame. When the
+   *  position comes from the cache it's already valid — start visible. */
+  const [measured, setMeasured] = useState(!!cached);
 
   // Measure the page on mount and anchor the note in the gutter
   // between the sidebar and the song body. Two layout rules apply:
@@ -57,14 +87,25 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
   // We retry briefly (up to ~10 frames) because the song content can
   // still be hydrating when the sticky-note mounts — the first
   // section heading may not exist in the DOM yet on frame 1.
+  const [size, setSize] = useState(() => cached?.size ?? ({ w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT }));
   useLayoutEffect(() => {
+    // Cache hit → the constructor already seeded pos + size from the
+    // stored measurement; skip re-measuring so a close/reopen doesn't
+    // re-anchor the panel to a shifted DOM (e.g. scrolled content).
+    if (cached) return;
     let cancelled = false;
     let attempts = 0;
+    const commit = (nextPos: { x: number; y: number }, nextSize: { w: number; h: number }) => {
+      setPos(nextPos);
+      setSize(nextSize);
+      setMeasured(true);
+      if (positionKey) positionCache.set(positionKey, { pos: nextPos, size: nextSize });
+    };
     const measure = () => {
       if (cancelled) return;
       // Sidebar's right edge: the app's left <nav> is the first nav
       // element on the page. Falls back to 0 if not present (e.g.
-      // fullscreen mode hides the sidebar).
+      // fullscreen / perform mode which hides the sidebar).
       const navEl = document.querySelector('nav');
       const navRight = navEl ? navEl.getBoundingClientRect().right : 0;
       // First section heading visible anywhere in the document. The
@@ -73,7 +114,19 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
       const sectionLeft = sectionEl?.getBoundingClientRect().left;
       if (sectionLeft === undefined || sectionLeft <= navRight) {
         // Section content isn't laid out yet — retry next frame.
-        if (++attempts < 10) requestAnimationFrame(measure);
+        if (++attempts < 10) {
+          requestAnimationFrame(measure);
+          return;
+        }
+        // No section heading in this document (song has no {c: …}
+        // directives — just lyrics + chords). Without this fallback the
+        // panel stayed `visibility: hidden` forever, so the user saw the
+        // toggle icon flip color but the panel appeared to do nothing.
+        // Pick a sensible default: anchor near the top-left of the main
+        // content area (past the sidebar if present) and mark measured.
+        const fallbackX = Math.max(margin, navRight + 20);
+        const finalX = Math.min(window.innerWidth - DEFAULT_WIDTH - margin, fallbackX + 20);
+        commit({ x: Math.max(margin, finalX), y: 120 }, { w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
         return;
       }
       // Gutter geometry with a small inset on each side so the panel
@@ -106,14 +159,11 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
       // the computed gutter position, clamped so it can't be pushed
       // off-screen on narrow windows.
       const finalX = Math.min(window.innerWidth - w - margin, x + 20);
-      setPos({ x: finalX, y });
-      setSize({ w, h: DEFAULT_HEIGHT });
-      setMeasured(true);
+      commit({ x: finalX, y }, { w, h: DEFAULT_HEIGHT });
     };
     measure();
     return () => { cancelled = true; };
   }, []);
-  const [size, setSize] = useState({ w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
   const dragRef = useRef<{ dx: number; dy: number; id: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +177,15 @@ export default function StickyNotePanel({ title, notes, onClose, onSave }: Props
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Persist whatever position/size the panel currently has into the cache,
+  // so a drag or resize survives close → reopen just like the initial
+  // measurement does. Only writes once measured (skips the fallback
+  // pre-measurement pos of {margin, 280} that we never want to lock in).
+  useEffect(() => {
+    if (!positionKey || !measured) return;
+    positionCache.set(positionKey, { pos, size });
+  }, [positionKey, measured, pos.x, pos.y, size.w, size.h]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;

@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Star, ListMusic, Trash2, X, Download } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Star, ListMusic, Trash2, X, Download, Columns3 } from 'lucide-react';
 import { useSongStore, useSetListStore } from '@song-chords/shared';
 import type { Song } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
 import ConfirmDialog from '../common/ConfirmDialog';
 import SetListPickerModal from './SetListPickerModal';
 import SongExportModal from './SongExportModal';
+import SongListColumnsPopover from './SongListColumnsPopover';
 
 interface Props {
   /** Songs currently selected. */
@@ -27,6 +28,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
   const [showPicker, setShowPicker] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showColumns, setShowColumns] = useState(false);
+  const columnsBtnRef = useRef<HTMLButtonElement>(null);
 
   const isEmpty = selected.length === 0;
   const allFavorite = !isEmpty && selected.every((s) => s.favorite);
@@ -67,6 +70,7 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
 
   return (
     <>
+      <div className="flex items-center">
       <div
         className="flex items-center gap-2 px-3 py-1"
         style={{
@@ -133,6 +137,28 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
           </button>
         </div>
       </div>
+
+      {/* Columns editor — configures the table, not the selection, so it's
+          always enabled and lives outside the dimmed selection cluster. */}
+      <button
+        ref={columnsBtnRef}
+        onClick={() => setShowColumns((v) => !v)}
+        className={iconBtn}
+        title="Show / hide and reorder columns"
+        aria-label="Columns"
+        aria-expanded={showColumns}
+        style={{ background: showColumns ? 'var(--surface-elevated)' : undefined }}
+      >
+        <Columns3 size={16} style={{ color: 'var(--text-secondary)' }} />
+      </button>
+      </div>
+
+      {showColumns && (
+        <SongListColumnsPopover
+          anchorRef={columnsBtnRef}
+          onClose={() => setShowColumns(false)}
+        />
+      )}
 
       {showExport && (
         <SongExportModal

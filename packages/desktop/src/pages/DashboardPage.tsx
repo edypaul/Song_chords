@@ -1,17 +1,52 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Music, User, Tag, Star, Hash, Globe2, Calendar, ListMusic, Play, Eye, Pencil } from 'lucide-react';
-import type { Song } from '@song-chords/shared';
-import { useSongStore, useSetListStore, SetListRepository } from '@song-chords/shared';
+import { Music, User, Tag, Star, Hash, Globe2, Calendar, ListMusic, Play, Eye, Pencil, SlidersHorizontal, RotateCcw } from 'lucide-react';
+import type { Song, DashboardCardKey } from '@song-chords/shared';
+import { useSongStore, useSetListStore, useSettingsStore, SetListRepository, DASHBOARD_CARDS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import { toTitleCase } from '../utils/text';
+
+/** Human label for each card key, used by the Customize popover. */
+const CARD_LABELS: Record<DashboardCardKey, string> = {
+  stats: 'Top stats (count tiles)',
+  favorites: 'Favorite songs',
+  setlists: 'Your set lists',
+  recentlyViewed: 'Recently viewed',
+  recentlyEdited: 'Recently edited',
+  difficulty: 'Difficulty',
+  topKeys: 'Top keys',
+  topGenres: 'Top genres',
+  topArtists: 'Top artists',
+  languages: 'Languages',
+  decades: 'Songs by decade',
+  topTags: 'Popular tags',
+  recentlyAdded: 'Recently added',
+};
 
 const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
 
 export default function DashboardPage(): React.ReactElement {
   const songs = useSongStore((s) => s.songs);
   const setlists = useSetListStore((s) => s.setlists);
+  const dashboardCards = useSettingsStore((s) => s.settings.dashboardCards);
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const navigate = useNavigate();
+  // True when the card key is enabled. Defensive `?? true` so any
+  // legacy settings blob that lacks a key still shows the card.
+  const show = (k: DashboardCardKey): boolean => dashboardCards?.[k] ?? true;
+  const visibleCount = DASHBOARD_CARDS.filter(show).length;
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const customizeBtnRef = useRef<HTMLButtonElement>(null);
+
+  const toggleCard = (k: DashboardCardKey, on: boolean) => {
+    const next = { ...(dashboardCards ?? {}), [k]: on };
+    void updateSetting(db, 'dashboardCards', next as Record<DashboardCardKey, boolean>);
+  };
+  const resetCards = () => {
+    const all = Object.fromEntries(DASHBOARD_CARDS.map((k) => [k, true])) as Record<DashboardCardKey, boolean>;
+    void updateSetting(db, 'dashboardCards', all);
+  };
 
   // Song counts per setlist — fetched separately because the store keeps
   // only setlist metadata, not entries (entries load on demand).
@@ -49,20 +84,58 @@ export default function DashboardPage(): React.ReactElement {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      <header className="px-6 py-4 border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          An at-a-glance look at your song library.
-        </p>
+      <header
+        className="px-6 py-4 border-b flex items-center gap-4"
+        style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+      >
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            An at-a-glance look at your song library.
+          </p>
+        </div>
+        <button
+          ref={customizeBtnRef}
+          onClick={() => setCustomizeOpen((v) => !v)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--surface-elevated)]"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: customizeOpen ? 'var(--surface-elevated)' : 'transparent' }}
+          aria-expanded={customizeOpen}
+          aria-label="Customize dashboard"
+          title="Customize which cards appear on this dashboard"
+        >
+          <SlidersHorizontal size={14} />
+          Customize
+        </button>
+        {customizeOpen && (
+          <CustomizePopover
+            anchorRef={customizeBtnRef}
+            dashboardCards={dashboardCards}
+            onToggle={toggleCard}
+            onReset={resetCards}
+            onClose={() => setCustomizeOpen(false)}
+          />
+        )}
       </header>
 
       {songs.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-10 text-sm" style={{ color: 'var(--text-muted)' }}>
           Add some songs to see statistics.
         </div>
+      ) : visibleCount === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-10 gap-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+          <p>All Dashboard cards are hidden.</p>
+          <button
+            onClick={resetCards}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[var(--surface-elevated)]"
+            style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+          >
+            <RotateCcw size={13} /> Show all cards
+          </button>
+        </div>
       ) : (
         <div className="p-6 grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
           {/* Top stat cards */}
+          {show('stats') && (
           <div className="col-span-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <StatCard icon={<Music size={18} />}     label="Total Songs"  value={stats.total.toString()}          onClick={() => navigate('/library')} />
             <StatCard icon={<Star size={18} />}      label="Favorites"    value={favorites.length.toString()}     onClick={() => navigate('/favorites')} />
@@ -71,8 +144,10 @@ export default function DashboardPage(): React.ReactElement {
             <StatCard icon={<Tag size={18} />}       label="Tags"         value={stats.uniqueTags.toString()}     onClick={() => navigate('/categories/tags')} />
             <StatCard icon={<ListMusic size={18} />} label="Set Lists"    value={setlists.length.toString()}      onClick={() => navigate('/setlists')} />
           </div>
+          )}
 
           {/* Favorites and set lists — prominent side-by-side cards */}
+          {show('favorites') && (
           <Card
             title="Favorite Songs"
             icon={<Star size={16} />}
@@ -115,7 +190,9 @@ export default function DashboardPage(): React.ReactElement {
               </ul>
             )}
           </Card>
+          )}
 
+          {show('setlists') && (
           <Card title="Your Set Lists" icon={<ListMusic size={16} />}>
             {setlists.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -175,7 +252,9 @@ export default function DashboardPage(): React.ReactElement {
               </>
             )}
           </Card>
+          )}
 
+          {show('recentlyViewed') && (
           <Card title="Recently Viewed" icon={<Eye size={16} />}>
             {recentlyViewed.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -202,7 +281,9 @@ export default function DashboardPage(): React.ReactElement {
               </ul>
             )}
           </Card>
+          )}
 
+          {show('recentlyEdited') && (
           <Card title="Recently Edited" icon={<Pencil size={16} />}>
             {recentlyEdited.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -229,7 +310,9 @@ export default function DashboardPage(): React.ReactElement {
               </ul>
             )}
           </Card>
+          )}
 
+          {show('difficulty') && (
           <BarCard
             title="Difficulty"
             icon={<Star size={16} />}
@@ -237,7 +320,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/difficulty/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/difficulty/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('topKeys') && (
           <BarCard
             title="Top Keys"
             icon={<Hash size={16} />}
@@ -245,7 +330,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/key/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/key/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('topGenres') && (
           <BarCard
             title="Top Genres"
             icon={<Music size={16} />}
@@ -253,7 +340,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/genre/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/genre/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('topArtists') && (
           <BarCard
             title="Top Artists"
             icon={<User size={16} />}
@@ -261,7 +350,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/artist/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/artist/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('languages') && (
           <BarCard
             title="Languages"
             icon={<Globe2 size={16} />}
@@ -269,7 +360,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/language/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/language/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('decades') && (
           <BarCard
             title="Songs by Decade"
             icon={<Calendar size={16} />}
@@ -277,7 +370,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/decade/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/decade/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('topTags') && (
           <BarCard
             title="Popular Tags"
             icon={<Tag size={16} />}
@@ -285,7 +380,9 @@ export default function DashboardPage(): React.ReactElement {
             onItemClick={(v) => navigate(`/categories/tags/${encodeURIComponent(v)}`)}
             onItemPerform={(v) => navigate(`/categories/tags/${encodeURIComponent(v)}/perform`)}
           />
+          )}
 
+          {show('recentlyAdded') && (
           <Card title="Recently Added" icon={<Calendar size={16} />}>
             {stats.recent.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No recent songs.</p>
@@ -308,9 +405,126 @@ export default function DashboardPage(): React.ReactElement {
               </ul>
             )}
           </Card>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Customize popover ─────────────────────────────────────────────────────
+
+/**
+ * Popover anchored to the Dashboard header's "Customize" button. Lists every
+ * card key with a checkbox; toggling persists immediately via updateSetting.
+ * Closes on outside-click or Escape. Portaled into document.body so the
+ * header's overflow / sticky styles don't clip it.
+ */
+function CustomizePopover({
+  anchorRef, dashboardCards, onToggle, onReset, onClose,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement>;
+  dashboardCards: Record<DashboardCardKey, boolean>;
+  onToggle: (k: DashboardCardKey, on: boolean) => void;
+  onReset: () => void;
+  onClose: () => void;
+}): React.ReactElement | null {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+
+  // Anchor under the button, right-aligned. Re-place on resize/scroll while
+  // the popover is open so it stays glued to the trigger.
+  useEffect(() => {
+    const place = () => {
+      const btn = anchorRef.current;
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (ref.current?.contains(t)) return;
+      if (anchorRef.current?.contains(t)) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [onClose, anchorRef]);
+
+  if (!pos) return null;
+  const enabledCount = DASHBOARD_CARDS.filter((k) => dashboardCards?.[k] ?? true).length;
+  return createPortal(
+    <div
+      ref={ref}
+      className="fixed rounded-lg shadow-2xl py-2"
+      style={{
+        top: pos.top,
+        right: pos.right,
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        width: 260,
+        maxHeight: '70vh',
+        overflowY: 'auto',
+        zIndex: 1000,
+      }}
+      role="dialog"
+      aria-label="Customize dashboard cards"
+    >
+      <div className="px-3 pb-1.5 flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
+          Dashboard cards
+        </span>
+        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          {enabledCount} / {DASHBOARD_CARDS.length}
+        </span>
+      </div>
+      <div className="px-1">
+        {DASHBOARD_CARDS.map((k) => {
+          const on = dashboardCards?.[k] ?? true;
+          return (
+            <label
+              key={k}
+              className="flex items-center gap-2.5 px-2 py-1.5 rounded cursor-pointer hover:bg-[var(--surface-elevated)]"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={(e) => onToggle(k, e.target.checked)}
+                style={{ accentColor: 'var(--accent)' }}
+              />
+              <span className="text-xs flex-1 truncate">{CARD_LABELS[k]}</span>
+            </label>
+          );
+        })}
+      </div>
+      <div className="border-t mt-1 pt-1 px-1" style={{ borderColor: 'var(--border)' }}>
+        <button
+          onClick={onReset}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-[var(--surface-elevated)]"
+          style={{ color: 'var(--text-secondary)' }}
+        >
+          <RotateCcw size={12} />
+          Show all cards
+        </button>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

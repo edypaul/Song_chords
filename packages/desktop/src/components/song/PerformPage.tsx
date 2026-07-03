@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, MoreVertical, Edit2, Star, ListMusic, Download } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download } from 'lucide-react';
 import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore } from '@song-chords/shared';
 import SongExportModal from './SongExportModal';
 import SetListPickerModal from './SetListPickerModal';
@@ -42,6 +41,14 @@ export interface PerformItem {
     key?: string;
     tempo?: number;
     timeSig?: string;
+    /** Per-entry preference overrides. Fall through to the song's
+     *  own preference (or the app's global setting) when unset —
+     *  same rule as SongViewPage's setlist-context load path. */
+    viewMode?: 'chords' | 'lyrics-only' | 'chords-only';
+    autoScrollMode?: 'duration' | 'speed';
+    tempoMultiplier?: 0.5 | 1 | 2;
+    chordBarVisible?: boolean;
+    inlineChordDiagrams?: boolean;
   };
   noteTitle?: string;
   noteBody?: string;
@@ -54,15 +61,35 @@ interface PerformPageProps {
   icon?: React.ReactNode;
   /** Ordered list of items to perform. */
   items: PerformItem[];
-  /** Persist transpose/capo changes for a specific song item. Called on every
-   *  distinct change — caller is responsible for debouncing/deduping if needed. */
-  onOverridesChange?: (itemId: string, overrides: { transpose: number; capo: number }) => void;
+  /** Persist per-entry override changes for a specific song item. Any
+   *  subset of the entry's setlist-scoped settings may be passed —
+   *  transpose, capo, tempo multiplier, chord-bar visibility, or
+   *  inline-chord-diagrams. Called on every distinct change; caller
+   *  debounces / deduplicates if needed. */
+  onOverridesChange?: (
+    itemId: string,
+    overrides: Partial<{
+      transpose: number;
+      capo: number;
+      tempoMultiplier: 0.5 | 1 | 2;
+      chordBarVisible: boolean;
+      inlineChordDiagrams: boolean;
+    }>,
+  ) => void;
   /** Rendered instead of the normal UI when `items` is empty. */
   emptyState?: React.ReactNode;
+  /** Destination for the top-left close (X) button and the Escape key. When
+   *  provided, exiting the perform view routes to this URL directly instead
+   *  of walking browser history back — so Edit → Perform → close always
+   *  lands on the same place regardless of how the user arrived. When
+   *  omitted, falls back to `navigate(-1)` (browser back). */
+  exitTo?: string;
 }
 
-export default function PerformPage({ title, icon, items, onOverridesChange, emptyState }: PerformPageProps): React.ReactElement {
+export default function PerformPage({ title, icon, items, onOverridesChange, emptyState, exitTo }: PerformPageProps): React.ReactElement {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const updateSongInStore = useSongStore((s) => s.updateSong);
 
   const loadSong = usePlayerStore((s) => s.loadSong);
@@ -72,18 +99,11 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const viewMode = usePlayerStore((s) => s.viewMode);
   const setViewMode = usePlayerStore((s) => s.setViewMode);
 
-  // Half/double-time applies only to the metronome, not the stored song
-  // tempo. Reset when switching songs so the new song starts at 1×.
-  const [tempoMultiplier, setTempoMultiplier] = useState<0.5 | 1 | 2>(1);
-  const baseTempo = activeSong?.tempo ?? 120;
-  const metronome = useMetronome(Math.round(baseTempo * tempoMultiplier), activeSong?.timeSig ?? '4/4');
-  useEffect(() => { setTempoMultiplier(1); }, [activeSong?.id]);
-
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const perfZoom = useSettingsStore((s) => s.settings.perfZoom ?? 1);
   const chordBarPosition = useSettingsStore((s) => s.settings.chordBarPosition ?? 'top');
-  const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  const globalInlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   // Merged chord-variation map (per-song overrides win over the global
   // default for this instrument). See useEffectiveChordVariations.
@@ -91,27 +111,97 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const showChordDiagrams = useSettingsStore((s) => s.settings.showChordDiagrams ?? true);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
 
-  const [chordBarVisible, setChordBarVisible] = useState(showChordDiagrams);
-  useEffect(() => { setChordBarVisible(showChordDiagrams); }, [showChordDiagrams]);
-  useEffect(() => {
-    if (viewMode === 'lyrics-only') {
-      if (chordBarVisible) setChordBarVisible(false);
-      if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
-    }
-  }, [viewMode]);
-
   const scrollRef = useRef<HTMLDivElement>(null);
   useAutoScroll(scrollRef as React.RefObject<HTMLElement>);
 
-  const [activeIndex, setActiveIndex] = useState(0);
+  // Initial index comes from the URL's `?item=<n>` query param so a fresh
+  // mount (e.g. returning here after Edit) lands on the same song the user
+  // was on. Falls back to 0 when the param is absent or invalid. Clamped
+  // against `items.length` in the effect below.
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const raw = searchParams.get('item');
+    const n = raw ? parseInt(raw, 10) : 0;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  });
   // Clamp in case the items list shrinks.
   useEffect(() => {
     if (activeIndex > items.length - 1) setActiveIndex(Math.max(0, items.length - 1));
   }, [items.length, activeIndex]);
+  // Keep the `?item=<n>` param in sync with activeIndex so the current
+  // position survives navigation away and back (e.g. via the Edit button's
+  // `?return=<url>`). Uses `replace: true` so paging through songs doesn't
+  // pollute browser history.
+  useEffect(() => {
+    const raw = searchParams.get('item');
+    const current = raw ? parseInt(raw, 10) : 0;
+    if (current === activeIndex) return;
+    const next = new URLSearchParams(searchParams);
+    if (activeIndex === 0) next.delete('item');
+    else next.set('item', String(activeIndex));
+    setSearchParams(next, { replace: true });
+  }, [activeIndex, searchParams, setSearchParams]);
 
   const total = items.length;
   const currentItem = items[activeIndex];
   const isNoteActive = currentItem?.type === 'note';
+
+  // Current item's per-entry overrides — resolved once per render so the
+  // three setlist-scoped settings (time feel / chord bar / inline
+  // diagrams) can be read off it consistently. Populated by the setlist
+  // player page (see PerformItem.overrides).
+  const currentOverrides = currentItem?.overrides;
+  // Effective values: entry override wins, otherwise fall through to the
+  // app-wide setting or local component state (out-of-setlist context).
+  const inlineDiagrams = currentOverrides?.inlineChordDiagrams ?? globalInlineDiagrams;
+
+  // Half/double-time applies only to the metronome, not the stored song
+  // tempo. In setlist context the entry's saved multiplier wins on load
+  // and any change persists to the entry; otherwise reset to 1× when
+  // the user navigates to a different song.
+  const [tempoMultiplierLocal, setTempoMultiplierLocal] = useState<0.5 | 1 | 2>(1);
+  const tempoMultiplier: 0.5 | 1 | 2 = currentOverrides?.tempoMultiplier ?? tempoMultiplierLocal;
+  const setTempoMultiplier = (next: 0.5 | 1 | 2) => {
+    if (onOverridesChange && currentOverrides !== undefined && currentItem) {
+      // Reuse the same callback that persists transpose / capo — the
+      // parent (SetListPlayerPage) routes it to the entry.
+      onOverridesChange(currentItem.id, { tempoMultiplier: next });
+    }
+    setTempoMultiplierLocal(next);
+  };
+  useEffect(() => { setTempoMultiplierLocal(1); }, [activeSong?.id]);
+  const baseTempo = activeSong?.tempo ?? 120;
+  const metronome = useMetronome(Math.round(baseTempo * tempoMultiplier), activeSong?.timeSig ?? '4/4');
+
+  // Chord-bar visibility. Entry override wins in setlist context.
+  const [chordBarVisibleLocal, setChordBarVisibleLocal] = useState(showChordDiagrams);
+  const chordBarVisible = currentOverrides?.chordBarVisible ?? chordBarVisibleLocal;
+  const setChordBarVisible: React.Dispatch<React.SetStateAction<boolean>> = (next) => {
+    const resolved = typeof next === 'function'
+      ? (next as (prev: boolean) => boolean)(chordBarVisible)
+      : next;
+    if (onOverridesChange && currentOverrides !== undefined && currentItem) {
+      onOverridesChange(currentItem.id, { chordBarVisible: resolved });
+    }
+    setChordBarVisibleLocal(resolved);
+  };
+  useEffect(() => { setChordBarVisibleLocal(showChordDiagrams); }, [showChordDiagrams]);
+
+  /** Toggle inline chord diagrams. Routes to the entry when in setlist
+   *  context (so this setlist can differ from the global default);
+   *  otherwise flips the app-wide setting. */
+  const setInlineDiagrams = (next: boolean) => {
+    if (onOverridesChange && currentOverrides !== undefined && currentItem) {
+      onOverridesChange(currentItem.id, { inlineChordDiagrams: next });
+      return;
+    }
+    void updateSetting(db, 'inlineChordDiagrams', next);
+  };
+  useEffect(() => {
+    if (viewMode === 'lyrics-only') {
+      if (chordBarVisible) setChordBarVisible(false);
+      if (inlineDiagrams) setInlineDiagrams(false);
+    }
+  }, [viewMode]);
 
   // Slide direction for the content wrapper.
   const [navDirection, setNavDirection] = useState<'next' | 'prev'>('next');
@@ -150,19 +240,23 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
   const [showSongNotes, setShowSongNotes] = useState(false);
 
-  // Three-dots "more" menu — mirrors SongViewPage 1:1 so the two
-  // surfaces have the same options (style preset, favorite, set-list,
-  // export, notes, cast, edit song). Less-used actions live here so
-  // the live-performance toolbar stays uncluttered.
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [moreMenuPos, setMoreMenuPos] = useState<{ top: number; right: number } | null>(null);
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
   // Chord clicked in the song body / diagram bar — opens the shared
   // chord diagram modal (same as the standard song view).
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
+
+  // Collapse the whole perform toolbar to give the song content more
+  // vertical room. When hidden, a slim "show toolbar" tab replaces it so
+  // the controls are always one click away. Mirrors the SongViewPage
+  // toolbar toggle 1:1 so the two surfaces behave the same.
+  const [toolbarHidden, setToolbarHidden] = useState(false);
+  // Toolbar visibility is INDEPENDENT of auto-scroll. The dedicated
+  // `toggleToolbar` shortcut (default `T`), the collapse chevron in the
+  // bar, and the "Show toolbar" tab are the only three things that ever
+  // move `toolbarHidden`. Pressing Space to start auto-scroll used to
+  // also hide the toolbar as a side effect, which surprised users — the
+  // two features are now fully decoupled.
 
   // The perform page runs in native fullscreen. Closing the chord
   // modal with Escape makes the browser drop fullscreen (a
@@ -181,34 +275,6 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   // light vs dark builtin presets the same way SongViewPage does.
   const effectiveTheme: 'dark' | 'light' = (typeof document !== 'undefined'
     && document.documentElement.getAttribute('data-theme') === 'dark') ? 'dark' : 'light';
-  useLayoutEffect(() => {
-    if (!moreMenuOpen) return;
-    const place = () => {
-      const btn = moreMenuTriggerRef.current;
-      if (!btn) return;
-      const r = btn.getBoundingClientRect();
-      setMoreMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
-    };
-  }, [moreMenuOpen]);
-  useEffect(() => {
-    if (!moreMenuOpen) return;
-    const onClick = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (moreMenuRef.current && moreMenuRef.current.contains(t)) return;
-      if (moreMenuTriggerRef.current && moreMenuTriggerRef.current.contains(t)) return;
-      if ((t as HTMLElement).closest?.('[data-cast-popover]')) return;
-      setMoreMenuOpen(false);
-    };
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
-  }, [moreMenuOpen]);
 
   // Shortcut handlers — transpose/capo mutate the player store, which in
   // turn fires the overrides-changed subscription to persist them onto the
@@ -218,7 +284,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
       // Piano can't render inline; ignore the shortcut so the setting
       // doesn't silently flip on with no visible effect.
       if (instrument === 'piano') return;
-      void updateSetting(db, 'inlineChordDiagrams', !inlineDiagrams);
+      setInlineDiagrams(!inlineDiagrams);
     },
     toggleChordBar:       () => setChordBarVisible((v) => !v),
     toggleLyricsOnly:     () => setViewMode(viewMode === 'lyrics-only' ? 'chords' : 'lyrics-only'),
@@ -243,6 +309,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
       else document.documentElement.requestFullscreen?.().catch(() => {});
     },
+    toggleToolbar:        () => setToolbarHidden((v) => !v),
     nextSong:             () => goNext(),
     prevSong:             () => goPrev(),
     zoomIn:               () => void updateSetting(db, 'perfZoom', Math.min((perfZoom ?? 1) + 0.1, 3)),
@@ -250,19 +317,36 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     zoomReset:            () => void updateSetting(db, 'perfZoom', 1),
     onCapo:               (fret) => usePlayerStore.getState().setCapo(fret),
   });
-  // Auto-open the sticky note only for SONG entries that have notes. When
-  // the current entry is a standalone text note (type 'note'), the sticky
-  // stays hidden — the note's own content is already the main view.
+  // Auto-open the sticky note only when the SONG genuinely CHANGES (i.e.
+  // the user navigated to a different entry in the set list). Once the
+  // user has manually toggled the panel for the current song, nothing in
+  // this component may override that choice until they navigate away.
+  //
+  // Implementation: track the last id we auto-opened for in a ref. The
+  // effect runs on every render but ONLY calls setShowSongNotes when the
+  // id it sees differs from the last one it acted on. That means:
+  //   - Manual toggle click → deps unchanged, id unchanged → effect body
+  //     runs but early-returns, so `showSongNotes` is untouched.
+  //   - Song navigation → id differs from lastId → effect updates state.
+  // The earlier `useEffect(..., [dep])` approach was fragile because any
+  // spurious dep churn (a `null → same-value` blip during a store update,
+  // or a ref-identity change bubbling through Zustand) could re-run the
+  // effect and clobber the manual toggle.
+  const lastAutoOpenedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const isSong = currentItem?.type === 'song';
+    const id = isSong ? (activeSong?.id ?? null) : (currentItem?.id ?? null);
+    if (lastAutoOpenedIdRef.current === id) return;
+    lastAutoOpenedIdRef.current = id;
     setShowSongNotes(isSong && !!activeSong?.notes && activeSong.notes.trim().length > 0);
-  }, [currentItem?.id, currentItem?.type, activeSong?.id, activeSong?.notes]);
+  });
 
   // Load the current song (merging its overrides) when the index changes.
   useEffect(() => {
     if (!currentItem || currentItem.type !== 'song' || !currentItem.song) return;
     const s = currentItem.song;
     const o = currentItem.overrides;
+    const songPrefs = s.preferences ?? {};
     const merged = o ? {
       ...s,
       key: o.key ?? s.key,
@@ -270,12 +354,17 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
       timeSig: o.timeSig ?? s.timeSig,
       capo: o.capo,
       preferences: {
-        ...(s.preferences ?? {}),
+        ...songPrefs,
         transposeSteps: o.transpose,
+        // Per-entry preferences overlay the song's when set; otherwise
+        // fall through so existing entries keep inheriting the song's
+        // choice until the user changes them in setlist context.
+        viewMode: o.viewMode ?? songPrefs.viewMode,
+        autoScrollMode: o.autoScrollMode ?? songPrefs.autoScrollMode,
       },
     } : s;
     loadSong(merged);
-  }, [currentItem?.id, currentItem?.overrides?.transpose, currentItem?.overrides?.capo]);
+  }, [currentItem?.id, currentItem?.overrides?.transpose, currentItem?.overrides?.capo, currentItem?.overrides?.viewMode, currentItem?.overrides?.autoScrollMode]);
 
   // Persist transpose/capo edits via the provided callback. The value check
   // prevents redundant writes triggered by loadSong syncing player state to
@@ -299,19 +388,27 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   // prevSong away from the arrow keys. The configurable nextSong /
   // prevSong bindings (default ArrowRight / ArrowLeft) are dispatched
   // via useKeyboardShortcuts above.
+  // Exit the perform view. Callers can pin the destination via `exitTo` so
+  // that history side-effects (like a round-trip through the Edit page)
+  // don't send the user somewhere unexpected. Without it, walk history.
+  const exitPerform = useCallback(() => {
+    if (exitTo) navigate(exitTo);
+    else navigate(-1);
+  }, [navigate, exitTo]);
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
       const editable = (e.target as HTMLElement | null)?.isContentEditable;
       const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!editable;
       if (inInput) return;
-      if (e.key === 'Escape') navigate(-1);
+      if (e.key === 'Escape') exitPerform();
       if (e.key === 'PageDown') goNext();
       if (e.key === 'PageUp')   goPrev();
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [navigate, goNext, goPrev]);
+  }, [exitPerform, goNext, goPrev]);
 
   // Fullscreen on mount.
   useEffect(() => {
@@ -325,16 +422,51 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4" style={{ background: 'var(--bg)', color: 'var(--text-muted)', zIndex: 100 }}>
         {emptyState ?? <p>Nothing to perform.</p>}
-        <button onClick={() => navigate(-1)} className="px-4 py-2 rounded-lg" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)' }}>Back</button>
+        <button onClick={exitPerform} className="px-4 py-2 rounded-lg" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)' }}>Back</button>
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: 'var(--bg)', zIndex: 100 }}>
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b shrink-0 flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-        <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]">
+      {/* Slim strip to bring the toolbar back when it's hidden.
+          Rendered ONLY when the toolbar is hidden — no grid-rows
+          collapse animation, no layered pointer-events tricks, no
+          overlap with the toolbar's DOM. When present, it's a plain
+          22px-tall bar with a centred button as the ONLY click
+          target. When absent, nothing in this region is interactive
+          — the toolbar row below takes its place. */}
+      {toolbarHidden && (
+        <div
+          className="shrink-0 flex items-center justify-center border-b"
+          style={{
+            height: 22,
+            borderColor: 'var(--border)',
+            background: 'var(--bg-secondary)',
+          }}
+        >
+          <button
+            onClick={() => setToolbarHidden(false)}
+            className="flex items-center justify-center gap-1.5 text-xs rounded-md px-3 py-0.5 hover:bg-[var(--surface-elevated)] transition-colors"
+            style={{ color: 'var(--text-muted)', cursor: 'pointer' }}
+            title="Show toolbar"
+            aria-label="Show toolbar"
+          >
+            <ChevronDown size={14} />
+            <span>Show toolbar</span>
+          </button>
+        </div>
+      )}
+      {/* Top bar — mounted only when the toolbar is showing. The
+          show-tab above handles the hidden state; conditionally
+          rendering both keeps the DOM small and eliminates the layered
+          pointer-events / visibility tricks that were previously
+          needed to stop the collapsed toolbar's descendants from
+          eating clicks intended for the show-tab. */}
+      {!toolbarHidden && (
+      <div className="shrink-0"><div>
+      <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+        <button onClick={exitPerform} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]">
           <X size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
 
@@ -349,13 +481,126 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           {activeIndex + 1} / {total}
         </span>
 
-        <div className="flex gap-1 mx-2">
-          <button onClick={goPrev} disabled={activeIndex === 0} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] disabled:opacity-30">
-            <ChevronLeft size={16} />
+        {/* Compact three-dot navigator: ‹ o O o › — previous / current /
+            next only. Sits immediately after the "n / total" counter so
+            the position indicators (numeric + visual) are grouped, with
+            the textual "Next: <title>" preview tucked to the right of
+            the dots so both position cues live in one cluster.
+            Encoding:
+              • SHAPE = item type — circle for songs, square for
+                performance notes.
+              • COLOUR = item type — accent hue for songs, an amber
+                secondary hue for notes, so a glance disambiguates.
+              • SIZE = position — the middle dot is enlarged so the
+                current item is unmistakable next to prev/next.
+            The chevron arrows step through items one at a time. */}
+        <div className="flex gap-4 items-center">
+          <button
+            onClick={goPrev}
+            disabled={activeIndex === 0}
+            className="rounded-full transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent flex items-center justify-center"
+            style={{
+              width: 22,
+              height: 22,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
+            title="Previous"
+            aria-label="Previous item"
+          >
+            <ChevronLeft size={14} />
           </button>
-          <button onClick={goNext} disabled={activeIndex >= total - 1} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] disabled:opacity-30">
-            <ChevronRight size={16} />
+          <div className="flex gap-2 items-center">
+            {[
+              { item: items[activeIndex - 1], role: 'prev' as const, idx: activeIndex - 1 },
+              { item: items[activeIndex],     role: 'current' as const, idx: activeIndex },
+              { item: items[activeIndex + 1], role: 'next' as const, idx: activeIndex + 1 },
+            ].map(({ item: it, role, idx }) => {
+              // Reserve space even when the slot is empty (start / end of
+              // list) so the strip's width doesn't jump as the user
+              // navigates. A hidden placeholder keeps the layout stable.
+              if (!it) {
+                return <span key={role} style={{ width: 12, height: 12 }} aria-hidden="true" />;
+              }
+              const isCurrent = role === 'current';
+              const isNote = it.type === 'note';
+              // Hover tooltip — follow the style preset's title case
+              // rule so the label matches how song titles appear
+              // everywhere else in the app.
+              const rawTip = isNote
+                ? (it.noteTitle?.trim() || 'Note')
+                : (it.song?.title ?? 'Song');
+              const tip = svs.titleUppercase ? rawTip.toUpperCase() : toTitleCase(rawTip);
+              const activeColor = isNote ? '#f59e0b' : 'var(--accent)';
+              const dim = isCurrent ? 12 : 8;
+              const commonStyle: React.CSSProperties = {
+                width: dim,
+                height: dim,
+                background: isCurrent ? activeColor : 'transparent',
+                borderRadius: isNote ? 3 : 999,
+                border: `1.5px solid ${activeColor}`,
+                opacity: isCurrent ? 1 : 0.55,
+                padding: 0,
+                flexShrink: 0,
+              };
+              return (
+                <button
+                  key={role}
+                  onClick={() => setActiveIndex(idx)}
+                  className="transition-all"
+                  style={commonStyle}
+                  title={tip}
+                  aria-current={isCurrent ? 'true' : undefined}
+                  aria-label={`${role === 'prev' ? 'Previous' : role === 'next' ? 'Next' : 'Current'}: ${tip}`}
+                />
+              );
+            })}
+          </div>
+          <button
+            onClick={goNext}
+            disabled={activeIndex >= total - 1}
+            className="rounded-full transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-25 disabled:cursor-not-allowed disabled:hover:bg-transparent flex items-center justify-center"
+            style={{
+              width: 22,
+              height: 22,
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+            }}
+            title="Next"
+            aria-label="Next item"
+          >
+            <ChevronRight size={14} />
           </button>
+
+          {/* Textual next-item hint — same cluster as the dots so both
+              cues live together, right of the arrows. */}
+          {(() => {
+            const nextItem = items[activeIndex + 1];
+            if (!nextItem) {
+              const raw = 'Last song — end of set list';
+              return (
+                <span
+                  className="text-xs italic"
+                  style={{ color: 'var(--text-muted)', textTransform: svs.titleUppercase ? 'uppercase' : undefined }}
+                >
+                  {svs.titleUppercase ? raw : toTitleCase(raw)}
+                </span>
+              );
+            }
+            const label = nextItem.type === 'note'
+              ? (nextItem.noteTitle?.trim() || 'Note')
+              : (nextItem.song ? (svs.titleUppercase ? nextItem.song.title : toTitleCase(nextItem.song.title)) : '');
+            return (
+              <span
+                className="text-xs truncate max-w-xs"
+                style={{ color: 'var(--text-muted)', textTransform: svs.titleUppercase ? 'uppercase' : undefined }}
+              >
+                Next: <strong style={{ color: 'var(--text-secondary)' }}>{label}</strong>
+              </span>
+            );
+          })()}
         </div>
 
         {/* Song-only controls — dimmed & non-interactive when a note is active. */}
@@ -400,20 +645,20 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               if (lyricsOnly) { setViewMode('chords'); return; }
               setViewMode('lyrics-only');
               if (chordBarVisible) setChordBarVisible(false);
-              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+              if (inlineDiagrams) setInlineDiagrams(false);
             };
             const activateChordBar = () => {
               if (chordBarOn) { setChordBarVisible(false); return; }
               if (lyricsOnly) setViewMode('chords');
-              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+              if (inlineDiagrams) setInlineDiagrams(false);
               setChordBarVisible(true);
             };
             const activateInline = () => {
               if (isPiano) return;
-              if (inlineOn) { void updateSetting(db, 'inlineChordDiagrams', false); return; }
+              if (inlineOn) { setInlineDiagrams(false); return; }
               if (lyricsOnly) setViewMode('chords');
               if (chordBarVisible) setChordBarVisible(false);
-              if (!inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', true);
+              if (!inlineDiagrams) setInlineDiagrams(true);
             };
             const btnStyle = (active: boolean, faded: boolean) => ({
               background: active ? 'var(--accent)' : 'var(--surface-elevated)',
@@ -478,204 +723,128 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           </button>
         )}
 
-        {/* Three-dots "more" menu — same pattern as SongViewPage. The
-            style preset, song-notes toggle, cast, and edit-song actions
-            live here so the live toolbar stays minimal. Portaled to
-            <body> so the toolbar's overflow doesn't clip the dropdown. */}
+        {/* ── Actions formerly hidden in the three-dots menu, now inline
+             icon buttons on the main bar. Each button is a direct sibling
+             of the toolbar's flex-wrap row so they overflow onto a second
+             line naturally when horizontal space runs out. Only the Style
+             preset stays as a compact <select> (a preset list can't be
+             icon-only). ── */}
+
+        {/* Add to set list */}
         {activeSong && !isNoteActive && (
-          <>
-            <button
-              ref={moreMenuTriggerRef}
-              onClick={() => setMoreMenuOpen((v) => !v)}
-              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-              style={{ background: moreMenuOpen ? 'var(--surface-elevated)' : undefined }}
-              title="More options"
-              aria-label="More options"
-              aria-expanded={moreMenuOpen}
-            >
-              <MoreVertical size={16} style={{ color: 'var(--text-secondary)' }} />
-            </button>
-            {moreMenuOpen && moreMenuPos && createPortal(
-              (
-                <div
-                  ref={moreMenuRef}
-                  className="rounded-lg shadow-2xl py-1"
-                  style={{
-                    position: 'fixed',
-                    top: moreMenuPos.top,
-                    right: moreMenuPos.right,
-                    background: 'var(--surface)',
-                    border: '1px solid var(--border)',
-                    minWidth: 220,
-                    zIndex: 1000,
-                  }}
-                >
-                  {/* Style preset selector — mirrors SongViewPage's
-                      menu entry; lets performers swap presets on the
-                      fly during a set without leaving Perform mode. */}
-                  <div className="px-3 py-2">
-                    <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-                      Style preset
-                    </label>
-                    <select
-                      value={svs.preset}
-                      onChange={(e) => {
-                        const key = e.target.value;
-                        const builtin = SONG_STYLE_PRESETS[key];
-                        if (builtin) { void updateSetting(db, 'songViewStyle', { ...builtin.style }); return; }
-                        const custom = customPresets[key];
-                        if (custom) { void updateSetting(db, 'songViewStyle', { ...custom.style }); return; }
-                      }}
-                      className="w-full text-xs rounded px-2 py-1.5"
-                      style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-                    >
-                      <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
-                        {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
-                          <option key={k} value={k}>{p.name}</option>
-                        ))}
-                      </optgroup>
-                      {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
-                        <optgroup label="My Presets">
-                          {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
-                            <option key={k} value={k}>{p.name}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {svs.preset === 'custom' && <option value="custom">Custom</option>}
-                    </select>
-                  </div>
-
-                  <div className="my-1 border-t" style={{ borderColor: 'var(--border)' }} />
-
-                  <PerfMenuItem
-                    icon={<ListMusic size={14} style={{ color: 'var(--text-secondary)' }} />}
-                    label="Add to set list"
-                    onClick={() => { setShowSetListPicker(true); setMoreMenuOpen(false); }}
-                  />
-                  <PerfMenuItem
-                    icon={<Download size={14} style={{ color: 'var(--text-secondary)' }} />}
-                    label="Export song"
-                    onClick={() => { setShowExport(true); setMoreMenuOpen(false); }}
-                  />
-                  {(() => {
-                    // Always show the row; disable when the active
-                    // song has no notes. Keeps the menu shape stable
-                    // as the user navigates a set list across songs
-                    // with / without notes.
-                    const hasNotes = !!activeSong.notes && activeSong.notes.trim().length > 0;
-                    return (
-                      <PerfMenuItem
-                        icon={<StickyNote size={14} style={{ color: hasNotes ? 'var(--accent)' : 'var(--text-muted)' }} />}
-                        label={showSongNotes && hasNotes ? 'Hide song notes' : 'Show song notes'}
-                        disabled={!hasNotes}
-                        disabledTitle="This song has no notes"
-                        onClick={() => { setShowSongNotes((v) => !v); setMoreMenuOpen(false); }}
-                      />
-                    );
-                  })()}
-
-                  {/* Cast — same icon-row treatment as SongViewPage's
-                      menu. CastQuickButton's popover portals to body
-                      and is excluded from the menu's outside-click
-                      handler via the data-cast-popover marker. */}
-                  <div
-                    className="perform-cast-row flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[var(--surface-elevated)] transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      const target = e.target as HTMLElement;
-                      if (target.closest('button[title="Cast"]')) return;
-                      const btn = e.currentTarget.querySelector('button[title="Cast"]') as HTMLButtonElement | null;
-                      btn?.click();
-                    }}
-                  >
-                    <span className="shrink-0 flex items-center justify-center" style={{ width: 16 }}>
-                      <CastQuickButton />
-                    </span>
-                    <span className="flex-1" style={{ color: 'var(--text-primary)' }}>
-                      Cast to receiver
-                    </span>
-                  </div>
-                  <style>{`
-                    .perform-cast-row button[title="Cast"] {
-                      padding: 0 !important;
-                      border-radius: 0 !important;
-                      background: transparent !important;
-                    }
-                  `}</style>
-
-                  <PerfMenuItem
-                    icon={<Edit2 size={14} style={{ color: 'var(--text-secondary)' }} />}
-                    label="Edit song"
-                    onClick={() => { setMoreMenuOpen(false); navigate(`/song/${activeSong.id}/edit`); }}
-                  />
-                </div>
-              ),
-              document.body,
-            )}
-          </>
+          <button
+            onClick={() => setShowSetListPicker(true)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title="Add to set list"
+            aria-label="Add to set list"
+          >
+            <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
+          </button>
         )}
 
-        {/* Next-item hint + indicator dots — stacked so dots sit below. */}
-        <div className="ml-auto flex flex-col items-start gap-1">
-          {(() => {
-            const nextItem = items[activeIndex + 1];
-            if (!nextItem) {
-              const raw = 'Last song — end of set list';
-              return (
-                <span
-                  className="text-xs italic"
-                  style={{ color: 'var(--text-muted)', textTransform: svs.titleUppercase ? 'uppercase' : undefined }}
-                >
-                  {svs.titleUppercase ? raw : toTitleCase(raw)}
-                </span>
-              );
-            }
-            const label = nextItem.type === 'note'
-              ? (nextItem.noteTitle?.trim() || 'Note')
-              : (nextItem.song ? (svs.titleUppercase ? nextItem.song.title : toTitleCase(nextItem.song.title)) : '');
-            return (
-              <span
-                className="text-xs truncate max-w-xs"
-                style={{ color: 'var(--text-muted)', textTransform: svs.titleUppercase ? 'uppercase' : undefined }}
-              >
-                Next: <strong style={{ color: 'var(--text-secondary)' }}>{label}</strong>
-              </span>
-            );
-          })()}
-          <div className="flex gap-1 items-center">
-            {items.map((it, i) => {
-              const active = i === activeIndex;
-              const isNote = it.type === 'note';
-              const tip = isNote
-                ? (it.noteTitle?.trim() || 'Note')
-                : (it.song?.title ?? 'Song');
-              if (isNote) {
-                return (
-                  <button
-                    key={it.id}
-                    onClick={() => setActiveIndex(i)}
-                    className="w-2 h-2 transition-colors"
-                    style={{
-                      background: active ? 'var(--accent)' : 'transparent',
-                      border: `1px solid ${active ? 'var(--accent)' : 'var(--text-muted)'}`,
-                      borderRadius: 2,
-                    }}
-                    title={tip}
-                  />
-                );
-              }
-              return (
-                <button
-                  key={it.id}
-                  onClick={() => setActiveIndex(i)}
-                  className="w-2 h-2 rounded-full transition-colors"
-                  style={{ background: active ? 'var(--accent)' : 'var(--border)' }}
-                  title={tip}
-                />
-              );
-            })}
-          </div>
-        </div>
+        {/* Export song */}
+        {activeSong && !isNoteActive && (
+          <button
+            onClick={() => setShowExport(true)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title="Export song"
+            aria-label="Export song"
+          >
+            <Download size={16} style={{ color: 'var(--text-secondary)' }} />
+          </button>
+        )}
+
+        {/* Song notes toggle — disabled when the active song has no notes.
+             Kept rendered (rather than hidden) so the bar shape stays
+             stable as the user pages through a set list. */}
+        {activeSong && !isNoteActive && (() => {
+          const hasNotes = !!activeSong.notes && activeSong.notes.trim().length > 0;
+          return (
+            <button
+              onClick={() => { if (hasNotes) setShowSongNotes((v) => !v); }}
+              disabled={!hasNotes}
+              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+              style={{ opacity: hasNotes ? 1 : 0.4, cursor: hasNotes ? 'pointer' : 'not-allowed' }}
+              title={hasNotes ? (showSongNotes ? 'Hide song notes' : 'Show song notes') : 'This song has no notes'}
+              aria-label="Toggle song notes"
+            >
+              <StickyNote size={16} style={{ color: hasNotes && showSongNotes ? 'var(--accent)' : 'var(--text-secondary)' }} />
+            </button>
+          );
+        })()}
+
+        {/* Cast — reuses the existing CastQuickButton, which already
+             renders as its own p-2 icon button (title="Cast"). */}
+        {activeSong && !isNoteActive && <CastQuickButton />}
+
+        {/* Edit song — pass the current perform URL (with its `?item=<n>`
+             query, kept in sync above) as `?return=<url>` so SongEditPage's
+             back-arrow brings the user back to the SAME song in perform
+             mode, not to activeIndex 0. */}
+        {activeSong && !isNoteActive && (
+          <button
+            onClick={() => {
+              const back = encodeURIComponent(location.pathname + location.search);
+              navigate(`/song/${activeSong.id}/edit?return=${back}`);
+            }}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title="Edit song"
+            aria-label="Edit song"
+          >
+            <Edit2 size={16} style={{ color: 'var(--text-secondary)' }} />
+          </button>
+        )}
+
+        {/* Style preset — compact <select>. It's the one non-icon control,
+             capped in width so it never eats a whole row on wrap. */}
+        {activeSong && !isNoteActive && (
+          <select
+            value={svs.preset}
+            onChange={(e) => {
+              const key = e.target.value;
+              const builtin = SONG_STYLE_PRESETS[key];
+              if (builtin) { void updateSetting(db, 'songViewStyle', { ...builtin.style }); return; }
+              const custom = customPresets[key];
+              if (custom) { void updateSetting(db, 'songViewStyle', { ...custom.style }); return; }
+            }}
+            className="text-xs rounded px-1.5 py-1 max-w-[9rem]"
+            style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+            title="Style preset"
+            aria-label="Style preset"
+          >
+            <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
+              {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
+                <option key={k} value={k}>{p.name}</option>
+              ))}
+            </optgroup>
+            {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
+              <optgroup label="My Presets">
+                {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
+                  <option key={k} value={k}>{p.name}</option>
+                ))}
+              </optgroup>
+            )}
+            {svs.preset === 'custom' && <option value="custom">Custom</option>}
+          </select>
+        )}
+
+        {/* Collapse the toolbar — sits at the end of the left cluster
+            (immediately after the last option) so the affordance is
+            grouped with the tools it controls rather than pinned to the
+            far right. A slim "Show toolbar" tab takes the bar's place. */}
+        <button
+          onClick={() => setToolbarHidden(true)}
+          className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+          title="Hide toolbar"
+          aria-label="Hide toolbar"
+        >
+          <ChevronUp size={16} style={{ color: 'var(--text-secondary)' }} />
+        </button>
+
       </div>
+       </div>
+      </div>
+      )}
 
       {/* Chord bar — top */}
       {chordBarVisible && chordBarPosition === 'top' && displayedSong && !isNoteActive && (
@@ -776,6 +945,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
         <StickyNotePanel
           title={activeSong.title}
           notes={activeSong.notes ?? ''}
+          // One shared position for every song in perform mode: the
+          // first song's note anchors the spot, every later song's
+          // note reuses it. If we keyed by song id, each song would
+          // measure independently and land in a slightly different
+          // place depending on how the DOM had shifted.
+          positionKey="perform"
           onClose={() => setShowSongNotes(false)}
           onSave={async (next) => {
             await updateSongInStore(db, activeSong.id, { notes: next });
@@ -849,32 +1024,3 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   );
 }
 
-/** Row inside PerformPage's three-dots menu — leading icon + label.
- *  Mirrors the MoreMenuItem in SongViewPage so the two surfaces feel
- *  consistent. */
-function PerfMenuItem({ icon, label, onClick, disabled, disabledTitle }: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  disabledTitle?: string;
-}): React.ReactElement {
-  return (
-    <button
-      onClick={() => { if (!disabled) onClick(); }}
-      disabled={disabled}
-      title={disabled ? disabledTitle : undefined}
-      className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors"
-      style={{
-        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-        opacity: disabled ? 0.5 : 1,
-        cursor: disabled ? 'not-allowed' : 'pointer',
-      }}
-      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'var(--surface-elevated)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-    >
-      <span className="shrink-0 flex items-center justify-center" style={{ width: 16 }}>{icon}</span>
-      <span className="flex-1 truncate">{label}</span>
-    </button>
-  );
-}

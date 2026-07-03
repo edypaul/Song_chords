@@ -465,6 +465,13 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
   const durationSec = parseDurationToSeconds(song.duration);
   const autoScrollSpeed = settings.autoScrollSpeed ?? 40;
   const autoScrollPxPerSec = (autoScrollSpeed / 100) * 120;
+  // Seed the receiver's initial auto-scroll mode from the song's saved
+  // preference, mirroring the desktop's player-store rule: honour the
+  // stored value, else default to 'duration' when the song has a
+  // duration, else 'speed'. The receiver toolbar exposes a mode chooser
+  // so the audience-side viewer can switch even when we auto-picked.
+  const initialAutoScrollMode: 'duration' | 'speed' =
+    song.preferences?.autoScrollMode ?? (durationSec !== null ? 'duration' : 'speed');
   const toolbar = buildReceiverToolbar({
     themeBg,
     themeFg,
@@ -472,6 +479,7 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
     themeAccent,
     durationSec,
     autoScrollPxPerSec,
+    initialMode: initialAutoScrollMode,
   });
 
   // Inject the toolbar element and its driving JS right before
@@ -513,10 +521,14 @@ interface ReceiverToolbarOpts {
   themeFg: string;
   themeMuted: string;
   themeAccent: string;
-  /** Total seconds to scroll the whole body over, or null to use px/s. */
+  /** Total seconds to scroll the whole body over. When null the song
+   *  has no duration set: Duration mode is disabled in the mode chooser
+   *  and the receiver falls back to Speed mode. */
   durationSec: number | null;
-  /** Fallback px/sec when no song duration is set. */
+  /** Fallback px/sec when Speed mode is active. */
   autoScrollPxPerSec: number;
+  /** Mode the receiver should start in. */
+  initialMode: 'duration' | 'speed';
 }
 
 /**
@@ -536,7 +548,13 @@ interface ReceiverToolbarOpts {
  * adding pxPerSec * dt to the current scrollY each frame.
  */
 function buildReceiverToolbar(opts: ReceiverToolbarOpts): string {
-  const { themeBg, themeFg, themeMuted, themeAccent, durationSec, autoScrollPxPerSec } = opts;
+  const { themeBg, themeFg, themeMuted, themeAccent, durationSec, autoScrollPxPerSec, initialMode } = opts;
+  // Duration mode can only work when we actually have a duration; if the
+  // receiver was seeded with 'duration' but durationSec is null (song has
+  // none), silently fall back to 'speed' so the initial paint is coherent
+  // with what the audience will actually see when they hit play.
+  const effectiveInitialMode: 'duration' | 'speed' = initialMode === 'duration' && durationSec === null ? 'speed' : initialMode;
+  const hasDuration = durationSec !== null;
   // Inline styles + a small CSS block; everything is scoped under
   // .cast-toolbar so it can't collide with the song body's styles.
   const styles = `
@@ -640,6 +658,53 @@ function buildReceiverToolbar(opts: ReceiverToolbarOpts): string {
   color: ${themeMuted};
   margin-bottom: 6px;
 }
+/* Mode chooser (Duration vs Speed) row inside the popover — same
+   segmented-button look as the desktop AutoScrollControl. */
+.cast-toolbar .speed-popover .mode-row {
+  display: flex;
+  border: 1px solid ${themeFg}33;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.cast-toolbar .speed-popover .mode-row button {
+  flex: 1;
+  background: transparent;
+  color: ${themeMuted};
+  border: 0;
+  padding: 6px 8px;
+  border-radius: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+  font-weight: 600;
+}
+.cast-toolbar .speed-popover .mode-row button + button {
+  border-left: 1px solid ${themeFg}22;
+}
+.cast-toolbar .speed-popover .mode-row button.active {
+  background: ${themeAccent};
+  color: #fff;
+}
+.cast-toolbar .speed-popover .mode-row button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cast-toolbar .speed-popover .duration-hint {
+  color: ${themeMuted};
+  font-size: 0.85em;
+  line-height: 1.35;
+}
+/* Reserve enough height so switching between the slider (Speed) and the
+   one-line hint (Duration) doesn't resize the popover and make it jump. */
+.cast-toolbar .speed-popover .mode-body {
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.cast-toolbar .speed-popover [data-body="speed"][hidden],
+.cast-toolbar .speed-popover [data-body="duration"][hidden] { display: none; }
 .cast-toolbar .speed-popover .speed-row {
   display: flex;
   align-items: center;
@@ -703,26 +768,39 @@ function buildReceiverToolbar(opts: ReceiverToolbarOpts): string {
    lyric line when the user scrolls all the way down. */
 body { padding-bottom: 88px; }
 `;
-  // Speed control only makes sense when the song has no duration —
-  // with a duration we pace the scroll to match song length, so a
-  // manual speed control would fight against it. We bundle the
-  // toggle-scroll button + a chevron that opens a small popover with
-  // the slider inside, so the toolbar stays compact and the slider
-  // doesn't sit visible on the bar at all times.
-  const scrollClusterHtml = durationSec === null
-    ? `<div class="scroll-cluster" data-has-speed="true">
+  // The chevron next to the scroll button always opens a popover with a
+  // mode chooser (Duration vs Speed) — matching the desktop's
+  // AutoScrollControl. Duration is disabled when the song has none. The
+  // popover body swaps between a duration hint and the speed slider
+  // depending on which mode is active.
+  const speedInitialValue = Math.round((autoScrollPxPerSec / 120) * 100);
+  const durationHintHtml = hasDuration
+    ? `Covers the song in the song's duration.`
+    : `This song has no duration set — Speed mode is used.`;
+  const scrollClusterHtml = `<div class="scroll-cluster" data-has-speed="true">
     <button class="scroll-btn" data-action="toggle-scroll" aria-label="Auto-scroll" title="Auto-scroll"><span class="icon">▶</span> <span class="label">Auto</span></button>
-    <button class="speed-toggle" data-action="toggle-speed" aria-label="Auto-scroll speed" title="Auto-scroll speed" aria-expanded="false">▾</button>
-    <div class="speed-popover" role="dialog" aria-label="Auto-scroll speed" hidden>
-      <span class="speed-label">Speed</span>
-      <div class="speed-row">
-        <span class="speed-icon" aria-hidden="true">🐢</span>
-        <input type="range" min="1" max="100" value="${Math.round((autoScrollPxPerSec / 120) * 100)}" aria-label="Auto-scroll speed" />
-        <span class="speed-icon" aria-hidden="true">🐇</span>
+    <button class="speed-toggle" data-action="toggle-speed" aria-label="Auto-scroll options" title="Auto-scroll options" aria-expanded="false">▾</button>
+    <div class="speed-popover" role="dialog" aria-label="Auto-scroll options" hidden>
+      <span class="speed-label">Auto-scroll mode</span>
+      <div class="mode-row" role="tablist">
+        <button data-mode="duration"${effectiveInitialMode === 'duration' ? ' class="active"' : ''}${hasDuration ? '' : ' disabled'} title="Pace by the song duration">Duration</button>
+        <button data-mode="speed"${effectiveInitialMode === 'speed' ? ' class="active"' : ''} title="Pace by the manual speed slider">Speed</button>
+      </div>
+      <div class="mode-body">
+        <div data-body="duration"${effectiveInitialMode === 'duration' ? '' : ' hidden'}>
+          <span class="duration-hint">${durationHintHtml}</span>
+        </div>
+        <div data-body="speed"${effectiveInitialMode === 'speed' ? '' : ' hidden'}>
+          <span class="speed-label">Speed</span>
+          <div class="speed-row">
+            <span class="speed-icon" aria-hidden="true">🐢</span>
+            <input type="range" min="1" max="100" value="${speedInitialValue}" aria-label="Auto-scroll speed" />
+            <span class="speed-icon" aria-hidden="true">🐇</span>
+          </div>
+        </div>
       </div>
     </div>
-  </div>`
-    : `<button class="scroll-btn" data-action="toggle-scroll" aria-label="Auto-scroll" title="Auto-scroll"><span class="icon">▶</span> <span class="label">Auto</span></button>`;
+  </div>`;
   const html = `<div class="cast-toolbar" aria-label="Cast controls">
   <div class="pill" role="tablist" aria-label="View mode">
     <button data-view="lyrics" class="active" aria-label="Lyrics only">Lyrics</button>
@@ -764,11 +842,16 @@ body { padding-bottom: 88px; }
   var lastSetY = 0;
   var durationSec = ${durationSec === null ? 'null' : String(durationSec)};
   var fallbackPxPerSec = ${autoScrollPxPerSec.toFixed(3)};
-  // Speed slider — only present when durationSec is null. Lives
-  // inside the .speed-popover, which is hidden by default and toggled
-  // by the chevron next to the scroll button. Maps 1..100 to
-  // ~1.2..120 px/s so the slider's low end is "barely moving" and the
-  // high end is "fast read".
+  // Current auto-scroll pacing mode. The mode chooser inside the
+  // popover switches this between 'duration' and 'speed'. Duration
+  // mode is only meaningful when durationSec > 0; the desktop bakes
+  // the initial value with that check applied, but we defend against
+  // stale HTML by falling back to speed if duration is missing.
+  var mode = ${JSON.stringify(effectiveInitialMode)};
+  if (mode === 'duration' && !(durationSec && durationSec > 0)) mode = 'speed';
+  // Speed slider lives inside the .speed-popover. Maps 1..100 to
+  // ~1.2..120 px/s so the low end is "barely moving" and the high end
+  // is "fast read".
   var speedSlider = document.querySelector('.cast-toolbar .speed-popover input[type="range"]');
   if (speedSlider) {
     speedSlider.addEventListener('input', function () {
@@ -776,7 +859,36 @@ body { padding-bottom: 88px; }
       fallbackPxPerSec = (v / 100) * 120;
     });
   }
-  // Chevron toggle for the speed popover. Closes on outside-click so
+  // Mode chooser — segmented buttons at the top of the popover. Wire
+  // each button to update the active class, swap the popover body
+  // (duration hint ↔ speed slider), and update the pacing variable.
+  var modeBtns = document.querySelectorAll('.cast-toolbar .speed-popover .mode-row button');
+  var bodyDuration = document.querySelector('.cast-toolbar .speed-popover [data-body="duration"]');
+  var bodySpeed = document.querySelector('.cast-toolbar .speed-popover [data-body="speed"]');
+  function applyMode(next) {
+    // Guard: 'duration' only when we actually have a duration.
+    if (next === 'duration' && !(durationSec && durationSec > 0)) return;
+    mode = next;
+    modeBtns.forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-mode') === mode);
+    });
+    if (bodyDuration && bodySpeed) {
+      if (mode === 'duration') {
+        bodyDuration.removeAttribute('hidden');
+        bodySpeed.setAttribute('hidden', '');
+      } else {
+        bodySpeed.removeAttribute('hidden');
+        bodyDuration.setAttribute('hidden', '');
+      }
+    }
+  }
+  modeBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.hasAttribute('disabled')) return;
+      applyMode(btn.getAttribute('data-mode'));
+    });
+  });
+  // Chevron toggle for the options popover. Closes on outside-click so
   // the user can dismiss it without aiming at the chevron again.
   var speedToggle = document.querySelector('.cast-toolbar .speed-toggle');
   var speedPopover = document.querySelector('.cast-toolbar .speed-popover');
@@ -804,7 +916,9 @@ body { padding-bottom: 88px; }
     return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
   }
   function pxPerSec() {
-    if (durationSec && durationSec > 0) {
+    // Honour the user's explicit mode choice: only fall back to speed
+    // when duration mode has no viable duration.
+    if (mode === 'duration' && durationSec && durationSec > 0) {
       var m = maxScroll();
       if (m > 0) return m / durationSec;
     }

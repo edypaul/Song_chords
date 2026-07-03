@@ -29,6 +29,28 @@ export interface SetListEntry {
   tempo?: number;
   timeSig?: string;
   notes?: string;
+  /** Per-entry preferences. When undefined, the field falls back to the
+   *  underlying song's preference / global setting — so existing
+   *  entries keep working without a bulk migration. First time the
+   *  user changes the setting while viewing / performing the entry,
+   *  we start storing it here.
+   *
+   *  Scope: transpose, capo, view mode, auto-scroll mode, tempo
+   *  multiplier ("time feel"), chord-bar visibility, and inline chord
+   *  diagram visibility are the setlist-controllable settings. Chord
+   *  voicings, style preset, font size, and other display prefs stay
+   *  song / global scoped. */
+  viewMode?: 'chords' | 'lyrics-only' | 'chords-only';
+  autoScrollMode?: 'duration' | 'speed';
+  /** Metronome tempo multiplier ("time feel") — 0.5 = half-time,
+   *  1 = normal, 2 = double-time. Only these three values are valid. */
+  tempoMultiplier?: 0.5 | 1 | 2;
+  /** Whether the chord-diagram bar is visible for this entry.
+   *  Overrides the app-wide `showChordDiagrams` setting. */
+  chordBarVisible?: boolean;
+  /** Whether inline chord diagrams are rendered above chords in the
+   *  lyrics for this entry. Overrides `inlineChordDiagrams`. */
+  inlineChordDiagrams?: boolean;
 }
 
 export interface SetListWithSongs extends SetList {

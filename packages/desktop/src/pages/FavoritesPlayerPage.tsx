@@ -39,6 +39,7 @@ export default function FavoritesPlayerPage(): React.ReactElement {
       title="Favorites"
       icon={<Star size={14} style={{ color: 'var(--accent)' }} fill="currentColor" />}
       items={items}
+      exitTo="/favorites"
       onOverridesChange={(songId, { transpose, capo }) => {
         void updateFavoriteEntry(db, songId, { transpose, capo });
       }}

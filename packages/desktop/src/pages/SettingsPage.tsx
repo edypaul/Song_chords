@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, DEFAULT_SHORTCUTS, SONG_LIST_COLUMNS } from '@song-chords/shared';
+import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, DEFAULT_SHORTCUTS, DEFAULT_SETTINGS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
-import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, SongListColumn, KeyboardShortcuts, ShortcutAction } from '@song-chords/shared';
+import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, KeyboardShortcuts, ShortcutAction } from '@song-chords/shared';
+import SongListColumnsEditor from '../components/song/SongListColumnsEditor';
 import ShortcutRecorder from '../components/common/ShortcutRecorder';
 import { Download, Upload, Trash2, Palette, Music as MusicIcon, Layout, Keyboard, Database, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -424,25 +425,21 @@ export default function SettingsPage(): React.ReactElement {
       {showCat('display') && (<Section title="Song List Columns">
         <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-            Columns to show in the Songs, Categories, and Favorites lists. Title is always shown.
+            Columns to show in the Songs, Categories, and Favorites lists. Drag to reorder, uncheck to hide. Title is always shown.
           </p>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
-            {SONG_LIST_COLUMNS.map((col) => {
-              const current = settings.songListColumns ?? {
-                artist: true, genre: true, key: true, difficulty: true, tempo: true, year: true, language: true, chordsCount: true, createdAt: true,
-              };
-              const checked = current[col] ?? true;
-              return (
-                <div key={col} className="flex items-center justify-between gap-3 py-1">
-                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{COLUMN_LABEL[col]}</span>
-                  <Toggle
-                    checked={checked}
-                    onChange={(v) => set('songListColumns', { ...current, [col]: v } as AppSettings['songListColumns'])}
-                  />
-                </div>
-              );
+          <SongListColumnsEditor
+            visible={settings.songListColumns ?? DEFAULT_SETTINGS.songListColumns}
+            order={settings.songListColumnOrder ?? DEFAULT_SETTINGS.songListColumnOrder}
+            onToggle={(col, on) => set('songListColumns', {
+              ...(settings.songListColumns ?? DEFAULT_SETTINGS.songListColumns),
+              [col]: on,
             })}
-          </div>
+            onReorder={(next) => set('songListColumnOrder', next)}
+            onReset={() => {
+              set('songListColumns', { ...DEFAULT_SETTINGS.songListColumns });
+              set('songListColumnOrder', [...DEFAULT_SETTINGS.songListColumnOrder]);
+            }}
+          />
         </div>
       </Section>)}
 
@@ -646,6 +643,7 @@ const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   zoomOut:              'Zoom out',
   zoomReset:            'Reset zoom',
   openSearch:           'Open global search',
+  toggleToolbar:        'Show / hide the toolbar',
 };
 
 interface ShortcutGroup {
@@ -664,7 +662,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'View & Display',
     hint: 'Active in the Song view and Perform pages.',
-    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen'],
+    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen', 'toggleToolbar'],
   },
   {
     title: 'Playback',
@@ -808,18 +806,6 @@ function KeyboardShortcutsEditor({
   );
 }
 
-const COLUMN_LABEL: Record<SongListColumn, string> = {
-  artist: 'Artist',
-  genre: 'Genre',
-  key: 'Key',
-  difficulty: 'Difficulty',
-  tempo: 'Tempo',
-  duration: 'Duration',
-  year: 'Year',
-  language: 'Language',
-  chordsCount: 'Chords',
-  createdAt: 'Added',
-};
 
 function DeleteCheck({
   checked, onChange, label, hint,

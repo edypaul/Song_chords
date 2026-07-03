@@ -42,5 +42,10 @@ export default function CategoryPlayerPage(): React.ReactElement {
 
   const title = `${category ? toTitleCase(category) : ''}${decoded ? `: ${toTitleCase(decoded)}` : ''}`;
 
-  return <PerformPage title={title} items={items} />;
+  // Return to the category list rather than history-back so a
+  // Perform → Edit → Perform round-trip doesn't leave the close X
+  // pointing at the Edit page.
+  const exitTo = category ? `/categories/${category}` : '/categories';
+
+  return <PerformPage title={title} items={items} exitTo={exitTo} />;
 }

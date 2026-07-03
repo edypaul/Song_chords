@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Play, Pause, ChevronDown } from 'lucide-react';
-import { usePlayerStore, useSongStore } from '@song-chords/shared';
+import { usePlayerStore, useSongStore, useSetListStore } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
 
 /**
@@ -22,9 +23,29 @@ export default function AutoScrollControl(): React.ReactElement {
   const savePreferences = useSongStore((s) => s.savePreferences);
   const hasDuration = Boolean(activeSong?.duration);
 
-  // Persist the picked mode onto the active song's preferences.
+  // Detect whether we're viewing the song in a setlist-entry context:
+  // when so, mode changes must route to the entry's per-entry override
+  // instead of mutating the song's global preferences (which would
+  // leak across every setlist that also includes this song). Same
+  // detection the SongViewPage uses — reading the URL rather than
+  // threading context through props keeps this control drop-in.
+  const [searchParams] = useSearchParams();
+  const entryId = searchParams.get('entry');
+  const setlistEntry = useSetListStore((s) =>
+    entryId ? s.activeSetList?.entries.find((e) => e.id === entryId) : undefined,
+  );
+  const updateSetListEntry = useSetListStore((s) => s.updateEntry);
+
+  // Persist the picked mode. Where it lands depends on the context:
+  //   • In a setlist entry — save to the entry so this list can
+  //     pace differently from any other setlist containing the song.
+  //   • Otherwise — save onto the song's global preferences.
   const pickMode = (mode: 'duration' | 'speed') => {
     setScrollMode(mode, (prefs) => {
+      if (setlistEntry) {
+        void updateSetListEntry(db, setlistEntry.id, { autoScrollMode: mode });
+        return;
+      }
       if (activeSong?.id) void savePreferences(db, activeSong.id, prefs);
     });
   };

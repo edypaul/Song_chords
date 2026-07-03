@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { usePlayerStore, useSettingsStore } from '@song-chords/shared';
 import { buildCastHtml } from '../../utils/cast-html';
 import { useCastSyncStore } from '../../store/cast-sync-store';
+import { pickPlayerCastSlice, pickSettingsCastSlice, subscribeCastRelevant } from '../../utils/cast-triggers';
 
 /**
  * Persistent, app-level cast synchroniser. Mounted ONCE at the app root
@@ -74,8 +75,15 @@ export default function CastSync(): null {
     // song right away.
     void push();
 
-    const unsubPlayer = usePlayerStore.subscribe(() => void push());
-    const unsubSettings = useSettingsStore.subscribe(() => void push());
+    // Subscribe ONLY to fields that actually affect the cast payload
+    // (see cast-triggers.ts). Auto-scroll toggle/speed, view mode,
+    // fullscreen, inline-diagrams, chord-bar position, performance mode
+    // etc. are handled locally by the receiver — writing them here
+    // must NOT re-push, or the receiver's iframe would tear down and
+    // rebuild on every unrelated click, losing its scroll position and
+    // toggle state.
+    const unsubPlayer = subscribeCastRelevant(usePlayerStore, pickPlayerCastSlice, () => void push());
+    const unsubSettings = subscribeCastRelevant(useSettingsStore, pickSettingsCastSlice, () => void push());
     return () => {
       disposed = true;
       unsubPlayer();

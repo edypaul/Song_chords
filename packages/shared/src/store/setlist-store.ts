@@ -29,7 +29,7 @@ interface SetListStore {
   updateEntry: (
     db: IDatabase,
     entryId: string,
-    overrides: Partial<Pick<SetListEntry, 'transpose' | 'capo' | 'key' | 'tempo' | 'timeSig' | 'notes'>>,
+    overrides: Partial<Pick<SetListEntry, 'transpose' | 'capo' | 'key' | 'tempo' | 'timeSig' | 'notes' | 'viewMode' | 'autoScrollMode' | 'tempoMultiplier' | 'chordBarVisible' | 'inlineChordDiagrams'>>,
   ) => Promise<void>;
   nextSong: () => void;
   prevSong: () => void;

@@ -34,6 +34,11 @@ export default function SetListPlayerPage(): React.ReactElement {
           key: e.key,
           tempo: e.tempo,
           timeSig: e.timeSig,
+          viewMode: e.viewMode,
+          autoScrollMode: e.autoScrollMode,
+          tempoMultiplier: e.tempoMultiplier,
+          chordBarVisible: e.chordBarVisible,
+          inlineChordDiagrams: e.inlineChordDiagrams,
         },
       };
     });
@@ -51,8 +56,18 @@ export default function SetListPlayerPage(): React.ReactElement {
     <PerformPage
       title={activeSetList.name}
       items={items}
-      onOverridesChange={(entryId, { transpose, capo }) => {
-        void updateEntry(db, entryId, { transpose, capo });
+      // Close X and Escape route back to THIS setlist's detail page
+      // (its song list) rather than history-back. Otherwise a
+      // Setlist → Perform → Edit → Perform round-trip stacks the Edit
+      // page in history, and the close X sends the user to Edit
+      // instead of the setlist they were performing.
+      exitTo={`/setlists/${id}`}
+      onOverridesChange={(entryId, overrides) => {
+        // Forward whatever subset the PerformPage sent — transpose,
+        // capo, time-feel multiplier, chord-bar visibility, or
+        // inline-diagrams flag — into the entry so it persists
+        // independently of the underlying song.
+        void updateEntry(db, entryId, overrides);
       }}
     />
   );

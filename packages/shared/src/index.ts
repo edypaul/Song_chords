@@ -8,8 +8,8 @@ export type {
   ChordGridBeat, ChordGridBar, ChordGridRow, ChordGridToken,
 } from './types/parser.types';
 export type { ChordDiagram, InstrumentType } from './types/chord.types';
-export type { AppSettings, ThemeType, ViewMode, SongViewStyle, SectionStyle, CustomPreset, SongListColumn, KeyboardShortcuts, ShortcutAction } from './types/settings.types';
-export { SONG_LIST_COLUMNS } from './types/settings.types';
+export type { AppSettings, ThemeType, ViewMode, SongViewStyle, SectionStyle, CustomPreset, SongListColumn, DashboardCardKey, KeyboardShortcuts, ShortcutAction } from './types/settings.types';
+export { SONG_LIST_COLUMNS, DASHBOARD_CARDS } from './types/settings.types';
 
 // Constants
 export { SHARPS, FLATS, FLAT_KEYS, SHARP_KEYS, ALL_KEYS } from './constants/chord-names';

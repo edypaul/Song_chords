@@ -92,9 +92,21 @@ export default function SongViewPage(): React.ReactElement {
   const perfZoom = useSettingsStore((s) => s.settings.perfZoom ?? 1);
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const chordBarPosition = useSettingsStore((s) => s.settings.chordBarPosition ?? 'top');
-  const inlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  const globalInlineDiagrams = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  // Effective "inline chord diagrams" flag: the entry's per-entry
+  // override wins when in setlist context, otherwise the app-wide
+  // setting. Read everywhere the old `inlineDiagrams` was used so the
+  // rendering respects the entry.
+  const inlineDiagrams = setlistEntry?.inlineChordDiagrams ?? globalInlineDiagrams;
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  /** Toggle "inline chord diagrams". Routes to the entry in setlist
+   *  context, otherwise the app-wide setting — mirrors the
+   *  autoScrollMode + viewMode routing pattern. */
+  const setInlineDiagrams = (next: boolean) => {
+    if (setlistEntry) void updateEntry(db, setlistEntry.id, { inlineChordDiagrams: next });
+    else void updateSetting(db, 'inlineChordDiagrams', next);
+  };
   // Merged chord-variation map (per-song overrides win over the global
   // default for this instrument). Pass this to every renderer instead
   // of the raw per-song map so the Chord-Library "Set as default for
@@ -105,26 +117,62 @@ export default function SongViewPage(): React.ReactElement {
   const refreshDisplayed = usePlayerStore((s) => s.refreshDisplayed);
   useEffect(() => { refreshDisplayed(); }, [accidentalMode, refreshDisplayed]);
   const showChordDiagrams = useSettingsStore((s) => s.settings.showChordDiagrams ?? true);
-  const [chordBarVisible, setChordBarVisible] = useState(showChordDiagrams);
-  // Sync with the global default when the setting changes
-  useEffect(() => { setChordBarVisible(showChordDiagrams); }, [showChordDiagrams]);
+  // Chord-bar visibility. In setlist context, an entry-level override
+  // wins over the global default and any change writes to the entry.
+  // Outside setlist context, state is in-session only (matches the
+  // previous behavior — the toggle didn't persist to settings then
+  // either).
+  const [chordBarVisibleLocal, setChordBarVisibleLocal] = useState(
+    setlistEntry?.chordBarVisible ?? showChordDiagrams,
+  );
+  const chordBarVisible = setlistEntry?.chordBarVisible ?? chordBarVisibleLocal;
+  const setChordBarVisible: React.Dispatch<React.SetStateAction<boolean>> = (next) => {
+    const resolved = typeof next === 'function'
+      ? (next as (prev: boolean) => boolean)(chordBarVisible)
+      : next;
+    if (setlistEntry) {
+      void updateEntry(db, setlistEntry.id, { chordBarVisible: resolved });
+    } else {
+      setChordBarVisibleLocal(resolved);
+    }
+  };
+  // Sync with the global default when the setting changes AND when the
+  // active setlist entry's override changes — so navigating between
+  // songs / setlists reflects the right state.
+  useEffect(() => {
+    setChordBarVisibleLocal(setlistEntry?.chordBarVisible ?? showChordDiagrams);
+  }, [showChordDiagrams, setlistEntry?.id, setlistEntry?.chordBarVisible]);
   // Lyrics-only mode hides all chord diagrams: force the chord bar off and
   // clear the inline-diagrams setting when it's activated.
   useEffect(() => {
     if (viewMode === 'lyrics-only') {
       if (chordBarVisible) setChordBarVisible(false);
-      if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+      if (inlineDiagrams) setInlineDiagrams(false);
     }
   }, [viewMode]);
   // In-session performance-mode toggles (no longer persisted settings)
   const [perfMetroWanted, setPerfMetroWanted] = useState(true);
   const [perfScrollWanted, setPerfScrollWanted] = useState(true);
   // Half / double-time multiplier — applies to the metronome only,
-  // never the stored song tempo. Resets to 1× when the user opens a
-  // different song so the new song starts at its natural BPM. Mirrors
-  // the same control on the Perform page.
-  const [tempoMultiplier, setTempoMultiplier] = useState<0.5 | 1 | 2>(1);
-  useEffect(() => { setTempoMultiplier(1); }, [activeSong?.id]);
+  // never the stored song tempo. Outside setlist context it resets to
+  // 1× when the user opens a different song so the new song starts at
+  // its natural BPM. In setlist context the entry's saved multiplier
+  // wins on load and any change is persisted to the entry — mirrors
+  // the pattern used for viewMode / autoScrollMode.
+  const [tempoMultiplierLocal, setTempoMultiplierLocal] = useState<0.5 | 1 | 2>(
+    setlistEntry?.tempoMultiplier ?? 1,
+  );
+  const tempoMultiplier = setlistEntry?.tempoMultiplier ?? tempoMultiplierLocal;
+  const setTempoMultiplier = (next: 0.5 | 1 | 2) => {
+    if (setlistEntry) {
+      void updateEntry(db, setlistEntry.id, { tempoMultiplier: next });
+    } else {
+      setTempoMultiplierLocal(next);
+    }
+  };
+  useEffect(() => {
+    setTempoMultiplierLocal(setlistEntry?.tempoMultiplier ?? 1);
+  }, [activeSong?.id, setlistEntry?.id, setlistEntry?.tempoMultiplier]);
   const baseTempo = activeSong?.tempo ?? 120;
   const metronome = useMetronome(Math.round(baseTempo * tempoMultiplier), activeSong?.timeSig ?? '4/4');
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -148,21 +196,13 @@ export default function SongViewPage(): React.ReactElement {
   // room. When hidden, a slim "show toolbar" tab stays visible so the
   // user can always bring it back.
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  // Auto-scroll drives toolbar visibility: hide the toolbar while
-  // scrolling (maximise reading room) and reveal it when it stops — EXCEPT
-  // when it stopped because it reached the bottom. Revealing the toolbar
-  // there would grow the layout and bump the page up off the end; keeping
-  // it hidden leaves the page parked at the bottom. The user can still
-  // toggle it manually at any time.
-  const autoScrollHitBottom = usePlayerStore((s) => s.autoScrollHitBottom);
-  useEffect(() => {
-    if (autoScrollActive) {
-      setToolbarHidden(true);
-    } else if (!autoScrollHitBottom) {
-      setToolbarHidden(false);
-    }
-    // When autoScrollHitBottom is true on stop, leave the toolbar hidden.
-  }, [autoScrollActive, autoScrollHitBottom]);
+  // Toolbar visibility is INDEPENDENT of auto-scroll. Earlier versions
+  // auto-hid the toolbar when auto-scroll started (and auto-showed it on
+  // stop), which surprised users because pressing Space (the auto-scroll
+  // shortcut) appeared to also toggle the toolbar. The toolbar now has its
+  // own dedicated `toggleToolbar` shortcut (default `T`), and the collapse
+  // chevron / "Show toolbar" tab are the only two things that ever move
+  // `toolbarHidden`.
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 
@@ -174,7 +214,7 @@ export default function SongViewPage(): React.ReactElement {
       // Piano can't render inline; ignore the shortcut so the setting
       // doesn't silently flip on with no visible effect.
       if (instrument === 'piano') return;
-      void updateSetting(db, 'inlineChordDiagrams', !inlineDiagrams);
+      setInlineDiagrams(!inlineDiagrams);
     },
     toggleChordBar:       () => setChordBarVisible((v) => !v),
     toggleLyricsOnly:     () => setViewMode(viewMode === 'lyrics-only' ? 'chords' : 'lyrics-only'),
@@ -198,6 +238,7 @@ export default function SongViewPage(): React.ReactElement {
     },
     addToSetList:         () => setShowSetListPicker(true),
     toggleFullscreen:     () => { if (performanceMode) exitPerformance(); else enterFullscreen(); },
+    toggleToolbar:        () => setToolbarHidden((v) => !v),
     zoomIn:               () => setZoomLevel((z) => Math.min(z + 0.1, 3)),
     zoomOut:              () => setZoomLevel((z) => Math.max(z - 0.1, 0.5)),
     zoomReset:            () => setZoomLevel(1),
@@ -319,8 +360,18 @@ export default function SongViewPage(): React.ReactElement {
     if (!songFromStore) return;
     if (setlistEntry) {
       // In setlist-entry context, load the song with the entry's saved
-      // overrides applied so transpose/capo/key/etc. reflect the setlist state
-      // without mutating the song itself.
+      // overrides applied so transpose/capo/key/viewMode/autoScrollMode
+      // all reflect the setlist state without mutating the song
+      // itself. Per-entry overrides fall back to the song's own
+      // preference when unset, so existing entries that predate the
+      // per-entry preference columns keep inheriting from the song
+      // until the user changes something in setlist context — matching
+      // the "no bulk snapshot" migration choice. `chordVariations` and
+      // other per-song display preferences remain song-scoped by
+      // design; only the setlist-controllable settings (transpose,
+      // capo, view mode, auto-scroll mode, time-feel, chord-bar
+      // visibility, inline diagrams) override on the entry. */
+      const songPrefs = songFromStore.preferences ?? {};
       loadSong({
         ...songFromStore,
         key: setlistEntry.key ?? songFromStore.key,
@@ -328,8 +379,10 @@ export default function SongViewPage(): React.ReactElement {
         timeSig: setlistEntry.timeSig ?? songFromStore.timeSig,
         capo: setlistEntry.capo,
         preferences: {
-          ...(songFromStore.preferences ?? {}),
+          ...songPrefs,
           transposeSteps: setlistEntry.transpose,
+          viewMode: setlistEntry.viewMode ?? songPrefs.viewMode,
+          autoScrollMode: setlistEntry.autoScrollMode ?? songPrefs.autoScrollMode,
         },
       });
     } else if (inFavoriteContext && favoriteEntry) {
@@ -485,21 +538,20 @@ export default function SongViewPage(): React.ReactElement {
     if (prefSaveTimer.current) clearTimeout(prefSaveTimer.current);
     prefSaveTimer.current = setTimeout(() => {
       if (inEntryContext && setlistEntry) {
-        // Only write if the new value actually differs from what's saved on
-        // the entry — avoids redundant writes right after loadSong syncs the
-        // player state to the entry.
-        const needsEntryWrite =
-          (tChanged && setlistEntry.transpose !== transposeSteps)
-          || (cChanged && setlistEntry.capo !== capo);
-        if (needsEntryWrite) {
-          void updateEntry(db, setlistEntry.id, { transpose: transposeSteps, capo });
-        }
-        // viewMode is a per-song display preference — still save it to the
-        // song so user's "lyrics only" toggle etc. stick across contexts.
-        if (vChanged) {
-          const latestSong = useSongStore.getState().songs.find((s) => s.id === activeSong.id);
-          const existing = latestSong?.preferences ?? {};
-          savePreferences(db, activeSong.id, { ...existing, viewMode });
+        // Every user-facing change in setlist context routes to the
+        // entry, never to the underlying song. This lets the same
+        // song appear in multiple setlists with independent
+        // transpose / capo / view-mode settings — which is the whole
+        // point of the per-entry preference columns.
+        const patch: Partial<Pick<
+          typeof setlistEntry,
+          'transpose' | 'capo' | 'viewMode'
+        >> = {};
+        if (tChanged && setlistEntry.transpose !== transposeSteps) patch.transpose = transposeSteps;
+        if (cChanged && setlistEntry.capo !== capo) patch.capo = capo;
+        if (vChanged && setlistEntry.viewMode !== viewMode) patch.viewMode = viewMode;
+        if (Object.keys(patch).length > 0) {
+          void updateEntry(db, setlistEntry.id, patch);
         }
       } else if (inFavoriteContext && favoriteEntry) {
         const needsFavWrite =
@@ -910,24 +962,24 @@ export default function SongViewPage(): React.ReactElement {
               if (lyricsOnly) { setViewMode('chords'); return; }
               setViewMode('lyrics-only');
               if (chordBarVisible) setChordBarVisible(false);
-              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+              if (inlineDiagrams) setInlineDiagrams(false);
             };
             const activateChordBar = () => {
               // Toggle off when already active; otherwise activate and
               // clear the other two modes.
               if (chordBarOn) { setChordBarVisible(false); return; }
               if (lyricsOnly) setViewMode('chords');
-              if (inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', false);
+              if (inlineDiagrams) setInlineDiagrams(false);
               setChordBarVisible(true);
             };
             const activateInline = () => {
               if (isPiano) return;
               // Toggle off when already active; otherwise activate and
               // clear the other two modes.
-              if (inlineOn) { void updateSetting(db, 'inlineChordDiagrams', false); return; }
+              if (inlineOn) { setInlineDiagrams(false); return; }
               if (lyricsOnly) setViewMode('chords');
               if (chordBarVisible) setChordBarVisible(false);
-              if (!inlineDiagrams) void updateSetting(db, 'inlineChordDiagrams', true);
+              if (!inlineDiagrams) setInlineDiagrams(true);
             };
             const btnStyle = (active: boolean, faded: boolean) => ({
               background: active ? 'var(--accent)' : 'var(--surface-elevated)',
@@ -1168,6 +1220,7 @@ export default function SongViewPage(): React.ReactElement {
         <StickyNotePanel
           title={activeSong.title}
           notes={activeSong.notes ?? ''}
+          positionKey={`songview:${activeSong.id}`}
           onClose={() => setShowNotes(false)}
           onSave={async (next) => {
             if (!activeSong.id) return;

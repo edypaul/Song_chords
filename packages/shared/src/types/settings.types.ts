@@ -9,6 +9,30 @@ export type ViewMode = 'chords' | 'lyrics-only' | 'chords-only';
 export type SongListColumn = 'artist' | 'genre' | 'key' | 'difficulty' | 'tempo' | 'duration' | 'year' | 'language' | 'chordsCount' | 'createdAt';
 export const SONG_LIST_COLUMNS: SongListColumn[] = ['artist', 'genre', 'key', 'difficulty', 'tempo', 'duration', 'year', 'language', 'chordsCount', 'createdAt'];
 
+/** Identifiers for every customisable card on the Dashboard. `stats` is the
+ *  top row of count tiles (treated as one group); each other key is a single
+ *  card. Adding a card here + a default in DEFAULT_SETTINGS + a render gate in
+ *  DashboardPage is all that's needed to make a new card toggleable. */
+export type DashboardCardKey =
+  | 'stats'
+  | 'favorites'
+  | 'setlists'
+  | 'recentlyViewed'
+  | 'recentlyEdited'
+  | 'difficulty'
+  | 'topKeys'
+  | 'topGenres'
+  | 'topArtists'
+  | 'languages'
+  | 'decades'
+  | 'topTags'
+  | 'recentlyAdded';
+export const DASHBOARD_CARDS: DashboardCardKey[] = [
+  'stats', 'favorites', 'setlists', 'recentlyViewed', 'recentlyEdited',
+  'difficulty', 'topKeys', 'topGenres', 'topArtists', 'languages',
+  'decades', 'topTags', 'recentlyAdded',
+];
+
 /** Per-section style — only the fields relevant to each section are used. */
 export interface SectionStyle {
   fontSize: number;
@@ -59,7 +83,8 @@ export type ShortcutAction =
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomReset'
-  | 'openSearch';
+  | 'openSearch'
+  | 'toggleToolbar';
 
 export interface KeyboardShortcuts {
   toggleInlineDiagrams: string;
@@ -84,6 +109,10 @@ export interface KeyboardShortcuts {
   zoomReset: string;
   /** Opens the global search overlay from anywhere in the app. */
   openSearch: string;
+  /** Show / hide the Song view + Perform toolbar so the song content
+   *  gets more vertical room. Distinct from auto-scroll (which used to
+   *  hide it as a side effect). */
+  toggleToolbar: string;
   /** Modifier used for capo shortcuts — combined with a digit 0-9 to set
    *  the capo to that fret. */
   capoModifier: 'Alt' | 'Ctrl' | 'Shift' | 'Meta';
@@ -133,6 +162,16 @@ export interface AppSettings {
   chordNotation: 'letter' | 'latin';
   /** Which columns appear in every song-list table. Title is always shown. */
   songListColumns: Record<SongListColumn, boolean>;
+  /** Display order for the song-list columns (Title stays leftmost). The
+   *  user can drag-and-drop column headers to reorder — the result is
+   *  written here and reused across the Library, Favorites and Categories
+   *  pages. Sanitised on read: unknown keys are dropped, missing keys are
+   *  appended so a new column added in a future version shows up. */
+  songListColumnOrder: SongListColumn[];
+  /** Which cards are visible on the Dashboard. Users can toggle any of
+   *  them on/off from the Dashboard "Customize" popover. The header
+   *  (`stats` — the top row of count tiles) is treated as one group. */
+  dashboardCards: Record<DashboardCardKey, boolean>;
   shortcuts: KeyboardShortcuts;
   /**
    * Per-user persistent "don't show again" flags for in-app hint
