@@ -227,4 +227,14 @@ ALTER TABLE setlist_entries ADD COLUMN chord_bar_visible INTEGER;
 ALTER TABLE setlist_entries ADD COLUMN inline_chord_diagrams INTEGER;
 `,
   },
+  {
+    // Freehand + shape annotations drawn on top of a song. Stored as
+    // JSON on the songs row so the shape of the annotation document
+    // can evolve without another migration — parseSongAnnotations()
+    // handles unknown versions gracefully (returns undefined). NULL
+    // means "no annotations", which is the default for every
+    // existing song.
+    version: 18,
+    up: `ALTER TABLE songs ADD COLUMN annotations TEXT;`,
+  },
 ];

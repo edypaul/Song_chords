@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown } from 'lucide-react';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown, Pencil, Eye, EyeOff } from 'lucide-react';
 import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
@@ -15,6 +15,10 @@ import StickyNotePanel from '../components/song/StickyNotePanel';
 import SectionNavigator from '../components/song/SectionNavigator';
 import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import CastQuickButton from '../components/song/CastQuickButton';
+import AnnotationLayer from '../components/annotation/AnnotationLayer';
+import AnnotationDrawSurface from '../components/annotation/AnnotationDrawSurface';
+import AnnotationToolbar from '../components/annotation/AnnotationToolbar';
+import { useAnnotationEditStore } from '../components/annotation/annotation-store';
 import PlayLinkButton from '../components/song/PlayLinkButton';
 import { useAutoScroll } from '../hooks/useAutoScroll';
 import { useMetronome } from '../hooks/useMetronome';
@@ -185,6 +189,16 @@ export default function SongViewPage(): React.ReactElement {
   // fullscreen on close. See the effect + keepFullscreenAfterModal.
   const suppressFsExitRef = useRef(false);
   const [showNotes, setShowNotes] = useState(false);
+  // Annotation visibility (read-only layer) + editing mode. Visibility
+  // is a persisted app setting (`showAnnotations`) so a user's toggle
+  // survives across songs and sessions — a musician who's hidden the
+  // overlay for a gig doesn't want it to snap back on every song
+  // change. Editing is per-session and lives in the annotation-edit
+  // store so the toolbar + draw surface share it.
+  const showAnnotations = useSettingsStore((s) => s.settings.showAnnotations ?? true);
+  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
+  const annotationEditing = useAnnotationEditStore((s) => s.editing);
+  const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
   // Auto-open the sticky note when a song that has notes becomes active.
   // Runs on song change so switching songs refreshes the visibility.
   useEffect(() => {
@@ -665,9 +679,44 @@ export default function SongViewPage(): React.ReactElement {
             </div>
           )}
 
-          {/* Audio source + Cast (full-screen perf) */}
+          {/* Audio source + Cast + Annotations (full-screen perf) */}
           <div className="ml-auto flex items-center gap-1">
             <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
+            {/* Annotation visibility toggle — mirrors the toolbar-mode
+                button. Disabled when there's nothing to show so the
+                affordance reads as display-only. */}
+            {(() => {
+              const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
+              return (
+                <button
+                  onClick={() => setShowAnnotations(!showAnnotations)}
+                  disabled={!hasAnnotations}
+                  className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+                  style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
+                  title={
+                    !hasAnnotations
+                      ? 'This song has no annotations'
+                      : showAnnotations
+                        ? 'Hide annotations'
+                        : 'Show annotations'
+                  }
+                  aria-label="Toggle annotation visibility"
+                >
+                  {showAnnotations
+                    ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                    : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
+                </button>
+              );
+            })()}
+            <button
+              onClick={() => setAnnotationEditing(!annotationEditing)}
+              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+              title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
+              aria-label="Annotate"
+              aria-pressed={annotationEditing}
+            >
+              <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
+            </button>
             <CastQuickButton />
           </div>
 
@@ -683,14 +732,36 @@ export default function SongViewPage(): React.ReactElement {
         )}
 
         <div className="flex-1 flex min-h-0" style={{ flexDirection: chordBarVisible && chordBarPosition === 'right' ? 'row' : 'column' }}>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 py-8">
-          <div style={{ zoom: perfZoom * zoomLevel, ...(songCentered ? { width: 'fit-content', maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' } : {}) } as React.CSSProperties}>
+        {/* `relative` makes the scroll container the containing block
+            for the AnnotationLayer's absolute positioning, same as the
+            non-fullscreen branch. */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-8">
+          {/* See non-fullscreen branch for the mounting-inside-zoom
+              rationale — same setup here. */}
+          <div style={{ position: 'relative', zoom: perfZoom * zoomLevel, ...(songCentered ? { width: 'fit-content', maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' } : {}) } as React.CSSProperties}>
           <div className="mb-6" style={songCentered ? { textAlign: 'center' } : undefined}>
             <h2 className="font-bold" style={{ color: svs.title.color || 'var(--text-primary)', fontSize: svs.title.fontSize || undefined, fontFamily: svs.fontFamily || undefined, textTransform: svs.titleUppercase ? 'uppercase' : undefined }}>{svs.titleUppercase ? activeSong.title : toTitleCase(activeSong.title)}</h2>
             {activeSong.artist && <p className="mt-1" style={{ color: svs.details.color || 'var(--text-secondary)', fontSize: svs.details.fontSize || undefined, fontFamily: svs.fontFamily || undefined }}>{activeSong.artist}</p>}
             <SongDetails centered={songCentered} />
           </div>
           <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
+          {/* Always mounted — see rationale in the non-perf branch. */}
+          <AnnotationLayer
+            annotationsJson={activeSong.annotations}
+            scrollRef={scrollRef as React.RefObject<HTMLElement>}
+            recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+            visible={showAnnotations}
+            suppress={annotationEditing}
+          />
+          {annotationEditing && (
+            <AnnotationDrawSurface
+              songId={activeSong.id}
+              annotationsJson={activeSong.annotations}
+              scrollRef={scrollRef as React.RefObject<HTMLElement>}
+              recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+              showCommitted={showAnnotations}
+            />
+          )}
           </div>
           <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${perfZoom}|${zoomLevel}|${viewMode}`} />
         </div>
@@ -727,6 +798,18 @@ export default function SongViewPage(): React.ReactElement {
         />
 
         {selectedChord && <ChordModal chord={selectedChord} onClose={() => setSelectedChord(null)} songId={activeSong?.id} songPrefs={activeSong?.preferences} onKeepFullscreen={keepFullscreenAfterModal} />}
+
+        {/* Annotation floating toolbar — mounted inside the perf-mode
+            branch too, since the outer return below is unreachable
+            in fullscreen. */}
+        {annotationEditing && activeSong && (
+          <AnnotationToolbar
+            onClose={() => setAnnotationEditing(false)}
+            onClearAll={() => {
+              void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -1082,6 +1165,45 @@ export default function SongViewPage(): React.ReactElement {
             );
           })()}
 
+          {/* Annotation visibility toggle — hides the read-only layer.
+              Disabled when there's nothing to show so it's clear the
+              toggle is a display-only affordance. */}
+          {(() => {
+            const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
+            return (
+              <button
+                onClick={() => setShowAnnotations(!showAnnotations)}
+                disabled={!hasAnnotations}
+                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+                style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
+                title={
+                  !hasAnnotations
+                    ? 'This song has no annotations'
+                    : showAnnotations
+                      ? 'Hide annotations'
+                      : 'Show annotations'
+                }
+                aria-label="Toggle annotation visibility"
+              >
+                {showAnnotations
+                  ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                  : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
+              </button>
+            );
+          })()}
+
+          {/* Enter / exit annotation editing mode. Opens the floating
+              annotation toolbar and mounts the drawing surface. */}
+          <button
+            onClick={() => setAnnotationEditing(!annotationEditing)}
+            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+            title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
+            aria-label="Annotate"
+            aria-pressed={annotationEditing}
+          >
+            <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
+          </button>
+
           {/* Cast to receiver */}
           <CastQuickButton />
 
@@ -1159,8 +1281,20 @@ export default function SongViewPage(): React.ReactElement {
       {/* Content area — flex-row when chord bar is on the right */}
       <div className="flex-1 flex min-h-0" style={{ flexDirection: chordBarVisible && chordBarPosition === 'right' ? 'row' : 'column' }}>
         {/* Song content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-10 py-8">
-          <div style={{ zoom: zoomLevel, ...(songCentered ? { width: 'fit-content', maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' } : {}) } as React.CSSProperties}>
+        {/* `relative` makes the scroll container the containing block
+            for the AnnotationLayer's absolute positioning — so the
+            layer's coord (0,0) is the top-left of the SCROLLABLE
+            content, not the viewport. */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-8">
+          {/* The zoom wrapper is `position: relative` so the annotation
+              SVG (mounted INSIDE it) uses the wrapper's inner top-left
+              as its absolute-positioning origin. Mounting the SVG
+              inside the zoomed subtree means the SVG shares the same
+              CSS-zoom transform as the song content — so any bcr
+              subtraction between a section heading and the SVG's own
+              rect is in a consistent frame, and shapes stay glued to
+              the content they were drawn on across zoom changes. */}
+          <div style={{ position: 'relative', zoom: zoomLevel, ...(songCentered ? { width: 'fit-content', maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' } : {}) } as React.CSSProperties}>
           {/* Title block */}
           <div className="mb-6" style={songCentered ? { textAlign: 'center' } : undefined}>
             <h2 className="font-bold" style={{ color: svs.title.color || 'var(--text-primary)', fontSize: svs.title.fontSize || undefined, fontFamily: svs.fontFamily || undefined, textTransform: svs.titleUppercase ? 'uppercase' : undefined }}>{svs.titleUppercase ? activeSong.title : toTitleCase(activeSong.title)}</h2>
@@ -1175,6 +1309,32 @@ export default function SongViewPage(): React.ReactElement {
             onChordClick={(chord) => setSelectedChord(chord)}
             chordVariations={effectiveChordVariations}
           />
+          {/* Read-only annotation layer — always mounted so measurement
+              stays warm; visibility is toggled via `showAnnotations`.
+              Suppressed while the drawing surface is up so it doesn't
+              double-render the same shapes on top of the interactive
+              layer. */}
+          {/* Always mounted so its measurement state stays warm; when
+              editing, we hide the read layer (the draw surface renders
+              its own copy on top) but keep the component mounted so
+              closing the toolbar just re-shows it instantly — no
+              fresh measure delay, no visible "cleared" gap. */}
+          <AnnotationLayer
+            annotationsJson={activeSong.annotations}
+            scrollRef={scrollRef as React.RefObject<HTMLElement>}
+            recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+            visible={showAnnotations}
+            suppress={annotationEditing}
+          />
+          {annotationEditing && (
+            <AnnotationDrawSurface
+              songId={activeSong.id}
+              annotationsJson={activeSong.annotations}
+              scrollRef={scrollRef as React.RefObject<HTMLElement>}
+              recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+              showCommitted={showAnnotations}
+            />
+          )}
           </div>
           <BottomSectionSpacer scrollRef={scrollRef} recomputeKey={`${zoomLevel}|${viewMode}`} />
         </div>
@@ -1232,6 +1392,20 @@ export default function SongViewPage(): React.ReactElement {
             if (cur && cur.id === activeSong.id) {
               usePlayerStore.setState({ activeSong: { ...cur, notes: next } });
             }
+          }}
+        />
+      )}
+
+      {/* Annotation floating toolbar — sibling to the sticky note. */}
+      {annotationEditing && activeSong && (
+        <AnnotationToolbar
+          onClose={() => setAnnotationEditing(false)}
+          onClearAll={() => {
+            // "Clear all" wipes the annotations column. The draw
+            // surface's own state hydrates from `annotationsJson`
+            // via its effect, so this is the one-shot way to reset
+            // both persistent and in-memory state.
+            void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
           }}
         />
       )}

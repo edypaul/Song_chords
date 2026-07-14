@@ -36,6 +36,7 @@ interface SongRow {
   last_viewed_at: number | null;
   link: string | null;
   audio_file: string | null;
+  annotations: string | null;
 }
 
 function rowToSong(row: SongRow): Song {
@@ -70,6 +71,7 @@ function rowToSong(row: SongRow): Song {
     lastViewedAt: row.last_viewed_at ?? undefined,
     link: row.link ?? undefined,
     audioFile: row.audio_file ?? undefined,
+    annotations: row.annotations ?? undefined,
   };
 }
 
@@ -110,8 +112,8 @@ export class SongRepository {
 
     await this.db.execute(
       `INSERT INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
-        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order, link, audio_file)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order, link, audio_file, annotations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         song.id, song.title, song.artist ?? null, song.album ?? null, song.key ?? null,
         song.tempo ?? null, song.timeSig ?? null, song.capo,
@@ -124,6 +126,7 @@ export class SongRepository {
         song.createdAt, song.updatedAt, song.sortOrder,
         song.link ?? null,
         song.audioFile ?? null,
+        song.annotations ?? null,
       ],
     );
 
@@ -145,7 +148,7 @@ export class SongRepository {
     await this.db.execute(
       `UPDATE songs SET title=?, artist=?, album=?, key=?, tempo=?, time_sig=?, capo=?,
         genre=?, year=?, language=?, duration=?, notes=?, content=?, content_format=?, tags=?, difficulty=?, favorite=?, preferences=?,
-        updated_at=?, sort_order=?, link=?, audio_file=?
+        updated_at=?, sort_order=?, link=?, audio_file=?, annotations=?
        WHERE id=?`,
       [
         updated.title, updated.artist ?? null, updated.album ?? null, updated.key ?? null,
@@ -159,11 +162,23 @@ export class SongRepository {
         updated.updatedAt, updated.sortOrder,
         updated.link ?? null,
         updated.audioFile ?? null,
+        updated.annotations ?? null,
         id,
       ],
     );
 
     return updated;
+  }
+
+  /** Persist just the annotations JSON on a song. Dedicated method so the
+   *  drawing hot-path doesn't drag every other song field through a full
+   *  UPDATE (which would need a fresh getById + re-serialisation on
+   *  every stroke). Pass `null` to clear the layer. */
+  async saveAnnotations(id: string, annotations: string | null): Promise<void> {
+    await this.db.execute(
+      'UPDATE songs SET annotations=?, updated_at=? WHERE id=?',
+      [annotations, Date.now(), id],
+    );
   }
 
   async savePreferences(id: string, prefs: SongPreferences): Promise<void> {

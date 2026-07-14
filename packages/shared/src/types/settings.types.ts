@@ -133,6 +133,12 @@ export interface AppSettings {
   songCentered: boolean;
   chordBarPosition: 'top' | 'bottom' | 'right' | 'off';
   inlineChordDiagrams: boolean;
+  /** Global toggle for the read-only annotation layer. Preserved on
+   *  disk; annotations themselves live on each song, so flipping this
+   *  hides the overlay everywhere without touching the data. Default
+   *  true so a user who annotates a song sees the result the next
+   *  time they open it. */
+  showAnnotations: boolean;
   customChords: Record<string, import('../types/chord.types').ChordDiagram[]>;
   /**
    * Global default chord voicing per instrument. When the user picks a

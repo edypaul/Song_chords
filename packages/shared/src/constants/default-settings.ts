@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   songCentered: true,
   chordBarPosition: 'top',
   inlineChordDiagrams: false,
+  showAnnotations: true,
   customChords: {},
   defaultChordVariations: {},
   perfMetroEnabled: true,

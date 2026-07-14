@@ -489,6 +489,19 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
   // `data-cast-mode="lyrics"` CSS rules pick up the change.
   finalHtml = finalHtml.replace('</body>', toolbar + '</body>');
 
+  // Annotation overlay — only baked in when there's something to draw
+  // and the user hasn't hidden the layer app-wide. Same anchoring
+  // model as the desktop AnnotationLayer: measure every
+  // [data-annot-line] on the receiver, translate shape offsets in
+  // the anchor line's local frame, paint an SVG on top of the page.
+  // Re-measures on window resize so a viewer rotating their phone
+  // doesn't leave marks stranded off the line they belong to.
+  const showAnnotations = settings.showAnnotations !== false;
+  if (showAnnotations && song.annotations && song.annotations.length > 2) {
+    const overlay = buildReceiverAnnotationOverlay(song.annotations);
+    finalHtml = finalHtml.replace('</body>', overlay + '</body>');
+  }
+
   // Initial view-mode defaults to lyrics-only — most audiences want
   // to sing along without the chord clutter, and the receiver toolbar
   // lets them switch to lyrics+chords with a tap. We seed the
@@ -969,4 +982,171 @@ body { padding-bottom: 88px; }
 })();
 `;
   return `<style>${styles}</style>${html}<script>${js}</script>`;
+}
+
+/**
+ * Build the annotation overlay for the cast receiver. Injects:
+ *   • An SVG element positioned over the whole document.
+ *   • A vanilla-JS script that, on load / resize, measures every
+ *     [data-annot-line] and paints the song's shapes anchored to the
+ *     same rendered line they were drawn under on the desktop.
+ *
+ * The shape JSON is the exact same document the desktop reads (see
+ * `annotation.types.ts`) — v2 with per-line offsets in the anchor
+ * line's local frame. On the receiver, drawing on top of the cast
+ * page is not supported; we only re-render the desktop's marks in
+ * the same relative positions.
+ *
+ * NEVER use back-tick template literals inside the injected script —
+ * the outer file is itself template-literal-driven and nested
+ * back-ticks break the build. This whole function returns a plain
+ * concatenated string.
+ */
+function buildReceiverAnnotationOverlay(annotationsJson: string): string {
+  const safeJson = annotationsJson.replace(/<\/script>/gi, '<\\/script>');
+
+  const script = [
+    "(function () {",
+    "  var raw = " + JSON.stringify(safeJson) + ";",
+    "  var doc;",
+    "  try { doc = JSON.parse(raw); } catch (e) { return; }",
+    "  if (!doc || !Array.isArray(doc.shapes) || doc.shapes.length === 0) return;",
+    "  // v1 → v2 in-place migration mirroring the desktop parser.",
+    "  if (doc.version === 1) {",
+    "    var W = 600;",
+    "    var migrated = [];",
+    "    for (var mi = 0; mi < doc.shapes.length; mi++) {",
+    "      var s = doc.shapes[mi];",
+    "      var a = { sectionIndex: (s.anchor && s.anchor.sectionIndex) || 0, lineIndex: 0 };",
+    "      var m = { id: s.id, kind: s.kind, color: s.color, strokeWidth: s.strokeWidth, anchor: a };",
+    "      if (s.kind === 'pen' || s.kind === 'highlighter') {",
+    "        m.points = [];",
+    "        for (var pi = 0; pi < s.points.length; pi++) m.points.push([s.points[pi][0] * W, s.points[pi][1]]);",
+    "      } else if (s.kind === 'line' || s.kind === 'arrow') {",
+    "        m.x1 = s.x1 * W; m.y1 = s.y1; m.x2 = s.x2 * W; m.y2 = s.y2;",
+    "      } else if (s.kind === 'rect' || s.kind === 'ellipse') {",
+    "        m.x = s.x * W; m.y = s.y; m.w = s.w * W; m.h = s.h;",
+    "      } else if (s.kind === 'text') {",
+    "        m.x = s.x * W; m.y = s.y; m.content = s.content; m.fontSize = s.fontSize;",
+    "      }",
+    "      migrated.push(m);",
+    "    }",
+    "    doc.shapes = migrated;",
+    "    doc.version = 2;",
+    "  }",
+    "  if (doc.version !== 2) return;",
+    "  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');",
+    "  svg.style.position = 'absolute';",
+    "  svg.style.left = '0';",
+    "  svg.style.top = '0';",
+    "  svg.style.pointerEvents = 'none';",
+    "  svg.style.zIndex = '15';",
+    "  svg.style.overflow = 'visible';",
+    "  document.body.appendChild(svg);",
+    "  function measureBoxes() {",
+    "    var els = document.querySelectorAll('[data-annot-line]');",
+    "    var byKey = {};",
+    "    var flat = [];",
+    "    for (var i = 0; i < els.length; i++) {",
+    "      var el = els[i];",
+    "      var s = Number(el.getAttribute('data-annot-section'));",
+    "      var l = Number(el.getAttribute('data-annot-line-index'));",
+    "      if (!isFinite(s) || !isFinite(l)) continue;",
+    "      var r = el.getBoundingClientRect();",
+    "      var box = {",
+    "        sectionIndex: s,",
+    "        lineIndex: l,",
+    "        x: r.left + window.scrollX,",
+    "        y: r.top + window.scrollY,",
+    "        width: r.width,",
+    "        height: r.height,",
+    "      };",
+    "      byKey[s + ':' + l] = box;",
+    "      flat.push(box);",
+    "    }",
+    "    return { byKey: byKey, flat: flat };",
+    "  }",
+    "  function resolveBox(boxes, sectionIndex, lineIndex) {",
+    "    var exact = boxes.byKey[sectionIndex + ':' + lineIndex];",
+    "    if (exact) return exact;",
+    "    var bestPrev = null, bestNext = null;",
+    "    for (var i = 0; i < boxes.flat.length; i++) {",
+    "      var b = boxes.flat[i];",
+    "      if (b.sectionIndex !== sectionIndex) continue;",
+    "      if (b.lineIndex < lineIndex && (!bestPrev || b.lineIndex > bestPrev.lineIndex)) bestPrev = b;",
+    "      if (b.lineIndex > lineIndex && (!bestNext || b.lineIndex < bestNext.lineIndex)) bestNext = b;",
+    "    }",
+    "    if (bestPrev) return bestPrev;",
+    "    if (bestNext) return bestNext;",
+    "    var heading = boxes.byKey[sectionIndex + ':0'];",
+    "    if (heading) return heading;",
+    "    return boxes.flat[0] || null;",
+    "  }",
+    "  function esc(s) { return String(s).replace(/[&<>\"']/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;','\\'':'&#39;'})[c]; }); }",
+    "  function renderArrowHead(x1, y1, x2, y2, color, sw) {",
+    "    var dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);",
+    "    if (len < 1) return '';",
+    "    var ux = dx / len, uy = dy / len;",
+    "    var px = -uy, py = ux;",
+    "    var size = Math.max(6, sw * 3);",
+    "    var bx = x2 - ux * size, by = y2 - uy * size;",
+    "    var w = size * 0.6;",
+    "    var points = x2 + ',' + y2 + ' ' + (bx + px * w) + ',' + (by + py * w) + ' ' + (bx - px * w) + ',' + (by - py * w);",
+    "    return '<polygon points=\"' + points + '\" fill=\"' + esc(color) + '\"/>';",
+    "  }",
+    "  function shapeSvg(shape) {",
+    "    // Shape coords are already in the anchor line's local frame",
+    "    // (px). The parent <g translate=box.x,box.y> handles placement.",
+    "    var color = esc(shape.color);",
+    "    var sw = Number(shape.strokeWidth) || 2;",
+    "    var opacity = shape.kind === 'highlighter' ? 0.4 : 1;",
+    "    if (shape.kind === 'pen' || shape.kind === 'highlighter') {",
+    "      var d = '';",
+    "      for (var i = 0; i < shape.points.length; i++) {",
+    "        var pt = shape.points[i];",
+    "        d += (i === 0 ? 'M ' : 'L ') + pt[0] + ' ' + pt[1] + ' ';",
+    "      }",
+    "      return '<path d=\"' + d + '\" stroke=\"' + color + '\" stroke-width=\"' + sw + '\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"' + opacity + '\"/>';",
+    "    }",
+    "    if (shape.kind === 'line' || shape.kind === 'arrow') {",
+    "      var line = '<line x1=\"' + shape.x1 + '\" y1=\"' + shape.y1 + '\" x2=\"' + shape.x2 + '\" y2=\"' + shape.y2 + '\" stroke=\"' + color + '\" stroke-width=\"' + sw + '\" stroke-linecap=\"round\"/>';",
+    "      var head = shape.kind === 'arrow' ? renderArrowHead(shape.x1, shape.y1, shape.x2, shape.y2, shape.color, sw) : '';",
+    "      return line + head;",
+    "    }",
+    "    if (shape.kind === 'rect') {",
+    "      var xMin = Math.min(shape.x, shape.x + shape.w), yMin = Math.min(shape.y, shape.y + shape.h);",
+    "      return '<rect x=\"' + xMin + '\" y=\"' + yMin + '\" width=\"' + Math.abs(shape.w) + '\" height=\"' + Math.abs(shape.h) + '\" stroke=\"' + color + '\" stroke-width=\"' + sw + '\" fill=\"none\"/>';",
+    "    }",
+    "    if (shape.kind === 'ellipse') {",
+    "      return '<ellipse cx=\"' + (shape.x + shape.w / 2) + '\" cy=\"' + (shape.y + shape.h / 2) + '\" rx=\"' + Math.abs(shape.w / 2) + '\" ry=\"' + Math.abs(shape.h / 2) + '\" stroke=\"' + color + '\" stroke-width=\"' + sw + '\" fill=\"none\"/>';",
+    "    }",
+    "    if (shape.kind === 'text') {",
+    "      var fs = Number(shape.fontSize) || 18;",
+    "      return '<text x=\"' + shape.x + '\" y=\"' + (shape.y + fs) + '\" fill=\"' + color + '\" font-size=\"' + fs + '\" font-family=\"-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif\">' + esc(shape.content) + '</text>';",
+    "    }",
+    "    return '';",
+    "  }",
+    "  function paint() {",
+    "    var boxes = measureBoxes();",
+    "    if (boxes.flat.length === 0) { svg.innerHTML = ''; return; }",
+    "    var docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);",
+    "    var docWidth = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);",
+    "    svg.setAttribute('width', docWidth);",
+    "    svg.setAttribute('height', docHeight);",
+    "    var out = '';",
+    "    for (var i = 0; i < doc.shapes.length; i++) {",
+    "      var shape = doc.shapes[i];",
+    "      var box = resolveBox(boxes, shape.anchor && shape.anchor.sectionIndex, shape.anchor && shape.anchor.lineIndex);",
+    "      if (!box) continue;",
+    "      out += '<g transform=\"translate(' + box.x + ' ' + box.y + ')\">' + shapeSvg(shape) + '</g>';",
+    "    }",
+    "    svg.innerHTML = out;",
+    "  }",
+    "  paint();",
+    "  window.addEventListener('resize', paint);",
+    "  window.addEventListener('load', paint);",
+    "  if (document.fonts && document.fonts.ready) { document.fonts.ready.then(paint); }",
+    "})();",
+  ].join("\n");
+  return "<script>" + script + "</script>";
 }

@@ -52,6 +52,13 @@ export interface Song {
    *  registered `song-audio://` protocol that streams the file from
    *  disk. Takes precedence over `link` when both are set. */
   audioFile?: string;
+  /** Freehand + shape annotations the user drew on top of this song's
+   *  rendered chart. Stored as a JSON-encoded `SongAnnotations` in the
+   *  `annotations` DB column so migrating the field's shape doesn't
+   *  need another schema change. Shared across every place the song is
+   *  displayed (song view, perform mode, setlists it appears in).
+   *  See `annotation.types.ts` for the runtime shape. */
+  annotations?: string;
 }
 
 export type SongCreateInput = Omit<Song, 'id' | 'createdAt' | 'updatedAt'>;

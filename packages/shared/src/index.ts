@@ -8,6 +8,11 @@ export type {
   ChordGridBeat, ChordGridBar, ChordGridRow, ChordGridToken,
 } from './types/parser.types';
 export type { ChordDiagram, InstrumentType } from './types/chord.types';
+export type {
+  SongAnnotations, Annotation, AnnotationKind, AnnotationAnchor,
+  StrokeAnnotation, LineAnnotation, BoxAnnotation, TextAnnotation,
+} from './types/annotation.types';
+export { parseSongAnnotations, stringifySongAnnotations } from './types/annotation.types';
 export type { AppSettings, ThemeType, ViewMode, SongViewStyle, SectionStyle, CustomPreset, SongListColumn, DashboardCardKey, KeyboardShortcuts, ShortcutAction } from './types/settings.types';
 export { SONG_LIST_COLUMNS, DASHBOARD_CARDS } from './types/settings.types';
 

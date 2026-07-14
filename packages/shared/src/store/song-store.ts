@@ -4,6 +4,8 @@ import { SongRepository } from '../db/song-repository';
 import { FavoriteRepository } from '../db/favorite-repository';
 import type { Song, SongCreateInput, SongUpdateInput, SongPreferences } from '../types/song.types';
 import type { FavoriteEntry } from '../types/favorite.types';
+import { usePlayerStore } from './player-store';
+import { useSetListStore } from './setlist-store';
 
 export type SortField =
   | 'title'
@@ -48,6 +50,10 @@ interface SongStore {
   deleteSong: (db: IDatabase, id: string) => Promise<void>;
   markSongViewed: (db: IDatabase, id: string) => Promise<void>;
   savePreferences: (db: IDatabase, id: string, prefs: SongPreferences) => Promise<void>;
+  /** Persist a song's annotations JSON (or clear it with `null`). Also
+   *  mirrors the change onto the in-memory song so consumers re-render
+   *  immediately — same pattern as savePreferences. */
+  saveAnnotations: (db: IDatabase, id: string, annotations: string | null) => Promise<void>;
   toggleFavorite: (db: IDatabase, id: string) => Promise<void>;
   updateFavoriteEntry: (
     db: IDatabase,
@@ -200,6 +206,53 @@ export const useSongStore = create<SongStore>((set, get) => ({
       songs: state.songs.map((s) => (s.id === id ? { ...s, preferences: prefs } : s)),
       filteredSongs: state.filteredSongs.map((s) => (s.id === id ? { ...s, preferences: prefs } : s)),
     }));
+  },
+
+  saveAnnotations: async (db, id, annotations) => {
+    const repo = new SongRepository(db);
+    await repo.saveAnnotations(id, annotations);
+    const next = annotations ?? undefined;
+    // Same pattern as savePreferences — patch the in-memory song(s)
+    // so any mounted component reading `song.annotations` re-renders
+    // right away. No re-filter (annotations don't affect sort/filter).
+    set((state) => ({
+      songs: state.songs.map((s) => (s.id === id ? { ...s, annotations: next } : s)),
+      filteredSongs: state.filteredSongs.map((s) => (s.id === id ? { ...s, annotations: next } : s)),
+    }));
+    // Mirror onto the player store's activeSong too. Both SongViewPage
+    // and PerformPage source their active-song for rendering from
+    // `usePlayerStore.activeSong`, and the cast-triggers subscription
+    // watches the player store's slice — without this, the receiver
+    // wouldn't re-push on a save and pages might read stale JSON.
+    const player = usePlayerStore.getState();
+    if (player.activeSong && player.activeSong.id === id) {
+      usePlayerStore.setState({
+        activeSong: { ...player.activeSong, annotations: next },
+      });
+    }
+    // Also patch any currently-open setlist's entries that reference
+    // this song. SetListPlayerPage builds PerformItems from
+    // `activeSetList.entries[i].song`, which is a snapshot taken when
+    // the setlist was opened — without this update, saving annotations
+    // in one page wouldn't propagate to a setlist perform view of the
+    // same song until it was re-opened.
+    const setlist = useSetListStore.getState();
+    if (setlist.activeSetList) {
+      const touched = setlist.activeSetList.entries.some(
+        (e) => e.type === 'song' && e.song?.id === id,
+      );
+      if (touched) {
+        useSetListStore.setState({
+          activeSetList: {
+            ...setlist.activeSetList,
+            entries: setlist.activeSetList.entries.map((e) => {
+              if (e.type !== 'song' || e.song?.id !== id) return e;
+              return { ...e, song: { ...e.song, annotations: next } };
+            }),
+          },
+        });
+      }
+    }
   },
 
   toggleFavorite: async (db, id) => {

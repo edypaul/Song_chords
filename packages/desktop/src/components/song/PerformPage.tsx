@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download, Pencil, Eye, EyeOff } from 'lucide-react';
 import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore } from '@song-chords/shared';
 import SongExportModal from './SongExportModal';
 import SetListPickerModal from './SetListPickerModal';
@@ -18,6 +18,10 @@ import SectionNavigator from './SectionNavigator';
 import CastQuickButton from './CastQuickButton';
 import PlayLinkButton from './PlayLinkButton';
 import BottomSectionSpacer from './BottomSectionSpacer';
+import AnnotationLayer from '../annotation/AnnotationLayer';
+import AnnotationDrawSurface from '../annotation/AnnotationDrawSurface';
+import AnnotationToolbar from '../annotation/AnnotationToolbar';
+import { useAnnotationEditStore } from '../annotation/annotation-store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { useMetronome } from '../../hooks/useMetronome';
 import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
@@ -239,6 +243,15 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   }, [activeIndex]);
 
   const [showSongNotes, setShowSongNotes] = useState(false);
+
+  // Annotation toggles — same as SongViewPage: visibility persisted via
+  // the global `showAnnotations` setting so it survives across songs
+  // and sessions; editing mode is session-scoped in the annotation-edit
+  // store and shared with the toolbar + draw surface.
+  const showAnnotations = useSettingsStore((s) => s.settings.showAnnotations ?? true);
+  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
+  const annotationEditing = useAnnotationEditStore((s) => s.editing);
+  const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
 
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
@@ -773,6 +786,43 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           );
         })()}
 
+        {/* Annotation visibility + editing toggles. Skipped on note
+             items where there's no song to draw on. */}
+        {activeSong && !isNoteActive && (() => {
+          const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
+          return (
+            <>
+              <button
+                onClick={() => setShowAnnotations(!showAnnotations)}
+                disabled={!hasAnnotations}
+                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+                style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
+                title={
+                  !hasAnnotations
+                    ? 'This song has no annotations'
+                    : showAnnotations
+                      ? 'Hide annotations'
+                      : 'Show annotations'
+                }
+                aria-label="Toggle annotation visibility"
+              >
+                {showAnnotations
+                  ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                  : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
+              </button>
+              <button
+                onClick={() => setAnnotationEditing(!annotationEditing)}
+                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+                title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
+                aria-label="Annotate"
+                aria-pressed={annotationEditing}
+              >
+                <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
+              </button>
+            </>
+          );
+        })()}
+
         {/* Cast — reuses the existing CastQuickButton, which already
              renders as its own p-2 icon button (title="Cast"). */}
         {activeSong && !isNoteActive && <CastQuickButton />}
@@ -853,7 +903,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
       {/* Main content + optional right-side chord bar */}
       <div className="flex-1 flex min-h-0" style={{ flexDirection: chordBarVisible && chordBarPosition === 'right' ? 'row' : 'column' }}>
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-16 py-10" {...swipe}>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-16 py-10 relative" {...swipe}>
           {isNoteActive ? (
             <div
               key={currentItem!.id}
@@ -887,44 +937,87 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               </div>
             </div>
           ) : (
+            // Outer wrapper: applies the zoom + centring. Kept static
+            // (no slide-in animation) so its children can be measured
+            // against a stable coord frame — the annotation SVG lives
+            // here and must not be affected by the slide-in transform
+            // that would otherwise drag it across the screen for
+            // 260ms every time a song changes.
             <div
-              key={activeSong?.id}
-              className={navDirection === 'next' ? 'song-slide-next' : 'song-slide-prev'}
               style={{
+                position: 'relative',
                 zoom: perfZoom,
                 ...(songCentered ? { width: 'fit-content', maxWidth: '100%', marginLeft: 'auto', marginRight: 'auto' } : {}),
               } as React.CSSProperties}
             >
-              {activeSong && (
-                <div className="mb-8" style={songCentered ? { textAlign: 'center' } : undefined}>
-                  <h2
-                    className="font-bold"
-                    style={{
-                      color: svs.title.color || 'var(--text-primary)',
-                      fontSize: svs.title.fontSize || undefined,
-                      fontFamily: svs.fontFamily || undefined,
-                      textTransform: svs.titleUppercase ? 'uppercase' : undefined,
-                    }}
-                  >
-                    {svs.titleUppercase ? activeSong.title : toTitleCase(activeSong.title)}
-                  </h2>
-                  {activeSong.artist && (
-                    <p
-                      className="mt-1"
+              {/* Inner wrapper: applies the slide-in animation ONLY
+                  to the song text. `key={activeSong.id}` remounts it
+                  on song change so the CSS animation replays. */}
+              <div
+                key={activeSong?.id}
+                className={navDirection === 'next' ? 'song-slide-next' : 'song-slide-prev'}
+              >
+                {activeSong && (
+                  <div className="mb-8" style={songCentered ? { textAlign: 'center' } : undefined}>
+                    <h2
+                      className="font-bold"
                       style={{
-                        color: svs.details.color || 'var(--text-secondary)',
-                        fontSize: svs.details.fontSize || undefined,
+                        color: svs.title.color || 'var(--text-primary)',
+                        fontSize: svs.title.fontSize || undefined,
                         fontFamily: svs.fontFamily || undefined,
+                        textTransform: svs.titleUppercase ? 'uppercase' : undefined,
                       }}
                     >
-                      {toTitleCase(activeSong.artist)}
-                    </p>
-                  )}
-                  <SongDetails centered={songCentered} />
-                </div>
+                      {svs.titleUppercase ? activeSong.title : toTitleCase(activeSong.title)}
+                    </h2>
+                    {activeSong.artist && (
+                      <p
+                        className="mt-1"
+                        style={{
+                          color: svs.details.color || 'var(--text-secondary)',
+                          fontSize: svs.details.fontSize || undefined,
+                          fontFamily: svs.fontFamily || undefined,
+                        }}
+                      >
+                        {toTitleCase(activeSong.artist)}
+                      </p>
+                    )}
+                    <SongDetails centered={songCentered} />
+                  </div>
+                )}
+                {displayedSong && (
+                  <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
+                )}
+              </div>
+              {/* Annotation overlays sit OUTSIDE the animated inner
+                  wrapper so they don't get carried along by the
+                  slide-in transform. They still live inside the zoom
+                  wrapper so their coordinate frame matches the
+                  content's for zoom-correct rendering. */}
+              {/* Always mounted so measurement state persists across
+                  opening / closing the annotation toolbar. Hidden
+                  visually while editing (the draw surface renders its
+                  own copy on top). Without this, closing the toolbar
+                  triggered a fresh mount which briefly showed no
+                  shapes while the initial measurement stabilised,
+                  reading to users as "annotations cleared". */}
+              {activeSong && (
+                <AnnotationLayer
+                  annotationsJson={activeSong.annotations}
+                  scrollRef={scrollRef as React.RefObject<HTMLElement>}
+                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
+                  visible={showAnnotations}
+                  suppress={annotationEditing}
+                />
               )}
-              {displayedSong && (
-                <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
+              {activeSong && annotationEditing && (
+                <AnnotationDrawSurface
+                  songId={activeSong.id}
+                  annotationsJson={activeSong.annotations}
+                  scrollRef={scrollRef as React.RefObject<HTMLElement>}
+                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
+                  showCommitted={showAnnotations}
+                />
               )}
             </div>
           )}
@@ -963,6 +1056,18 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             if (cur && cur.id === activeSong.id) {
               usePlayerStore.setState({ activeSong: { ...cur, notes: next } });
             }
+          }}
+        />
+      )}
+
+      {/* Annotation floating toolbar — sibling to the sticky note. Note
+          items don't have a song to annotate, so we gate on activeSong
+          + !isNoteActive here as well. */}
+      {annotationEditing && activeSong && !isNoteActive && (
+        <AnnotationToolbar
+          onClose={() => setAnnotationEditing(false)}
+          onClearAll={() => {
+            void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
           }}
         />
       )}

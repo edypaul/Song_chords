@@ -17,28 +17,45 @@ const BORDERED_SECTIONS = new Set<SectionType>(['chorus']);
 
 interface LineGroup {
   bordered: boolean;
-  lines: ParsedLine[];
+  lines: Array<{ line: ParsedLine; sectionIndex: number; lineIndex: number }>;
 }
 
-/** Group a flat line array into bordered (chorus) and plain segments. */
+/** Group a flat line array into bordered (chorus) and plain segments,
+ *  and stamp each line with its (sectionIndex, lineIndex) so the
+ *  annotation layer can anchor shapes to a specific rendered line.
+ *
+ *  sectionIndex is the 0-based index of the enclosing section heading
+ *  in the parsed song. lineIndex is the 0-based position of the line
+ *  WITHIN that section (0 = the heading itself, 1 = the first line
+ *  after it, …). For songs with no section headings, sectionIndex = -1
+ *  and lineIndex counts from the top of the song.
+ *
+ *  These indices are DERIVED FROM THE SOURCE PARSE (not from render
+ *  order) so they're stable across view-mode changes: a line that
+ *  renders `null` in "lyrics-only" mode still occupies its lineIndex
+ *  slot, and switching modes doesn't reshuffle the anchoring. */
 function groupLines(lines: ParsedLine[]): LineGroup[] {
   const groups: LineGroup[] = [];
-  let current: ParsedLine[] = [];
+  let current: LineGroup['lines'] = [];
   let inBordered = false;
+  let sectionIndex = -1;
+  let lineIndexInSection = 0;
 
   for (const line of lines) {
     if (line.isSection) {
-      // Any section start closes the current group (prevents border bleeding into
-      // subsequent sections when {eoc} is omitted).
       if (current.length) groups.push({ bordered: inBordered, lines: current });
-      current = [line];
+      sectionIndex += 1;
+      lineIndexInSection = 0;
+      current = [{ line, sectionIndex, lineIndex: lineIndexInSection }];
+      lineIndexInSection += 1;
       inBordered = !!(line.sectionType && BORDERED_SECTIONS.has(line.sectionType));
     } else if (line.isSectionEnd && inBordered) {
       groups.push({ bordered: true, lines: current });
       current = [];
       inBordered = false;
     } else {
-      current.push(line);
+      current.push({ line, sectionIndex, lineIndex: lineIndexInSection });
+      lineIndexInSection += 1;
     }
   }
 
@@ -76,13 +93,13 @@ export default function SongRenderer({ song, fontSize, viewMode, onChordClick, c
               marginBottom: '4px',
             }}
           >
-            {group.lines.map((line, li) => (
-              <RenderLine key={li} line={line} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
+            {group.lines.map((entry, li) => (
+              <RenderLine key={li} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
             ))}
           </div>
         ) : (
-          group.lines.map((line, li) => (
-            <RenderLine key={`${gi}-${li}`} line={line} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
+          group.lines.map((entry, li) => (
+            <RenderLine key={`${gi}-${li}`} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
           ))
         )
       )}
@@ -92,6 +109,8 @@ export default function SongRenderer({ song, fontSize, viewMode, onChordClick, c
 
 const RenderLine = memo(function RenderLine({
   line,
+  sectionIndex,
+  lineIndex,
   fontSize,
   viewMode,
   onChordClick,
@@ -101,6 +120,14 @@ const RenderLine = memo(function RenderLine({
   chordVariations,
 }: {
   line: ParsedLine;
+  /** Section index within the parsed song (-1 for songs with no
+   *  section headings). Used by the annotation layer to anchor
+   *  shapes to a specific rendered line. */
+  sectionIndex: number;
+  /** Line index within the enclosing section (0 = the heading itself,
+   *  1 = first content line after it, …). Stable across view-mode
+   *  changes because it's derived from the source parse. */
+  lineIndex: number;
   fontSize: number;
   viewMode: 'chords' | 'lyrics-only' | 'chords-only';
   showInline?: boolean;
@@ -109,14 +136,32 @@ const RenderLine = memo(function RenderLine({
   onChordClick?: (chord: string) => void;
   svs: SongViewStyle;
 }): React.ReactElement | null {
+  // Every rendered line gets a stable annotation anchor via these
+  // data attributes. The draw / render code walks the DOM for
+  // `[data-annot-line]` elements and matches on the (section,line)
+  // pair. Empty lines and directives ALSO get the attributes so a
+  // user drawing on white space anchors to the nearest actual DOM
+  // node instead of falling through to the section heading.
+  const annotAttrs = {
+    'data-annot-line': '',
+    'data-annot-section': String(sectionIndex),
+    'data-annot-line-index': String(lineIndex),
+  } as Record<string, string>;
   if (line.isChordGrid) {
     if (viewMode === 'lyrics-only') return null;
     const token = line.tokens[0] as ChordGridToken;
-    return <ChordGrid token={token} fontSize={fontSize} chordColor={svs.chords.color} onChordClick={onChordClick} />;
+    // Wrap so the annotation anchor sits on a stable DOM element.
+    // ChordGrid renders its own inner container; the wrapper adds no
+    // layout impact but gives annotations a reliable target.
+    return (
+      <div {...annotAttrs}>
+        <ChordGrid token={token} fontSize={fontSize} chordColor={svs.chords.color} onChordClick={onChordClick} />
+      </div>
+    );
   }
 
   if (line.isEmpty) {
-    return <div className="h-4" />;
+    return <div className="h-4" {...annotAttrs} />;
   }
 
   if (line.isSection) {
@@ -125,7 +170,7 @@ const RenderLine = memo(function RenderLine({
     if (!label) return null;
     const ss = svs.section;
     return (
-      <div className="mt-2 mb-0.5" data-section-heading={label}>
+      <div className="mt-2 mb-0.5" data-section-heading={label} {...annotAttrs}>
         <span
           style={{
             display: 'inline-block',
@@ -151,6 +196,7 @@ const RenderLine = memo(function RenderLine({
     const ss = svs.section;
     return (
       <div
+        {...annotAttrs}
         style={{
           display: 'inline-block',
           background: ss.background || 'var(--accent)',
@@ -181,6 +227,7 @@ const RenderLine = memo(function RenderLine({
       if (seconds <= 0) return null;
       return (
         <div
+          {...annotAttrs}
           data-pause={seconds}
           className="flex items-center gap-3 my-3 select-none"
           style={{
@@ -217,7 +264,7 @@ const RenderLine = memo(function RenderLine({
     // line-height: 1.4 keeps successive lyric lines tight (no
     // inflated half-leading), which makes the chord-line diagrams
     // visually centered between the surrounding lyrics.
-    return <div style={{ lineHeight: 1.4 }}>{lyrics}</div>;
+    return <div {...annotAttrs} style={{ lineHeight: 1.4 }}>{lyrics}</div>;
   }
 
   if (!line.hasChords && viewMode === 'chords-only') {
@@ -225,14 +272,21 @@ const RenderLine = memo(function RenderLine({
   }
 
   if (line.hasChords) {
-    return <ChordLine line={line} onChordClick={onChordClick} showChords={viewMode !== 'lyrics-only'} chordStyle={svs.chords}
-      inlineDiagrams={showInline} instrument={instrument} svs={svs} chordVariations={chordVariations} />;
+    // Wrap ChordLine so annotations can anchor to it too. ChordLine
+    // has its own internal layout; a bare div wrapper adds no visual
+    // side effect.
+    return (
+      <div {...annotAttrs}>
+        <ChordLine line={line} onChordClick={onChordClick} showChords={viewMode !== 'lyrics-only'} chordStyle={svs.chords}
+          inlineDiagrams={showInline} instrument={instrument} svs={svs} chordVariations={chordVariations} />
+      </div>
+    );
   }
 
   const text = line.tokens.map((t) => (t as { text?: string }).text ?? '').join('');
   // Same tight line-height for non-chord lyric lines (or pure text
   // lines) so they don't inflate the visual gap above the next
   // chord-line's diagram.
-  return <div style={{ lineHeight: 1.4 }}>{text || ' '}</div>;
+  return <div {...annotAttrs} style={{ lineHeight: 1.4 }}>{text || ' '}</div>;
 });
 

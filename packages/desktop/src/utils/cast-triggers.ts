@@ -44,6 +44,10 @@ export interface PlayerCastSlice {
    *  to the active song's preferences.autoScrollMode; re-pushing when
    *  it flips keeps the cast toolbar in step with the desktop. */
   autoScrollMode: 'duration' | 'speed' | null;
+  /** Song annotations JSON — baked into the receiver as an overlay
+   *  layer. When it changes (draw, erase, clear) we re-push so the
+   *  audience screen matches the desktop. */
+  annotations: string | null;
 }
 
 /** Settings fields the cast payload actually depends on. */
@@ -54,6 +58,10 @@ export interface SettingsCastSlice {
   /** Theme drives the CSS variables the payload reads via `cssVar()` for
    *  `--bg`, `--text-primary`, etc. — so a theme flip does need a re-push. */
   theme: AppSettings['theme'];
+  /** Annotations are baked in only when this flag is on. Flipping it
+   *  needs a re-push so the receiver either drops or picks up the
+   *  overlay to match the desktop. */
+  showAnnotations: AppSettings['showAnnotations'];
 }
 
 export function pickPlayerCastSlice(state: ReturnType<typeof usePlayerStore.getState>): PlayerCastSlice {
@@ -69,6 +77,7 @@ export function pickPlayerCastSlice(state: ReturnType<typeof usePlayerStore.getS
     hasSong: !!song,
     duration: song?.duration ?? null,
     autoScrollMode: song?.preferences?.autoScrollMode ?? null,
+    annotations: song?.annotations ?? null,
   };
 }
 
@@ -79,6 +88,7 @@ export function pickSettingsCastSlice(state: ReturnType<typeof useSettingsStore.
     defaultInstrument: s.defaultInstrument,
     customChords: s.customChords,
     theme: s.theme,
+    showAnnotations: s.showAnnotations,
   };
 }
 
