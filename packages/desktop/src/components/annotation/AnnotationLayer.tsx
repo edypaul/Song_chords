@@ -149,11 +149,44 @@ export function useLineBoxes(
 
     let cancelled = false;
     let committed = false;
-    // Initial synchronous measure so re-renders on zoom/viewMode
-    // change reflect the new layout immediately. The stabilisation
-    // pipeline below still fires to catch late reflow (fonts,
-    // animations).
-    measure();
+    const hasRunningAnimation = (): boolean => {
+      const el = container as unknown as { getAnimations?: (opts?: { subtree?: boolean }) => Animation[] };
+      if (typeof el.getAnimations !== 'function') return false;
+      const anims = el.getAnimations({ subtree: true });
+      return anims.some((a) => a.playState === 'running');
+    };
+    // Detect the perform-page slide-in on THIS effect run, so we can
+    // skip the initial synchronous measure and hide the layer until
+    // the animation finishes. Purely relying on `getAnimations()`
+    // misses the window in useLayoutEffect where a freshly-mounted
+    // element's CSS animation is queued but hasn't started (playState
+    // is neither 'running' nor 'idle' consistently). To catch that
+    // window, look at the slide-carrying element specifically and
+    // check its OWN animations. Its `key={activeSong.id}` makes it
+    // fresh on every song change; after the animation ends, its
+    // Animation objects transition to 'finished' and this check
+    // returns false — so the class staying on the element after the
+    // animation doesn't keep the layer hidden.
+    const hasPendingSlide = (() => {
+      const slideEl = container.querySelector('.song-slide-next, .song-slide-prev') as (Element & { getAnimations?: () => Animation[] }) | null;
+      if (!slideEl || typeof slideEl.getAnimations !== 'function') return false;
+      const anims = slideEl.getAnimations();
+      return anims.some((a) => a.playState === 'running' || a.playState === 'idle' || a.playState === 'paused');
+    })();
+    // Initial synchronous measure — BUT only when no song-slide is
+    // pending or running. Perform-mode runs a 260ms slide-in on every
+    // song change; measuring during it captures section positions
+    // that are offset by the transform and would then "jump" into
+    // place at animationend. Skipping the sync measure while a slide
+    // is pending, AND resetting `measured` so the visibility gate
+    // hides the layer, together produce a clean "layer is hidden for
+    // 260ms then appears with correct coords" transition instead of
+    // a visible jump.
+    if (hasPendingSlide || hasRunningAnimation()) {
+      setMeasured(false);
+    } else {
+      measure();
+    }
     const guardedMeasure = () => {
       if (cancelled) return;
       if (!committed) return;
@@ -164,12 +197,6 @@ export function useLineBoxes(
       committed = true;
       measure();
       setMeasured(true);
-    };
-    const hasRunningAnimation = (): boolean => {
-      const el = container as unknown as { getAnimations?: (opts?: { subtree?: boolean }) => Animation[] };
-      if (typeof el.getAnimations !== 'function') return false;
-      const anims = el.getAnimations({ subtree: true });
-      return anims.some((a) => a.playState === 'running');
     };
     const onAnimationEnd = () => {
       commitStable();
