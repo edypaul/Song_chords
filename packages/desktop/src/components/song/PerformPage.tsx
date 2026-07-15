@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download, Pencil, Eye, EyeOff } from 'lucide-react';
-import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore } from '@song-chords/shared';
+import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download, Highlighter } from 'lucide-react';
+import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore, annotationModeFromToggles } from '@song-chords/shared';
 import SongExportModal from './SongExportModal';
 import SetListPickerModal from './SetListPickerModal';
 import type { Song } from '@song-chords/shared';
@@ -19,8 +19,8 @@ import CastQuickButton from './CastQuickButton';
 import PlayLinkButton from './PlayLinkButton';
 import BottomSectionSpacer from './BottomSectionSpacer';
 import AnnotationLayer from '../annotation/AnnotationLayer';
-import AnnotationDrawSurface from '../annotation/AnnotationDrawSurface';
-import AnnotationToolbar from '../annotation/AnnotationToolbar';
+import AnnotationEditingRoot from '../annotation/AnnotationEditingRoot';
+import AnnotationSetPicker from '../annotation/AnnotationSetPicker';
 import { useAnnotationEditStore } from '../annotation/annotation-store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { useMetronome } from '../../hooks/useMetronome';
@@ -217,7 +217,11 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     setNavDirection('prev');
     setActiveIndex((i) => Math.max(i - 1, 0));
   }, []);
-  const swipe = useSwipeNavigation({ onNext: goNext, onPrev: goPrev });
+  // Disable swipe while the annotation drawing panel is open —
+  // otherwise a horizontal drag to draw a line/arrow triggers a
+  // next-/prev-song navigation.
+  const swipeEnabled = !useAnnotationEditStore((s) => s.editing);
+  const swipe = useSwipeNavigation({ onNext: goNext, onPrev: goPrev, enabled: swipeEnabled });
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
@@ -251,7 +255,16 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const showAnnotations = useSettingsStore((s) => s.settings.showAnnotations ?? true);
   const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
+  const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
+  // The four-way annotation mode is derived from the three top-toolbar
+  // toggle booleans. Sets are tagged with whichever mode was active
+  // at save time and only render when that same mode is active again.
+  const annotationMode = annotationModeFromToggles({
+    lyricsOnly: viewMode === 'lyrics-only',
+    chordBarVisible,
+    inlineDiagrams,
+  });
 
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
@@ -786,30 +799,13 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           );
         })()}
 
-        {/* Annotation visibility + editing toggles. Skipped on note
-             items where there's no song to draw on. */}
+        {/* Annotation editing + set-picker. Skipped on note items
+             where there's no song to draw on. Visibility toggle
+             (was an eye icon here) is now folded into the Annotations
+             list dropdown ("Off" entry). */}
         {activeSong && !isNoteActive && (() => {
-          const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
           return (
             <>
-              <button
-                onClick={() => setShowAnnotations(!showAnnotations)}
-                disabled={!hasAnnotations}
-                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-                style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
-                title={
-                  !hasAnnotations
-                    ? 'This song has no annotations'
-                    : showAnnotations
-                      ? 'Hide annotations'
-                      : 'Show annotations'
-                }
-                aria-label="Toggle annotation visibility"
-              >
-                {showAnnotations
-                  ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                  : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
-              </button>
               <button
                 onClick={() => setAnnotationEditing(!annotationEditing)}
                 className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
@@ -817,8 +813,15 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                 aria-label="Annotate"
                 aria-pressed={annotationEditing}
               >
-                <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
+                <Highlighter size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
               </button>
+              {activeSong && (
+                <AnnotationSetPicker
+                  songId={activeSong.id}
+                  annotationsJson={activeSong.annotations}
+                  viewMode={annotationMode}
+                />
+              )}
             </>
           );
         })()}
@@ -1008,15 +1011,19 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
                   visible={showAnnotations}
                   suppress={annotationEditing}
+                  viewMode={annotationMode}
+                  selectedSetId={selectedSetIds[activeSong.id] ?? null}
                 />
               )}
               {activeSong && annotationEditing && (
-                <AnnotationDrawSurface
+                <AnnotationEditingRoot
                   songId={activeSong.id}
                   annotationsJson={activeSong.annotations}
                   scrollRef={scrollRef as React.RefObject<HTMLElement>}
                   recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
                   showCommitted={showAnnotations}
+                  viewMode={annotationMode}
+                  onCloseToolbar={() => setAnnotationEditing(false)}
                 />
               )}
             </div>
@@ -1060,17 +1067,9 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
         />
       )}
 
-      {/* Annotation floating toolbar — sibling to the sticky note. Note
-          items don't have a song to annotate, so we gate on activeSong
-          + !isNoteActive here as well. */}
-      {annotationEditing && activeSong && !isNoteActive && (
-        <AnnotationToolbar
-          onClose={() => setAnnotationEditing(false)}
-          onClearAll={() => {
-            void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
-          }}
-        />
-      )}
+      {/* Annotation floating toolbar lives inside AnnotationEditingRoot
+          (mounted above) so it shares the doc controller with the draw
+          surface. */}
 
       {/* Floating "back to top" button — bottom-right of the perform view,
           only when the user has scrolled to the bottom. */}

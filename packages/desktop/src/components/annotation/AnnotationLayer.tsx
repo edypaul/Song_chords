@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { parseSongAnnotations } from '@song-chords/shared';
-import type { Annotation, StrokeAnnotation, LineAnnotation, BoxAnnotation, TextAnnotation } from '@song-chords/shared';
+import { parseSongAnnotations, pickActiveSet } from '@song-chords/shared';
+import type { Annotation, AnnotationViewMode, StrokeAnnotation, LineAnnotation, BoxAnnotation, TextAnnotation } from '@song-chords/shared';
 
 interface Props {
   /** The song's `annotations` field (JSON) or undefined when none. */
@@ -20,6 +20,14 @@ interface Props {
   /** Instant hide, no fade — used by the parent when the draw
    *  surface takes over. */
   suppress?: boolean;
+  /** Current view mode. Together with `selectedSetId` decides which
+   *  annotation SET is rendered — sets are tagged with a view mode
+   *  and only appear in matching modes. See
+   *  `pickActiveSet` in the shared types for the rules. */
+  viewMode: AnnotationViewMode;
+  /** Explicit user selection from the set-picker dropdown (or null to
+   *  fall back to the view-mode default). */
+  selectedSetId?: string | null;
 }
 
 /** Measured position + size of one annotation-anchorable line,
@@ -92,6 +100,15 @@ export function useLineBoxes(
         const l = Number(el.dataset.annotLineIndex);
         if (!Number.isFinite(s) || !Number.isFinite(l)) return;
         const r = el.getBoundingClientRect();
+        // Store raw bcr differences — Chromium reports bcr on
+        // descendants of a CSS-zoomed element in the SAME frame as
+        // bcr on the wrapper itself, so subtraction is
+        // frame-consistent. The pointer path in AnnotationDrawSurface
+        // subtracts the same wrapper bcr and (in perf mode) divides
+        // by zoom; the divide is compensated by the SVG rendering
+        // inside the same zoomed wrapper — CSS zoom scales the
+        // shape's rendered position back up to match the visual
+        // click point.
         next.set(KEY(s, l), {
           sectionIndex: s,
           lineIndex: l,
@@ -321,12 +338,18 @@ export default function AnnotationLayer({
   recomputeKey,
   visible,
   suppress = false,
+  viewMode,
+  selectedSetId,
 }: Props): React.ReactElement | null {
   const parsed = useMemo(() => parseSongAnnotations(annotationsJson), [annotationsJson]);
   const svgRef = useRef<SVGSVGElement>(null);
   const { boxes, layerSize, measured } = useLineBoxes(scrollRef, svgRef, recomputeKey);
 
-  if (!parsed || parsed.shapes.length === 0) return null;
+  const activeSet = useMemo(
+    () => pickActiveSet(parsed, viewMode, selectedSetId),
+    [parsed, viewMode, selectedSetId],
+  );
+  if (!activeSet || activeSet.shapes.length === 0) return null;
 
   return (
     <svg
@@ -363,7 +386,7 @@ export default function AnnotationLayer({
           `-leftOffset` puts each shape at its true wrapper-frame
           position regardless of the SVG's leftward extension. */}
       <g transform={`translate(${-layerSize.leftOffset}, 0)`}>
-        {parsed.shapes.map((shape) => {
+        {activeSet.shapes.map((shape) => {
           const box = resolveAnchorBox(boxes, shape.anchor.sectionIndex, shape.anchor.lineIndex);
           if (!box) return null;
           return (

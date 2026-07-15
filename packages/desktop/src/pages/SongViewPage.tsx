@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown, Pencil, Eye, EyeOff } from 'lucide-react';
-import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey } from '@song-chords/shared';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown, Highlighter } from 'lucide-react';
+import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
@@ -16,8 +16,8 @@ import SectionNavigator from '../components/song/SectionNavigator';
 import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import CastQuickButton from '../components/song/CastQuickButton';
 import AnnotationLayer from '../components/annotation/AnnotationLayer';
-import AnnotationDrawSurface from '../components/annotation/AnnotationDrawSurface';
-import AnnotationToolbar from '../components/annotation/AnnotationToolbar';
+import AnnotationEditingRoot from '../components/annotation/AnnotationEditingRoot';
+import AnnotationSetPicker from '../components/annotation/AnnotationSetPicker';
 import { useAnnotationEditStore } from '../components/annotation/annotation-store';
 import PlayLinkButton from '../components/song/PlayLinkButton';
 import { useAutoScroll } from '../hooks/useAutoScroll';
@@ -199,6 +199,15 @@ export default function SongViewPage(): React.ReactElement {
   const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
+  const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
+  // The four-way annotation mode is derived from the three top-toolbar
+  // toggle booleans. Sets are tagged with whichever mode was active
+  // at save time and only render when that same mode is active again.
+  const annotationMode = annotationModeFromToggles({
+    lyricsOnly: viewMode === 'lyrics-only',
+    chordBarVisible,
+    inlineDiagrams,
+  });
   // Auto-open the sticky note when a song that has notes becomes active.
   // Runs on song change so switching songs refreshes the visibility.
   useEffect(() => {
@@ -682,41 +691,16 @@ export default function SongViewPage(): React.ReactElement {
           {/* Audio source + Cast + Annotations (full-screen perf) */}
           <div className="ml-auto flex items-center gap-1">
             <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
-            {/* Annotation visibility toggle — mirrors the toolbar-mode
-                button. Disabled when there's nothing to show so the
-                affordance reads as display-only. */}
-            {(() => {
-              const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
-              return (
-                <button
-                  onClick={() => setShowAnnotations(!showAnnotations)}
-                  disabled={!hasAnnotations}
-                  className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-                  style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
-                  title={
-                    !hasAnnotations
-                      ? 'This song has no annotations'
-                      : showAnnotations
-                        ? 'Hide annotations'
-                        : 'Show annotations'
-                  }
-                  aria-label="Toggle annotation visibility"
-                >
-                  {showAnnotations
-                    ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                    : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
-                </button>
-              );
-            })()}
-            <button
-              onClick={() => setAnnotationEditing(!annotationEditing)}
-              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-              title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
-              aria-label="Annotate"
-              aria-pressed={annotationEditing}
-            >
-              <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
-            </button>
+            {/* Fullscreen intentionally omits the "annotate this song"
+                button — annotations are created in the normal view
+                and only READ in fullscreen. The picker below stays
+                so the user can still switch between sets or turn them
+                off during a performance. */}
+            <AnnotationSetPicker
+              songId={activeSong.id}
+              annotationsJson={activeSong.annotations}
+              viewMode={annotationMode}
+            />
             <CastQuickButton />
           </div>
 
@@ -752,14 +736,18 @@ export default function SongViewPage(): React.ReactElement {
             recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
             visible={showAnnotations}
             suppress={annotationEditing}
+            viewMode={annotationMode}
+            selectedSetId={selectedSetIds[activeSong.id] ?? null}
           />
           {annotationEditing && (
-            <AnnotationDrawSurface
+            <AnnotationEditingRoot
               songId={activeSong.id}
               annotationsJson={activeSong.annotations}
               scrollRef={scrollRef as React.RefObject<HTMLElement>}
               recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
               showCommitted={showAnnotations}
+              viewMode={annotationMode}
+              onCloseToolbar={() => setAnnotationEditing(false)}
             />
           )}
           </div>
@@ -799,17 +787,6 @@ export default function SongViewPage(): React.ReactElement {
 
         {selectedChord && <ChordModal chord={selectedChord} onClose={() => setSelectedChord(null)} songId={activeSong?.id} songPrefs={activeSong?.preferences} onKeepFullscreen={keepFullscreenAfterModal} />}
 
-        {/* Annotation floating toolbar — mounted inside the perf-mode
-            branch too, since the outer return below is unreachable
-            in fullscreen. */}
-        {annotationEditing && activeSong && (
-          <AnnotationToolbar
-            onClose={() => setAnnotationEditing(false)}
-            onClearAll={() => {
-              void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
-            }}
-          />
-        )}
       </div>
     );
   }
@@ -1165,32 +1142,9 @@ export default function SongViewPage(): React.ReactElement {
             );
           })()}
 
-          {/* Annotation visibility toggle — hides the read-only layer.
-              Disabled when there's nothing to show so it's clear the
-              toggle is a display-only affordance. */}
-          {(() => {
-            const hasAnnotations = !!activeSong.annotations && activeSong.annotations.length > 2;
-            return (
-              <button
-                onClick={() => setShowAnnotations(!showAnnotations)}
-                disabled={!hasAnnotations}
-                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-                style={{ opacity: hasAnnotations ? 1 : 0.4, cursor: hasAnnotations ? 'pointer' : 'not-allowed' }}
-                title={
-                  !hasAnnotations
-                    ? 'This song has no annotations'
-                    : showAnnotations
-                      ? 'Hide annotations'
-                      : 'Show annotations'
-                }
-                aria-label="Toggle annotation visibility"
-              >
-                {showAnnotations
-                  ? <Eye size={16} style={{ color: hasAnnotations ? 'var(--accent)' : 'var(--text-secondary)' }} />
-                  : <EyeOff size={16} style={{ color: 'var(--text-secondary)' }} />}
-              </button>
-            );
-          })()}
+          {/* Annotation visibility is now controlled via the
+              Annotations list dropdown ("Off" entry) — the separate
+              eye toggle was redundant. */}
 
           {/* Enter / exit annotation editing mode. Opens the floating
               annotation toolbar and mounts the drawing surface. */}
@@ -1201,8 +1155,14 @@ export default function SongViewPage(): React.ReactElement {
             aria-label="Annotate"
             aria-pressed={annotationEditing}
           >
-            <Pencil size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
+            <Highlighter size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
           </button>
+
+          <AnnotationSetPicker
+            songId={activeSong.id}
+            annotationsJson={activeSong.annotations}
+            viewMode={annotationMode}
+          />
 
           {/* Cast to receiver */}
           <CastQuickButton />
@@ -1325,14 +1285,18 @@ export default function SongViewPage(): React.ReactElement {
             recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
             visible={showAnnotations}
             suppress={annotationEditing}
+            viewMode={annotationMode}
+            selectedSetId={selectedSetIds[activeSong.id] ?? null}
           />
           {annotationEditing && (
-            <AnnotationDrawSurface
+            <AnnotationEditingRoot
               songId={activeSong.id}
               annotationsJson={activeSong.annotations}
               scrollRef={scrollRef as React.RefObject<HTMLElement>}
               recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
               showCommitted={showAnnotations}
+              viewMode={annotationMode}
+              onCloseToolbar={() => setAnnotationEditing(false)}
             />
           )}
           </div>
@@ -1396,19 +1360,9 @@ export default function SongViewPage(): React.ReactElement {
         />
       )}
 
-      {/* Annotation floating toolbar — sibling to the sticky note. */}
-      {annotationEditing && activeSong && (
-        <AnnotationToolbar
-          onClose={() => setAnnotationEditing(false)}
-          onClearAll={() => {
-            // "Clear all" wipes the annotations column. The draw
-            // surface's own state hydrates from `annotationsJson`
-            // via its effect, so this is the one-shot way to reset
-            // both persistent and in-memory state.
-            void useSongStore.getState().saveAnnotations(db, activeSong.id, null);
-          }}
-        />
-      )}
+      {/* Annotation floating toolbar lives inside AnnotationEditingRoot
+          (mounted above) so it shares the doc controller with the draw
+          surface. No separate mount here. */}
 
       {/* Export modal */}
       {showExport && activeSong && (

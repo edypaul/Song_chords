@@ -1,53 +1,52 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import {
-  parseSongAnnotations,
-  stringifySongAnnotations,
-  useSongStore,
-} from '@song-chords/shared';
 import type {
   Annotation,
   AnnotationAnchor,
+  AnnotationSet,
   BoxAnnotation,
   LineAnnotation,
-  SongAnnotations,
   StrokeAnnotation,
   TextAnnotation,
 } from '@song-chords/shared';
-import { db } from '../../ipc/ipc-client';
 import { renderShape, resolveAnchorBox, useLineBoxes } from './AnnotationLayer';
 import type { LineBox } from './AnnotationLayer';
 import { useAnnotationEditStore } from './annotation-store';
 
 interface Props {
-  songId: string;
-  annotationsJson: string | undefined;
   scrollRef: React.RefObject<HTMLElement>;
   recomputeKey: string;
   showCommitted?: boolean;
-}
-
-interface HistoryEntry {
-  shapes: Annotation[];
+  /** The DRAFT set — the drawing surface's editable target. Named
+   *  sets are read-only from here: strokes always write to the draft.
+   *  When null, the first stroke creates a fresh draft via
+   *  `replaceShapes` on the parent controller. */
+  editingSet: AnnotationSet | undefined;
+  /** Replace the active set's shape list. Creates a draft if there's
+   *  no active set yet. */
+  replaceShapes: (shapes: Annotation[]) => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 const HIGHLIGHTER_WIDTH_MULTIPLIER = 4;
-const DEBOUNCE_SAVE_MS = 250;
 
 /**
  * Interactive drawing overlay. Mounted only while the annotation
- * toolbar is open. On pointer-down it looks up which rendered line the
- * pointer is over (or nearest — for margin drawing), locks the shape
- * to that line's anchor, and stores subsequent coords in that line's
- * local frame. Render and draw share `useLineBoxes` so they see the
- * exact same box positions at the same instant — no zoom drift.
+ * toolbar is open. On pointer-down it locks the shape to the nearest
+ * DOM line (see `useLineBoxes`), then stores subsequent coords in
+ * that line's local frame. All state (multiple named sets, draft,
+ * undo, save) is owned by `useAnnotationDoc` — this component is a
+ * pointer-to-shape translator that writes back via `replaceShapes`.
  */
 export default function AnnotationDrawSurface({
-  songId,
-  annotationsJson,
   scrollRef,
   recomputeKey,
   showCommitted = true,
+  editingSet,
+  replaceShapes,
+  undo,
+  redo,
 }: Props): React.ReactElement | null {
   const svgRef = useRef<SVGSVGElement>(null);
   const { boxes, layerSize, currentZoom, measured } = useLineBoxes(scrollRef, svgRef, recomputeKey);
@@ -55,70 +54,18 @@ export default function AnnotationDrawSurface({
   const color = useAnnotationEditStore((s) => s.color);
   const strokeWidth = useAnnotationEditStore((s) => s.strokeWidth);
   const fontSize = useAnnotationEditStore((s) => s.fontSize);
-  const saveAnnotations = useSongStore((s) => s.saveAnnotations);
 
-  const initialShapes = useMemo(
-    () => parseSongAnnotations(annotationsJson)?.shapes ?? [],
-    [annotationsJson],
-  );
-  const [shapes, setShapes] = useState<Annotation[]>(initialShapes);
-  const lastSavedJson = useRef<string | undefined>(annotationsJson);
-  useEffect(() => {
-    if (annotationsJson !== lastSavedJson.current) {
-      setShapes(parseSongAnnotations(annotationsJson)?.shapes ?? []);
-      lastSavedJson.current = annotationsJson;
-    }
-  }, [annotationsJson]);
-
-  const [history, setHistory] = useState<HistoryEntry[]>(() => [{ shapes: initialShapes }]);
-  const [historyIdx, setHistoryIdx] = useState(0);
-  const pushHistory = useCallback((next: Annotation[]) => {
-    setHistory((prev) => {
-      const truncated = prev.slice(0, historyIdx + 1);
-      return [...truncated, { shapes: next }];
-    });
-    setHistoryIdx((i) => i + 1);
-  }, [historyIdx]);
-
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSaveRef = useRef<Annotation[] | null>(null);
-  const scheduleSave = useCallback((next: Annotation[]) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    pendingSaveRef.current = next;
-    saveTimer.current = setTimeout(() => {
-      const doc: SongAnnotations = { version: 2, shapes: next };
-      const json = next.length === 0 ? null : stringifySongAnnotations(doc);
-      lastSavedJson.current = json ?? undefined;
-      void saveAnnotations(db, songId, json);
-      pendingSaveRef.current = null;
-      saveTimer.current = null;
-    }, DEBOUNCE_SAVE_MS);
-  }, [songId, saveAnnotations]);
-  useEffect(() => () => {
-    if (saveTimer.current && pendingSaveRef.current) {
-      clearTimeout(saveTimer.current);
-      const shapesToSave = pendingSaveRef.current;
-      const doc: SongAnnotations = { version: 2, shapes: shapesToSave };
-      const json = shapesToSave.length === 0 ? null : stringifySongAnnotations(doc);
-      lastSavedJson.current = json ?? undefined;
-      void saveAnnotations(db, songId, json);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const shapes: Annotation[] = editingSet?.shapes ?? [];
 
   const [draft, setDraft] = useState<Annotation | null>(null);
-  /** The anchor line the current stroke is locked to. Stays fixed for
-   *  the whole stroke so the shape doesn't jump lines mid-drag. */
+  /** Anchor line the current stroke is locked to. */
   const draftBox = useRef<LineBox | null>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
 
   const [pendingText, setPendingText] = useState<null | {
     anchor: AnnotationAnchor;
-    /** Local-frame offsetX in the anchor line. */
     x: number;
-    /** Local-frame offsetY in the anchor line. */
     y: number;
-    /** Screen pixel position for the floating input. */
     screenX: number;
     screenY: number;
   }>(null);
@@ -133,21 +80,6 @@ export default function AnnotationDrawSurface({
     return () => cancelAnimationFrame(t);
   }, [pendingText]);
 
-  /** Pick the anchor line for a pointer position.
-   *
-   *  Preference order:
-   *   1. If a line CONTAINS the pointer (x within box.x..box.x+width
-   *      and y within box.y..box.y+height), use it.
-   *   2. Otherwise, pick the line with the smallest euclidean distance
-   *      to the pointer (nearest edge). This is what enables margin
-   *      drawing: the pointer is outside every line's box, but we pick
-   *      the closest one and store the offset as negative-x /
-   *      greater-than-width — the render path preserves that offset
-   *      verbatim.
-   *
-   *  Falls back to a virtual whole-container box if no lines exist
-   *  (song has literally zero rendered lines yet — should be very
-   *  rare after mount). */
   const findAnchorLine = useCallback((contentX: number, contentY: number): LineBox | null => {
     if (boxes.size === 0) {
       const container = scrollRef.current;
@@ -171,7 +103,6 @@ export default function AnnotationDrawSurface({
         contained = b;
         break;
       }
-      // Distance from pointer to the box's nearest edge.
       const dx = contentX < b.x ? b.x - contentX : contentX > b.x + b.width ? contentX - (b.x + b.width) : 0;
       const dy = contentY < b.y ? b.y - contentY : contentY > b.y + b.height ? contentY - (b.y + b.height) : 0;
       const d = Math.hypot(dx, dy);
@@ -183,17 +114,6 @@ export default function AnnotationDrawSurface({
     return contained ?? nearest;
   }, [boxes, scrollRef]);
 
-  /** Convert a pointer event into `(contentX, contentY, anchorBox,
-   *  localX, localY)`. Coords are all in the WRAPPER's frame.
-   *
-   *  Key insight vs. the previous implementation: we no longer divide
-   *  by CSS zoom. The wrapper's bcr and the line bcrs are all measured
-   *  inside the same CSS-zoomed subtree, so both come back in the same
-   *  frame (in practice: layout px). Subtraction is frame-consistent.
-   *  The pointer clientX/Y is in visual px, so we DO need to convert
-   *  it — but the wrapper's bcr top-left is the visual point where
-   *  the layout origin sits, so `(clientX - wrapper.left) / zoom` is
-   *  the correct conversion to a layout-frame delta. */
   const resolvePointer = useCallback((e: React.PointerEvent) => {
     const container = scrollRef.current;
     if (!container) return null;
@@ -211,16 +131,11 @@ export default function AnnotationDrawSurface({
   }, [scrollRef, findAnchorLine, currentZoom]);
 
   const commit = useCallback((next: Annotation) => {
-    setShapes((prev) => {
-      const merged = [...prev, next];
-      pushHistory(merged);
-      scheduleSave(merged);
-      return merged;
-    });
+    replaceShapes([...shapes, next]);
     setDraft(null);
     draftBox.current = null;
     dragStart.current = null;
-  }, [pushHistory, scheduleSave]);
+  }, [shapes, replaceShapes]);
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -229,10 +144,7 @@ export default function AnnotationDrawSurface({
       if (!p) return;
       const hit = hitTest(shapes, boxes, p.contentX, p.contentY);
       if (hit) {
-        const next = shapes.filter((s) => s.id !== hit.id);
-        setShapes(next);
-        pushHistory(next);
-        scheduleSave(next);
+        replaceShapes(shapes.filter((s) => s.id !== hit.id));
       }
       return;
     }
@@ -242,8 +154,6 @@ export default function AnnotationDrawSurface({
       setPendingText({
         anchor: { sectionIndex: p.box.sectionIndex, lineIndex: p.box.lineIndex },
         x: p.localX,
-        // Vertically centre the eventual text on the click point (matches
-        // the floating input's own vertical centering).
         y: p.localY - fontSize / 2,
         screenX: e.clientX,
         screenY: e.clientY,
@@ -306,19 +216,11 @@ export default function AnnotationDrawSurface({
     const zoom = currentZoom > 0 ? currentZoom : 1;
     const contentX = (e.clientX - wrapperRect.left) / zoom;
     const contentY = (e.clientY - wrapperRect.top) / zoom;
-    // Keep the shape locked to its ORIGINAL anchor line — subsequent
-    // points are stored as offsets from that line's box, even if the
-    // pointer drifted into another line's box. Matches the "this arrow
-    // lives on line X" mental model, and prevents mid-drag anchor
-    // jumps.
     const box = draftBox.current;
     const localX = contentX - box.x;
     const localY = contentY - box.y;
     if (draft.kind === 'pen' || draft.kind === 'highlighter') {
-      setDraft({
-        ...draft,
-        points: [...draft.points, [localX, localY]],
-      });
+      setDraft({ ...draft, points: [...draft.points, [localX, localY]] });
     } else if (draft.kind === 'line' || draft.kind === 'arrow') {
       setDraft({ ...draft, x2: localX, y2: localY });
     } else if (draft.kind === 'rect' || draft.kind === 'ellipse') {
@@ -336,7 +238,6 @@ export default function AnnotationDrawSurface({
   const onPointerUp = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!draft) return;
     try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    // Filter zero-size shapes.
     if (draft.kind === 'line' || draft.kind === 'arrow') {
       if (Math.hypot(draft.x2 - draft.x1, draft.y2 - draft.y1) < 4) {
         setDraft(null);
@@ -374,15 +275,10 @@ export default function AnnotationDrawSurface({
       content: trimmed,
       fontSize,
     };
-    setShapes((prev) => {
-      const merged = [...prev, shape];
-      pushHistory(merged);
-      scheduleSave(merged);
-      return merged;
-    });
+    replaceShapes([...shapes, shape]);
     setPendingText(null);
     setTextValue('');
-  }, [pendingText, textValue, color, strokeWidth, fontSize, pushHistory, scheduleSave]);
+  }, [pendingText, textValue, color, strokeWidth, fontSize, shapes, replaceShapes]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -390,38 +286,11 @@ export default function AnnotationDrawSurface({
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
       if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
         e.preventDefault();
-        if (e.shiftKey) {
-          setHistoryIdx((i) => {
-            const next = Math.min(i + 1, history.length - 1);
-            if (next !== i) {
-              const entry = history[next];
-              setShapes(entry.shapes);
-              scheduleSave(entry.shapes);
-            }
-            return next;
-          });
-        } else {
-          setHistoryIdx((i) => {
-            const next = Math.max(i - 1, 0);
-            if (next !== i) {
-              const entry = history[next];
-              setShapes(entry.shapes);
-              scheduleSave(entry.shapes);
-            }
-            return next;
-          });
-        }
+        if (e.shiftKey) redo();
+        else undo();
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
         e.preventDefault();
-        setHistoryIdx((i) => {
-          const next = Math.min(i + 1, history.length - 1);
-          if (next !== i) {
-            const entry = history[next];
-            setShapes(entry.shapes);
-            scheduleSave(entry.shapes);
-          }
-          return next;
-        });
+        redo();
       } else if (e.key === 'Escape' && pendingText) {
         e.preventDefault();
         setPendingText(null);
@@ -430,7 +299,7 @@ export default function AnnotationDrawSurface({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [history, scheduleSave, pendingText]);
+  }, [undo, redo, pendingText]);
 
   const container = scrollRef.current;
   const effectiveW = layerSize.w || container?.clientWidth || 0;
@@ -448,8 +317,6 @@ export default function AnnotationDrawSurface({
           top: 0,
           width: effectiveW,
           height: effectiveH,
-          // Overflow visible so shape overflow past the SVG box (e.g.
-          // an ellipse dragged past the right edge) still paints.
           overflow: 'visible',
           pointerEvents: 'auto',
           cursor: tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
@@ -461,11 +328,6 @@ export default function AnnotationDrawSurface({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {/* Coord-frame shift — see AnnotationLayer for the full
-            rationale. Shape/box coords live in the wrapper's frame;
-            the SVG sits `leftOffset` layout-px left of the wrapper's
-            origin, so we translate the shape group right by
-            `-leftOffset` to compensate. */}
         <g transform={`translate(${-layerSize.leftOffset}, 0)`}>
           <g style={{ visibility: (measured && showCommitted) ? 'visible' : 'hidden' }}>
             {shapes.map((shape) => {
@@ -523,9 +385,6 @@ export default function AnnotationDrawSurface({
   );
 }
 
-/** Cheap hit-test for the "select" tool. Coordinates are in the
- *  wrapper's frame. For each shape, translate its local-frame coords
- *  by its anchor box's (x, y) and check proximity. */
 function hitTest(shapes: Annotation[], boxes: Map<string, LineBox>, contentX: number, contentY: number): Annotation | null {
   const TOLERANCE = 12;
   let best: { shape: Annotation; dist: number } | null = null;

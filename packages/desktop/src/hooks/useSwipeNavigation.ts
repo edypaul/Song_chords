@@ -9,6 +9,10 @@ interface Options {
   horizontalRatio?: number;
   /** Max duration (ms) between pointerdown and pointerup. */
   maxDuration?: number;
+  /** When false, all handlers are no-ops. Used e.g. while the
+   *  annotation drawing surface is active — otherwise a horizontal
+   *  drag to draw a line/arrow triggers a next/prev-song swipe. */
+  enabled?: boolean;
 }
 
 /**
@@ -35,18 +39,21 @@ export function useSwipeNavigation({
   threshold = 80,
   horizontalRatio = 1.5,
   maxDuration = 800,
+  enabled = true,
 }: Options) {
   const start = useRef<{ x: number; y: number; t: number; id: number; captured: boolean } | null>(null);
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (!enabled) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Do NOT capture here — capturing eagerly swallows taps (the click
     // gets retargeted to this element). We capture lazily in
     // onPointerMove once the movement is clearly a horizontal swipe.
     start.current = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId, captured: false };
-  }, []);
+  }, [enabled]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!enabled) return;
     const s = start.current;
     if (!s || s.id !== e.pointerId || s.captured) return;
     const dx = e.clientX - s.x;
@@ -58,9 +65,10 @@ export function useSwipeNavigation({
       try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* ignore */ }
       s.captured = true;
     }
-  }, [threshold, horizontalRatio]);
+  }, [enabled, threshold, horizontalRatio]);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!enabled) return;
     const s = start.current;
     start.current = null;
     if (s?.captured) {
@@ -74,15 +82,16 @@ export function useSwipeNavigation({
     if (Math.abs(dx) < threshold) return;
     if (Math.abs(dx) < Math.abs(dy) * horizontalRatio) return;
     if (dx < 0) onNext(); else onPrev();
-  }, [onNext, onPrev, threshold, horizontalRatio, maxDuration]);
+  }, [enabled, onNext, onPrev, threshold, horizontalRatio, maxDuration]);
 
   const onPointerCancel = useCallback((e: React.PointerEvent) => {
+    if (!enabled) return;
     const s = start.current;
     start.current = null;
     if (s?.captured) {
       try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
     }
-  }, []);
+  }, [enabled]);
 
   return {
     onPointerDown,

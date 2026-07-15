@@ -41,11 +41,25 @@ interface AnnotationEditState {
    *  they change together far less often than either changes alone. */
   fontSize: number;
 
+  /** Per-song "active set" selection. Not persisted across app
+   *  restarts — a session preference, so restarting resets to the
+   *  default set for the current view mode.
+   *
+   *  Keyed by songId → set id (or 'draft'). `null` means "no explicit
+   *  choice, use the default-for-view-mode rule".
+   *
+   *  Cleared explicitly when a song's set is renamed / deleted so a
+   *  stale id doesn't get used after a mutation. */
+  selectedSetIds: Record<string, string | null>;
+
   setEditing: (v: boolean) => void;
   setTool: (t: AnnotationTool) => void;
   setColor: (c: string) => void;
   setStrokeWidth: (w: number) => void;
   setFontSize: (n: number) => void;
+  /** Explicit set choice for a song. Pass `null` to clear (fall back
+   *  to view-mode default). */
+  setSelectedSetId: (songId: string, setId: string | null) => void;
 }
 
 export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
@@ -54,10 +68,14 @@ export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
   color: ANNOTATION_COLORS[0],
   strokeWidth: 3,
   fontSize: 18,
+  selectedSetIds: {},
 
   setEditing: (editing) => set({ editing }),
   setTool: (tool) => set({ tool }),
   setColor: (color) => set({ color }),
   setStrokeWidth: (strokeWidth) => set({ strokeWidth }),
   setFontSize: (fontSize) => set({ fontSize }),
+  setSelectedSetId: (songId, setId) => set((state) => ({
+    selectedSetIds: { ...state.selectedSetIds, [songId]: setId },
+  })),
 }));

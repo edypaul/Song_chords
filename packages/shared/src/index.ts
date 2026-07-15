@@ -10,9 +10,15 @@ export type {
 export type { ChordDiagram, InstrumentType } from './types/chord.types';
 export type {
   SongAnnotations, Annotation, AnnotationKind, AnnotationAnchor,
+  AnnotationSet, AnnotationViewMode,
   StrokeAnnotation, LineAnnotation, BoxAnnotation, TextAnnotation,
 } from './types/annotation.types';
-export { parseSongAnnotations, stringifySongAnnotations } from './types/annotation.types';
+export {
+  parseSongAnnotations, stringifySongAnnotations,
+  pickActiveSet, listSetsForViewMode,
+  annotationModeFromToggles, viewModeEquals, viewModeLabel,
+  DEFAULT_VIEW_MODE, ANNOTATION_OFF,
+} from './types/annotation.types';
 export type { AppSettings, ThemeType, ViewMode, SongViewStyle, SectionStyle, CustomPreset, SongListColumn, DashboardCardKey, KeyboardShortcuts, ShortcutAction } from './types/settings.types';
 export { SONG_LIST_COLUMNS, DASHBOARD_CARDS } from './types/settings.types';
 

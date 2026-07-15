@@ -20,13 +20,97 @@
  * negative (left margin) or greater than line.width (right margin) or
  * outside line.height (above/below), and the render path places the
  * shape at exactly the stored offset with no clamping.
+ *
+ * v3 shape: multiple NAMED annotation SETS per song, each tagged
+ * with the view mode it applies to. Loaders migrate v1 and v2 rows
+ * into a single unnamed draft set (see `parseSongAnnotations`).
  */
-export interface SongAnnotations {
-  /** Bumped from 1 → 2 when the anchor model switched from
-   *  section-normalised coords to per-line offsets. Loaders MUST
-   *  migrate v1 rows to v2 on read (see `parseSongAnnotations`). */
-  version: 2;
+/** The three top-toolbar toggle-button states captured at annotation
+ *  save time. A set is visible only when the CURRENT toggle state
+ *  matches the saved state on all three flags simultaneously.
+ *
+ *  Each flag is independent — turning ANY of them on or off changes
+ *  which sets are visible. `lyricsOnly=true, chordBar=false,
+ *  inlineDiagrams=true` picks a different set of annotations than
+ *  `lyricsOnly=true, chordBar=false, inlineDiagrams=false`, even
+ *  though "lyrics-only" is on in both. */
+export interface AnnotationViewMode {
+  lyricsOnly: boolean;
+  chordBar: boolean;
+  inlineDiagrams: boolean;
+}
+
+/** True when two view modes are the same on all three flags. Used
+ *  as the render-time and picker-time match rule. */
+export function viewModeEquals(a: AnnotationViewMode, b: AnnotationViewMode): boolean {
+  return (
+    a.lyricsOnly === b.lyricsOnly &&
+    a.chordBar === b.chordBar &&
+    a.inlineDiagrams === b.inlineDiagrams
+  );
+}
+
+/** Snapshot the three toggle states as an AnnotationViewMode. */
+export function annotationModeFromToggles(opts: {
+  lyricsOnly: boolean;
+  chordBarVisible: boolean;
+  inlineDiagrams: boolean;
+}): AnnotationViewMode {
+  return {
+    lyricsOnly: opts.lyricsOnly,
+    chordBar: opts.chordBarVisible,
+    inlineDiagrams: opts.inlineDiagrams,
+  };
+}
+
+/** Human-readable label for a view mode — used by the UI (picker
+ *  header + save-as confirmation). Describes exactly which toggles
+ *  are on, so the user can tell why one set is shown vs another. */
+export function viewModeLabel(vm: AnnotationViewMode): string {
+  const parts: string[] = [];
+  if (vm.lyricsOnly) parts.push('Lyrics only');
+  if (vm.chordBar) parts.push('Chord bar');
+  if (vm.inlineDiagrams) parts.push('Inline diagrams');
+  if (parts.length === 0) return 'Default view';
+  return parts.join(' + ');
+}
+
+/** Base view mode — none of the three toggles on. Used as the
+ *  placeholder for the draft (which shows in all modes anyway). */
+export const DEFAULT_VIEW_MODE: AnnotationViewMode = {
+  lyricsOnly: false,
+  chordBar: false,
+  inlineDiagrams: false,
+};
+
+/** One named collection of shapes tied to a view mode. */
+export interface AnnotationSet {
+  id: string;
+  name: string;
+  /** Only visible / editable when the song is being viewed in this
+   *  mode. Enforced by `pickActiveSet` — the render/draw code never
+   *  has to check view mode directly. */
+  viewMode: AnnotationViewMode;
+  /** At most one set per (song, viewMode) can be default. When true
+   *  AND no explicit selection is active, this set is used for that
+   *  view mode. */
+  isDefault: boolean;
   shapes: Annotation[];
+}
+
+/** The whole annotation document for one song. */
+export interface SongAnnotations {
+  /** Bumped from 1 → 2 when the anchor model switched to per-line
+   *  offsets, and from 2 → 3 when annotations became a list of named
+   *  view-mode-tagged sets. Loaders migrate older versions on read. */
+  version: 3;
+  /** Named saved sets. Empty on a fresh song. */
+  sets: AnnotationSet[];
+  /** Unnamed draft the drawing surface writes into when no saved set
+   *  is currently loaded for editing. `Save as…` promotes this to a
+   *  named `AnnotationSet`, then clears the draft. Not tagged with a
+   *  view mode — it's whatever the user is currently drawing on. */
+  draft?: AnnotationSet;
 }
 
 export type AnnotationKind =
@@ -108,10 +192,11 @@ export type Annotation =
   | BoxAnnotation
   | TextAnnotation;
 
-/** v1 anchor — the pre-refactor model. Kept as a type alias so the
- *  migration path is clearly documented. `refWidth` was an earlier
- *  attempt at zoom-drift correction; it can be safely ignored during
- *  migration because we're switching to a DOM-anchored model. */
+// ─────────────────────────────────────────────────────────────────
+// v1 → v2 migration types (line-anchoring refactor). Kept because
+// stored rows in the DB may still be v1.
+// ─────────────────────────────────────────────────────────────────
+
 interface AnnotationAnchorV1 {
   sectionIndex: number;
   sectionLabel?: string;
@@ -130,23 +215,6 @@ interface BoxV1 extends AnnotationV1Base { kind: 'rect' | 'ellipse'; x: number; 
 interface TextV1 extends AnnotationV1Base { kind: 'text'; x: number; y: number; content: string; fontSize: number; }
 type AnnotationV1 = StrokeV1 | LineV1 | BoxV1 | TextV1;
 
-/** Best-effort migration from v1 (section-normalised) to v2 (line-
- *  anchored). We can't perfectly place shapes without knowing which
- *  line each stored y coordinate landed on originally — the DOM
- *  isn't available during a pure data migration. So we do the
- *  simplest safe thing: anchor every v1 shape to `lineIndex: 0`
- *  (the section heading) and preserve the shape's own offsets
- *  as-is. The result is APPROXIMATE placement: shapes land in the
- *  right section, near their original y, and any x that was stored
- *  as a normalised fraction becomes an absolute offset (we multiply
- *  by an ASSUMED section width of 600px — the render path never
- *  reads this, but the shape geometry is preserved for the user
- *  to nudge if needed).
- *
- *  This is not perfect. It's a "your old marks won't be lost, but
- *  they might be a few pixels off after the migration" pact.
- *  Existing shapes drawn before this refactor were already drifting
- *  at zoom, so a small one-time re-position is acceptable. */
 const V1_ASSUMED_SECTION_WIDTH = 600;
 
 function migrateShapeV1toV2(shape: AnnotationV1): Annotation {
@@ -188,7 +256,6 @@ function migrateShapeV1toV2(shape: AnnotationV1): Annotation {
       w: shape.w * W, h: shape.h,
     };
   }
-  // text — TS narrowing gets confused across the union, so assert.
   const t = shape as TextV1;
   return {
     id: t.id,
@@ -202,22 +269,85 @@ function migrateShapeV1toV2(shape: AnnotationV1): Annotation {
   };
 }
 
+/** Wrap a bare list of v2 shapes in a v3 document. The user's
+ *  existing annotations become an UNNAMED DRAFT — no view-mode tag,
+ *  no name — so the read layer still shows them and the user can
+ *  `Save as…` them into a named set at their leisure. */
+function wrapShapesAsDraft(shapes: Annotation[]): SongAnnotations {
+  if (shapes.length === 0) return { version: 3, sets: [] };
+  const draft: AnnotationSet = {
+    id: 'draft',
+    name: '',
+    // Placeholder view mode. The draft renders in every view mode
+    // (see `pickActiveSet`) until the user saves it, at which point
+    // it takes the currently-active toggle-button state.
+    viewMode: DEFAULT_VIEW_MODE,
+    isDefault: false,
+    shapes,
+  };
+  return { version: 3, sets: [], draft };
+}
+
+/** Migrate a v3 doc whose `viewMode` field is still the old string
+ *  enum ('default' / 'lyrics-only' / 'chord-bar' / 'inline-diagrams')
+ *  to the current object form. Called on every v3 read so users don't
+ *  lose sets they saved under the earlier v3 model. */
+function migrateV3SetViewMode(set: unknown): AnnotationSet {
+  const s = set as AnnotationSet & { viewMode: AnnotationViewMode | string };
+  if (typeof s.viewMode === 'string') {
+    let vm: AnnotationViewMode;
+    switch (s.viewMode) {
+      case 'lyrics-only':     vm = { lyricsOnly: true,  chordBar: false, inlineDiagrams: false }; break;
+      case 'chord-bar':       vm = { lyricsOnly: false, chordBar: true,  inlineDiagrams: false }; break;
+      case 'inline-diagrams': vm = { lyricsOnly: false, chordBar: false, inlineDiagrams: true  }; break;
+      // 'default', 'chords', 'chords-only' (never really used), anything unknown
+      default:                vm = DEFAULT_VIEW_MODE;
+    }
+    return { ...s, viewMode: vm };
+  }
+  // Already the new shape; return as-is (with defensive shape check
+  // so a malformed row doesn't crash the picker).
+  const vm = s.viewMode as Partial<AnnotationViewMode> | null | undefined;
+  return {
+    ...s,
+    viewMode: {
+      lyricsOnly: !!vm?.lyricsOnly,
+      chordBar: !!vm?.chordBar,
+      inlineDiagrams: !!vm?.inlineDiagrams,
+    },
+  };
+}
+
 /** Safe parse — never throws. Returns `undefined` when the column is
  *  empty, malformed, or has a version we don't understand yet.
  *
- *  Handles legacy v1 documents by migrating each shape to v2 on the
- *  fly. The returned document is always v2, so the render path can
- *  assume the new shape everywhere. */
+ *  Migrates v1 → v2 (per-shape anchor rewrite) and v2 → v3 (wrap
+ *  shapes into an unnamed draft). Returned doc is always v3, so the
+ *  render/draw code assumes the new shape everywhere. */
 export function parseSongAnnotations(raw: string | null | undefined): SongAnnotations | undefined {
   if (!raw) return undefined;
   try {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return undefined;
-    if (!Array.isArray(parsed.shapes)) return undefined;
-    if (parsed.version === 2) return parsed as SongAnnotations;
+    if (parsed.version === 3) {
+      if (!Array.isArray(parsed.sets)) return undefined;
+      // Migrate each set's viewMode from the earlier string enum to
+      // the current triple-boolean object shape. Idempotent for docs
+      // already in the new shape.
+      return {
+        version: 3,
+        sets: parsed.sets.map(migrateV3SetViewMode),
+        draft: parsed.draft ? migrateV3SetViewMode(parsed.draft) : undefined,
+      };
+    }
+    if (parsed.version === 2) {
+      if (!Array.isArray(parsed.shapes)) return undefined;
+      return wrapShapesAsDraft(parsed.shapes as Annotation[]);
+    }
     if (parsed.version === 1) {
+      if (!Array.isArray(parsed.shapes)) return undefined;
       const migrated = (parsed.shapes as AnnotationV1[]).map(migrateShapeV1toV2);
-      return { version: 2, shapes: migrated };
+      return wrapShapesAsDraft(migrated);
     }
     return undefined;
   } catch {
@@ -228,5 +358,60 @@ export function parseSongAnnotations(raw: string | null | undefined): SongAnnota
 /** Serialise for DB write. Always emits the current version, so future
  *  migrations only need to convert older rows on read. */
 export function stringifySongAnnotations(a: SongAnnotations): string {
-  return JSON.stringify({ version: 2, shapes: a.shapes });
+  return JSON.stringify({ version: 3, sets: a.sets, draft: a.draft });
+}
+
+/** Pick which set to RENDER (or DRAW into) for a given view mode,
+ *  honouring an optional explicit selection.
+ *
+ *  Selection priority:
+ *    1. If the user has explicitly picked a set for this song via the
+ *       set-picker UI and that set still exists and matches the view
+ *       mode → return it.
+ *    2. Draft, if present. Draft shows in EVERY view mode because
+ *       it's untagged working memory the user hasn't yet committed.
+ *    3. The default set for this view mode, if any.
+ *    4. The first set matching this view mode, if any.
+ *    5. undefined — nothing to render for this view mode.
+ *
+ *  Returned as a MUTABLE reference to the caller's document — mutation
+ *  helpers (add / remove shape) operate on this exact set. */
+/** Special sentinel for `explicitId` meaning "the user explicitly
+ *  turned annotations off for this song". `pickActiveSet` returns
+ *  undefined in this case, so the read layer renders nothing.
+ *  Distinct from `null` (no explicit choice, fall back to default). */
+export const ANNOTATION_OFF = 'off';
+
+export function pickActiveSet(
+  doc: SongAnnotations | undefined,
+  viewMode: AnnotationViewMode,
+  explicitId?: string | null,
+): AnnotationSet | undefined {
+  if (!doc) return undefined;
+  // User explicitly chose "Off" — render nothing, regardless of what
+  // sets exist for this view mode. Draft included: the toggle is a
+  // hard mute.
+  if (explicitId === ANNOTATION_OFF) return undefined;
+  if (explicitId) {
+    const picked = doc.sets.find((s) => s.id === explicitId);
+    if (picked && viewModeEquals(picked.viewMode, viewMode)) return picked;
+    if (explicitId === 'draft' && doc.draft) return doc.draft;
+  }
+  if (doc.draft) return doc.draft;
+  const defaultForMode = doc.sets.find(
+    (s) => viewModeEquals(s.viewMode, viewMode) && s.isDefault,
+  );
+  if (defaultForMode) return defaultForMode;
+  return doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode));
+}
+
+/** List every set for a specific view mode (used by the set-picker
+ *  dropdown). Draft is included and appears first when present. */
+export function listSetsForViewMode(
+  doc: SongAnnotations | undefined,
+  viewMode: AnnotationViewMode,
+): AnnotationSet[] {
+  if (!doc) return [];
+  const inMode = doc.sets.filter((s) => viewModeEquals(s.viewMode, viewMode));
+  return doc.draft ? [doc.draft, ...inMode] : inMode;
 }
