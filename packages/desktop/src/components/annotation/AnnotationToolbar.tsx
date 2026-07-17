@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  MousePointer2,
+  Eraser,
   Pencil,
   Highlighter,
   Minus,
@@ -12,8 +12,10 @@ import {
   Trash2,
   X,
   Save,
+  Plus,
+  Edit3,
 } from 'lucide-react';
-import type { AnnotationViewMode } from '@song-chords/shared';
+import type { AnnotationSet, AnnotationViewMode } from '@song-chords/shared';
 import { viewModeEquals, viewModeLabel } from '@song-chords/shared';
 import {
   ANNOTATION_COLORS,
@@ -30,7 +32,7 @@ interface Props {
 }
 
 const TOOLS: Array<{ id: AnnotationTool; label: string; Icon: typeof Pencil }> = [
-  { id: 'select',      label: 'Select / erase',   Icon: MousePointer2 },
+  { id: 'select',      label: 'Erase',            Icon: Eraser },
   { id: 'pen',         label: 'Pen',              Icon: Pencil },
   { id: 'highlighter', label: 'Highlighter',      Icon: Highlighter },
   { id: 'line',        label: 'Line',             Icon: Minus },
@@ -41,14 +43,22 @@ const TOOLS: Array<{ id: AnnotationTool; label: string; Icon: typeof Pencil }> =
 ];
 
 /**
- * Floating, draggable annotation drawing toolbar. Purely a drawing
- * palette — tools, colors, stroke, font size, and a Save-as at the
- * bottom that promotes the current draft into a named set.
+ * Floating, draggable annotation drawing toolbar.
  *
- * Set management (switch active set, rename, delete, set-as-default,
- * turn off) lives in the top-toolbar `AnnotationSetPicker` — the
- * two UIs are intentionally split so the drawing surface stays
- * focused on drawing.
+ * Three UI states, based on whether a draft is being edited and where
+ * it came from:
+ *   1. NO DRAFT — the panel just opened; whichever set is picked in
+ *      the top-toolbar dropdown is being displayed but not edited.
+ *      Toolbar shows the tools palette + a "New annotation" button
+ *      and (if a set is selected) an "Edit" button. Drawing tools
+ *      are inert.
+ *   2. DRAFT FROM SCRATCH — user clicked "New annotation". Draft is
+ *      empty. Toolbar shows tools + name input + Save (creates a new
+ *      set) + Cancel (discards the draft).
+ *   3. DRAFT LOADED FROM AN EXISTING SET — user clicked "Edit …".
+ *      Draft holds a copy of the set's shapes. Toolbar shows tools +
+ *      "Editing {name}" + Save (overwrites the source set) + Save as
+ *      (creates a new set beside it) + Cancel (discards edits).
  */
 export default function AnnotationToolbar({ onClose, viewMode, controller }: Props): React.ReactElement {
   const tool = useAnnotationEditStore((s) => s.tool);
@@ -60,20 +70,27 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
   const setStrokeWidth = useAnnotationEditStore((s) => s.setStrokeWidth);
   const setFontSize = useAnnotationEditStore((s) => s.setFontSize);
 
-  const { draft, doc, saveDraftAs, replaceShapes } = controller;
-  const hasDraftShapes = !!draft && draft.shapes.length > 0;
+  const {
+    draft, doc, activeSet, draftSourceSetId,
+    saveDraftAs, saveDraftOverwriting, startNewDraft, loadSetIntoDraft,
+    discardDraft, replaceShapes,
+  } = controller;
 
-  // Auto-numbered default name based on how many named sets already
-  // exist for the CURRENT view configuration. Every save gets an
-  // incrementing number, "Annotation #1", "#2", etc — per triple.
-  // Recomputed whenever the doc or view mode changes so the field
-  // shows the next number the user is about to save into.
+  const isEditing = !!draft;
+  const editingFromSet = isEditing && draftSourceSetId
+    ? doc.sets.find((s) => s.id === draftSourceSetId) ?? null
+    : null;
+  // Only offer Edit for a set that matches the current view mode
+  // and is actually selected — matches the picker's own contract.
+  const currentSetToEdit: AnnotationSet | null = !isEditing && activeSet && activeSet.id !== 'draft'
+    ? activeSet
+    : null;
+  const hasShapesInDraft = !!draft && draft.shapes.length > 0;
+
+  // Auto-numbered default name for "save as new". Recomputes on
+  // save so the next name auto-advances.
   const defaultName = useMemo(() => {
     const existing = doc.sets.filter((s) => viewModeEquals(s.viewMode, viewMode));
-    // Extract numbers from names matching "Annotation #N"; N is the
-    // max + 1. Custom-named sets don't participate in the count, so
-    // the auto-number stays intuitive ("if I never rename, I get
-    // #1, #2, #3…").
     let maxN = 0;
     for (const s of existing) {
       const m = /^Annotation #(\d+)$/.exec(s.name);
@@ -85,24 +102,14 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
     return `Annotation #${maxN + 1}`;
   }, [doc.sets, viewMode]);
 
-  // Name the user is currently typing. Starts as the auto-numbered
-  // default and refreshes when the default changes (typical case:
-  // after a save, defaultName ticks up; the field reflects it).
   const [saveAsName, setSaveAsName] = useState(defaultName);
   const [nameDirty, setNameDirty] = useState(false);
   useEffect(() => {
-    // Sync to the new default whenever the user hasn't typed
-    // anything custom. Once they touch the field, we stop
-    // overwriting their input.
     if (!nameDirty) setSaveAsName(defaultName);
   }, [defaultName, nameDirty]);
 
   // Position — start anchored below-right of the top toolbar, with a
   // margin so the panel doesn't butt against the viewport edge.
-  //
-  // Constants: panel width = 260 (matches the `width: 260` on the
-  // root div), right margin = 20. Left-clamp at 20 so a very narrow
-  // window still leaves the panel visible.
   const PANEL_WIDTH = 260;
   const MARGIN = 20;
   const [pos, setPos] = useState<{ x: number; y: number }>(() => ({
@@ -113,9 +120,6 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Clamp to viewport on resize using the panel's actual measured
-    // dimensions (fallback to constants). Keeps the whole panel
-    // visible, not just a 60-px stub of it.
     const clamp = () => {
       setPos((p) => {
         const w = panelRef.current?.offsetWidth ?? PANEL_WIDTH;
@@ -154,23 +158,29 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
     try { (e.currentTarget as Element).releasePointerCapture(d.id); } catch { /* ignore */ }
   };
 
-  const doSaveAs = () => {
+  const doSaveAsNew = () => {
     const name = saveAsName.trim();
-    if (!name || !hasDraftShapes) return;
+    if (!name || !hasShapesInDraft) return;
     saveDraftAs(name, viewMode);
-    // Reset the field so the next save auto-picks the next number.
-    // Clearing `nameDirty` re-arms the auto-sync effect above; the
-    // draft is now gone, so `defaultName` will already reflect the
-    // incremented number by this render.
     setNameDirty(false);
   };
+  const doSaveOverwrite = () => {
+    if (!editingFromSet || !hasShapesInDraft) return;
+    saveDraftOverwriting();
+  };
+  const doCancel = () => {
+    discardDraft();
+    setNameDirty(false);
+  };
+  const doNewAnnotation = () => {
+    startNewDraft();
+    setNameDirty(false);
+  };
+  const doEditCurrent = () => {
+    if (!currentSetToEdit) return;
+    loadSetIntoDraft(currentSetToEdit.id);
+  };
 
-  // Portal to <body>. The parent (AnnotationEditingRoot) mounts
-  // inside PerformPage's zoomed wrapper (CSS `zoom: perfZoom`),
-  // which scales EVERY descendant — including `position: fixed`
-  // ones — visually. Portalling escapes that ancestor so the
-  // toolbar renders at its true CSS size and its `left`/`top`
-  // coords aren't post-multiplied by the perf-mode zoom.
   return createPortal(
     <div
       ref={panelRef}
@@ -178,11 +188,9 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
       style={{
         left: pos.x,
         top: pos.y,
-        width: 260,
+        width: PANEL_WIDTH,
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border)',
-        // Above audio/YouTube panels (9999) so the drawing toolbar
-        // remains visible even when a media panel is open.
         zIndex: 10000,
         overflow: 'hidden',
       }}
@@ -208,8 +216,30 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         </button>
       </div>
 
-      {/* Tools */}
-      <div data-no-drag className="grid grid-cols-4 gap-1 p-2 border-b" style={{ borderColor: 'var(--border)' }}>
+      {/* Status line: view mode + (when editing) which set we're on. */}
+      <div data-no-drag className="px-2 py-1.5 border-b" style={{ borderColor: 'var(--border)' }}>
+        <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+          {viewModeLabel(viewMode)}
+        </div>
+        {editingFromSet && (
+          <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            Editing: <span style={{ color: 'var(--text-primary)' }}>{editingFromSet.name}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Tools grid. Dimmed & non-interactive when there's no draft to
+          write into — matches the "click New annotation first" flow. */}
+      <div
+        data-no-drag
+        className="grid grid-cols-4 gap-1 p-2 border-b"
+        style={{
+          borderColor: 'var(--border)',
+          opacity: isEditing ? 1 : 0.4,
+          pointerEvents: isEditing ? 'auto' : 'none',
+        }}
+        title={isEditing ? undefined : 'Click "New annotation" (or "Edit") to start drawing'}
+      >
         {TOOLS.map(({ id, label, Icon }) => {
           const active = tool === id;
           return (
@@ -233,7 +263,15 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
       </div>
 
       {/* Colors */}
-      <div data-no-drag className="p-2 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div
+        data-no-drag
+        className="p-2 border-b"
+        style={{
+          borderColor: 'var(--border)',
+          opacity: isEditing ? 1 : 0.4,
+          pointerEvents: isEditing ? 'auto' : 'none',
+        }}
+      >
         <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Color</div>
         <div className="flex flex-wrap gap-1.5">
           {ANNOTATION_COLORS.map((c) => {
@@ -262,7 +300,15 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
       </div>
 
       {/* Stroke width */}
-      <div data-no-drag className="p-2 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div
+        data-no-drag
+        className="p-2 border-b"
+        style={{
+          borderColor: 'var(--border)',
+          opacity: isEditing ? 1 : 0.4,
+          pointerEvents: isEditing ? 'auto' : 'none',
+        }}
+      >
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Stroke</span>
           <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{strokeWidth}px</span>
@@ -278,7 +324,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         />
       </div>
 
-      {tool === 'text' && (
+      {isEditing && tool === 'text' && (
         <div data-no-drag className="p-2 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Font size</span>
@@ -296,67 +342,156 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         </div>
       )}
 
-      {/* Bottom: name input + Save button + Clear-draft. Always
-          visible so the flow is:
-            1. Draw
-            2. See auto-numbered name in the input
-            3. Optionally rename
-            4. Hit Save
-            5. Draft becomes a named set, input auto-advances to the
-               next number, canvas is ready for the next set. */}
+      {/* Bottom: state-dependent actions. */}
       <div data-no-drag className="p-2 space-y-1.5">
-        <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Save as
-        </div>
-        <input
-          value={saveAsName}
-          onChange={(e) => { setSaveAsName(e.target.value); setNameDirty(true); }}
-          placeholder="Name…"
-          className="w-full text-xs px-1.5 py-1 rounded"
-          style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-          onKeyDown={(e) => { if (e.key === 'Enter') doSaveAs(); }}
-        />
-        <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-          Will show in: <span style={{ color: 'var(--text-secondary)' }}>{viewModeLabel(viewMode)}</span>
-        </div>
-        <button
-          onClick={doSaveAs}
-          disabled={!hasDraftShapes || !saveAsName.trim()}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
-          style={{
-            background: (hasDraftShapes && saveAsName.trim()) ? 'var(--accent)' : 'var(--surface)',
-            color: (hasDraftShapes && saveAsName.trim()) ? 'white' : 'var(--text-muted)',
-            border: '1px solid var(--border)',
-            cursor: (hasDraftShapes && saveAsName.trim()) ? 'pointer' : 'not-allowed',
-            opacity: (hasDraftShapes && saveAsName.trim()) ? 1 : 0.6,
-          }}
-          title={
-            !hasDraftShapes
-              ? 'Draw something first'
-              : !saveAsName.trim()
-                ? 'Give it a name'
-                : 'Save the current drawing as a named annotation'
-          }
-        >
-          <Save size={13} />
-          Save
-        </button>
-        <button
-          onClick={() => replaceShapes([])}
-          disabled={!hasDraftShapes}
-          className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors"
-          style={{
-            background: 'var(--surface)',
-            color: 'var(--danger)',
-            border: '1px solid var(--border)',
-            opacity: hasDraftShapes ? 1 : 0.4,
-            cursor: hasDraftShapes ? 'pointer' : 'not-allowed',
-          }}
-          title="Erase everything in the current drawing"
-        >
-          <Trash2 size={13} />
-          Clear
-        </button>
+        {!isEditing && (
+          <>
+            {currentSetToEdit && (
+              <button
+                onClick={doEditCurrent}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
+                style={{
+                  background: 'var(--surface)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border)',
+                }}
+                title={`Edit "${currentSetToEdit.name}" — draw more strokes then Save`}
+              >
+                <Edit3 size={13} />
+                Edit &ldquo;{currentSetToEdit.name}&rdquo;
+              </button>
+            )}
+            <button
+              onClick={doNewAnnotation}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
+              style={{
+                background: 'var(--accent)',
+                color: 'white',
+                border: '1px solid var(--accent)',
+              }}
+              title="Start a new blank annotation"
+            >
+              <Plus size={13} />
+              New annotation
+            </button>
+          </>
+        )}
+
+        {isEditing && !editingFromSet && (
+          <>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Save as</div>
+            <input
+              value={saveAsName}
+              onChange={(e) => { setSaveAsName(e.target.value); setNameDirty(true); }}
+              placeholder="Name…"
+              className="w-full text-xs px-1.5 py-1 rounded"
+              style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              onKeyDown={(e) => { if (e.key === 'Enter') doSaveAsNew(); }}
+            />
+            <button
+              onClick={doSaveAsNew}
+              disabled={!hasShapesInDraft || !saveAsName.trim()}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
+              style={{
+                background: (hasShapesInDraft && saveAsName.trim()) ? 'var(--accent)' : 'var(--surface)',
+                color: (hasShapesInDraft && saveAsName.trim()) ? 'white' : 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                cursor: (hasShapesInDraft && saveAsName.trim()) ? 'pointer' : 'not-allowed',
+                opacity: (hasShapesInDraft && saveAsName.trim()) ? 1 : 0.6,
+              }}
+              title={
+                !hasShapesInDraft
+                  ? 'Draw something first'
+                  : !saveAsName.trim()
+                    ? 'Give it a name'
+                    : 'Save as a new annotation set'
+              }
+            >
+              <Save size={13} />
+              Save
+            </button>
+          </>
+        )}
+
+        {isEditing && editingFromSet && (
+          <>
+            <button
+              onClick={doSaveOverwrite}
+              disabled={!hasShapesInDraft}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium"
+              style={{
+                background: hasShapesInDraft ? 'var(--accent)' : 'var(--surface)',
+                color: hasShapesInDraft ? 'white' : 'var(--text-muted)',
+                border: '1px solid var(--border)',
+                cursor: hasShapesInDraft ? 'pointer' : 'not-allowed',
+              }}
+              title={`Overwrite “${editingFromSet.name}” with the current drawing`}
+            >
+              <Save size={13} />
+              Save
+            </button>
+            <div className="flex gap-1">
+              <input
+                value={saveAsName}
+                onChange={(e) => { setSaveAsName(e.target.value); setNameDirty(true); }}
+                placeholder="Save as new name…"
+                className="flex-1 text-xs px-1.5 py-1 rounded"
+                style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+                onKeyDown={(e) => { if (e.key === 'Enter') doSaveAsNew(); }}
+              />
+              <button
+                onClick={doSaveAsNew}
+                disabled={!hasShapesInDraft || !saveAsName.trim()}
+                className="px-2 py-1 rounded text-xs font-medium"
+                style={{
+                  background: 'var(--surface)',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  cursor: (hasShapesInDraft && saveAsName.trim()) ? 'pointer' : 'not-allowed',
+                  opacity: (hasShapesInDraft && saveAsName.trim()) ? 1 : 0.5,
+                }}
+                title="Save as a new set instead of overwriting"
+              >
+                Save as…
+              </button>
+            </div>
+          </>
+        )}
+
+        {isEditing && (
+          <>
+            <button
+              onClick={() => replaceShapes([])}
+              disabled={!hasShapesInDraft}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors"
+              style={{
+                background: 'var(--surface)',
+                color: 'var(--danger)',
+                border: '1px solid var(--border)',
+                opacity: hasShapesInDraft ? 1 : 0.4,
+                cursor: hasShapesInDraft ? 'pointer' : 'not-allowed',
+              }}
+              title="Erase everything in the current drawing"
+            >
+              <Trash2 size={13} />
+              Clear
+            </button>
+            <button
+              onClick={doCancel}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs"
+              style={{
+                background: 'var(--surface)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+              }}
+              title="Discard the current drawing"
+            >
+              <X size={13} />
+              Cancel
+            </button>
+          </>
+        )}
+
         <div className="text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>
           Ctrl+Z undo · Ctrl+Shift+Z redo
         </div>

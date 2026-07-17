@@ -52,6 +52,13 @@ interface AnnotationEditState {
    *  stale id doesn't get used after a mutation. */
   selectedSetIds: Record<string, string | null>;
 
+  /** True when the drawing surface is actively editing a draft (New
+   *  annotation or Edit-existing flow). Used by AnnotationLayer to
+   *  decide whether to hide itself (draft's live rendering takes
+   *  over) or stay visible (panel is open but user hasn't started
+   *  editing yet — the picked set should keep showing). */
+  activeDraft: boolean;
+
   setEditing: (v: boolean) => void;
   setTool: (t: AnnotationTool) => void;
   setColor: (c: string) => void;
@@ -60,6 +67,7 @@ interface AnnotationEditState {
   /** Explicit set choice for a song. Pass `null` to clear (fall back
    *  to view-mode default). */
   setSelectedSetId: (songId: string, setId: string | null) => void;
+  setActiveDraft: (v: boolean) => void;
 }
 
 export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
@@ -69,6 +77,7 @@ export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
   strokeWidth: 3,
   fontSize: 18,
   selectedSetIds: {},
+  activeDraft: false,
 
   setEditing: (editing) => set({ editing }),
   setTool: (tool) => set({ tool }),
@@ -78,4 +87,5 @@ export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
   setSelectedSetId: (songId, setId) => set((state) => ({
     selectedSetIds: { ...state.selectedSetIds, [songId]: setId },
   })),
+  setActiveDraft: (activeDraft) => set({ activeDraft }),
 }));

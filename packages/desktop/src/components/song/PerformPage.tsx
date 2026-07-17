@@ -257,6 +257,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
+  const activeDraft = useAnnotationEditStore((s) => s.activeDraft);
   // The four-way annotation mode is derived from the three top-toolbar
   // toggle booleans. Sets are tagged with whichever mode was active
   // at save time and only render when that same mode is active again.
@@ -1010,7 +1011,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   scrollRef={scrollRef as React.RefObject<HTMLElement>}
                   recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
                   visible={showAnnotations}
-                  suppress={annotationEditing}
+                  suppress={annotationEditing && activeDraft}
                   viewMode={annotationMode}
                   selectedSetId={selectedSetIds[activeSong.id] ?? null}
                 />

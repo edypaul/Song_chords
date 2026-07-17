@@ -44,6 +44,7 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
   const saveAnnotations = useSongStore((s) => s.saveAnnotations);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
+  const setActiveDraft = useAnnotationEditStore((s) => s.setActiveDraft);
   const selectedSetId = selectedSetIds[songId] ?? null;
 
   // Live document. Sourced from the song's JSON on mount / when the
@@ -60,6 +61,15 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
       lastSavedJson.current = annotationsJson;
     }
   }, [annotationsJson]);
+
+  // Broadcast whether there's an active draft so the read-only
+  // AnnotationLayer knows whether to hide (draft renders live) or
+  // stay visible (panel is open but user hasn't clicked New/Edit
+  // yet — the picked set should keep showing).
+  useEffect(() => {
+    setActiveDraft(!!doc.draft);
+    return () => setActiveDraft(false);
+  }, [doc.draft, setActiveDraft]);
 
   const [history, setHistory] = useState<DocHistoryEntry[]>(() => [{ doc: initialDoc }]);
   const [historyIdx, setHistoryIdx] = useState(0);
@@ -124,12 +134,13 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     [doc, viewMode],
   );
 
-  /** Replace the DRAFT's shapes. Named sets are read-only from the
-   *  drawing surface — a new stroke always creates or extends the
-   *  draft. To modify an existing named set the user deletes it and
-   *  redraws. This is the "draft-only writes" model: it keeps the
-   *  save-as flow simple (user always saves the draft) and prevents
-   *  the surprise of accidentally editing an already-saved set. */
+  /** Replace the DRAFT's shapes. All drawing goes to the draft; a
+   *  Save button in the toolbar promotes it to a new named set
+   *  (`saveDraftAs`) or overwrites the set the draft was loaded
+   *  from (`saveDraftOverwriting`). Named sets themselves are
+   *  read-only from the draw surface — modifications go through
+   *  the draft so the user has an explicit Save gate before
+   *  changes are persisted. */
   const replaceShapes = useCallback((shapes: Annotation[]) => {
     if (doc.draft) {
       commitDoc({ ...doc, draft: { ...doc.draft, shapes } });
@@ -144,6 +155,65 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     };
     commitDoc({ ...doc, draft });
   }, [doc, viewMode, commitDoc]);
+
+  /** Which saved set the current draft was loaded FROM (via
+   *  `loadSetIntoDraft`). Session-only — cleared when the draft is
+   *  discarded or promoted. When set, the toolbar shows a plain
+   *  "Save" that overwrites this set; when null, "Save" prompts for
+   *  a name and creates a new set. */
+  const [draftSourceSetId, setDraftSourceSetId] = useState<string | null>(null);
+
+  /** Start a fresh empty draft — the "New annotation" flow. Clears
+   *  any prior draft so the user gets a blank canvas. Doesn't touch
+   *  saved sets. */
+  const startNewDraft = useCallback(() => {
+    const draft: AnnotationSet = {
+      id: 'draft',
+      name: '',
+      viewMode,
+      isDefault: false,
+      shapes: [],
+    };
+    commitDoc({ ...doc, draft });
+    setDraftSourceSetId(null);
+  }, [doc, viewMode, commitDoc]);
+
+  /** Load an existing set's shapes into the draft for editing. The
+   *  set itself is unchanged until the user clicks Save (which
+   *  routes through `saveDraftOverwriting`). Records the source set
+   *  id so Save knows what to overwrite. */
+  const loadSetIntoDraft = useCallback((setId: string) => {
+    const src = doc.sets.find((s) => s.id === setId);
+    if (!src) return;
+    const draft: AnnotationSet = {
+      id: 'draft',
+      name: src.name,
+      viewMode,
+      isDefault: false,
+      shapes: [...src.shapes],
+    };
+    commitDoc({ ...doc, draft });
+    setDraftSourceSetId(setId);
+  }, [doc, viewMode, commitDoc]);
+
+  /** Discard the draft without saving. If the toolbar is showing an
+   *  editing session, this is the Cancel action. */
+  const discardDraft = useCallback(() => {
+    if (!doc.draft) return;
+    commitDoc({ ...doc, draft: undefined });
+    setDraftSourceSetId(null);
+  }, [doc, commitDoc]);
+
+  /** Overwrite an existing named set with the current draft's shapes.
+   *  Used when the draft was loaded from a set via `loadSetIntoDraft`
+   *  and the user hits Save (not Save-as). */
+  const saveDraftOverwriting = useCallback(() => {
+    const draft = doc.draft;
+    if (!draft || !draftSourceSetId) return;
+    const nextSets = doc.sets.map((s) => (s.id === draftSourceSetId ? { ...s, shapes: draft.shapes } : s));
+    commitDoc({ version: 3, sets: nextSets, draft: undefined });
+    setDraftSourceSetId(null);
+  }, [doc, draftSourceSetId, commitDoc]);
 
   /** Promote the current draft to a named set. Draft is cleared.
    *  Chosen view mode overrides the draft's placeholder. If it's the
@@ -170,6 +240,7 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     // the current view mode — otherwise the layer picks by default
     // rules on view mode change).
     setSelectedSetId(songId, newSet.id);
+    setDraftSourceSetId(null);
   }, [doc, commitDoc, setSelectedSetId, songId]);
 
   /** Overwrite the currently-active NAMED set with fresh shapes. No-op
@@ -284,10 +355,18 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     /** The draft directly — used by the drawing surface as its own
      *  editable target (it never edits named sets). */
     draft: doc.draft,
+    /** Which saved set the current draft was loaded from, if any.
+     *  Toolbar reads this to decide whether Save overwrites vs
+     *  creates-a-new-set. */
+    draftSourceSetId,
     setsForPicker,
     selectedSetId,
     selectSet,
     replaceShapes,
+    startNewDraft,
+    loadSetIntoDraft,
+    discardDraft,
+    saveDraftOverwriting,
     saveDraftAs,
     overwriteActive,
     rename,

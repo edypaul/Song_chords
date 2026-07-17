@@ -338,7 +338,12 @@ export default function AnnotationDrawSurface({
           width: effectiveW,
           height: effectiveH,
           overflow: 'visible',
-          pointerEvents: 'auto',
+          // Only capture pointer events when there's a draft to write
+          // into. Without a draft, the user must first click "New
+          // annotation" (or "Edit") in the toolbar. This prevents
+          // accidental strokes creating draft sets and matches the
+          // explicit "start editing" flow.
+          pointerEvents: editingSet ? 'auto' : 'none',
           cursor: tool === 'select' ? 'default' : tool === 'text' ? 'text' : 'crosshair',
           zIndex: 40,
           touchAction: 'none',
