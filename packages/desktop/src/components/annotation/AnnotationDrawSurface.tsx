@@ -114,21 +114,44 @@ export default function AnnotationDrawSurface({
     return contained ?? nearest;
   }, [boxes, scrollRef]);
 
+  /** Convert viewport (client) coords into SVG user-space using the
+   *  browser's own transform matrix. This sidesteps every bcr / CSS
+   *  zoom / scale-factor discrepancy: `getScreenCTM()` gives the
+   *  live user→screen matrix, inverting it produces screen→user in
+   *  one shot. Works identically at any browser zoom + CSS zoom
+   *  combination. */
+  const svgUserFromClient = useCallback((clientX: number, clientY: number): { ux: number; uy: number } | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const inv = ctm.inverse();
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    const u = pt.matrixTransform(inv);
+    return { ux: u.x, uy: u.y };
+  }, []);
+
   const resolvePointer = useCallback((e: React.PointerEvent) => {
-    const container = scrollRef.current;
-    if (!container) return null;
-    const wrapper = container.firstElementChild as HTMLElement | null;
-    if (!wrapper) return null;
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const zoom = currentZoom > 0 ? currentZoom : 1;
-    const contentX = (e.clientX - wrapperRect.left) / zoom;
-    const contentY = (e.clientY - wrapperRect.top) / zoom;
+    // Get shape user coord directly from the SVG's own CTM. This
+    // is the ground-truth transform the browser will use to paint
+    // the shape — so if we store the shape at this exact user coord,
+    // it will paint under the cursor at any zoom / DPR / CSS-zoom
+    // combination.
+    const u = svgUserFromClient(e.clientX, e.clientY);
+    if (!u) return null;
+    // The rendered `<g transform="translate(-leftOffset, 0)">`
+    // wraps the shape group; undo it so the shape's stored coord
+    // becomes what the wrapping <g translate(box.x, box.y)> expects.
+    const contentX = u.ux + layerSize.leftOffset;
+    const contentY = u.uy;
     const box = findAnchorLine(contentX, contentY);
     if (!box) return null;
     const localX = contentX - box.x;
     const localY = contentY - box.y;
     return { box, contentX, contentY, localX, localY };
-  }, [scrollRef, findAnchorLine, currentZoom]);
+  }, [svgUserFromClient, findAnchorLine, layerSize.leftOffset]);
 
   const commit = useCallback((next: Annotation) => {
     replaceShapes([...shapes, next]);
@@ -208,14 +231,10 @@ export default function AnnotationDrawSurface({
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!draft || !draftBox.current) return;
-    const container = scrollRef.current;
-    if (!container) return;
-    const wrapper = container.firstElementChild as HTMLElement | null;
-    if (!wrapper) return;
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const zoom = currentZoom > 0 ? currentZoom : 1;
-    const contentX = (e.clientX - wrapperRect.left) / zoom;
-    const contentY = (e.clientY - wrapperRect.top) / zoom;
+    const u = svgUserFromClient(e.clientX, e.clientY);
+    if (!u) return;
+    const contentX = u.ux + layerSize.leftOffset;
+    const contentY = u.uy;
     const box = draftBox.current;
     const localX = contentX - box.x;
     const localY = contentY - box.y;
@@ -309,6 +328,7 @@ export default function AnnotationDrawSurface({
     <>
       <svg
         ref={svgRef}
+        data-annot-svg="true"
         width={effectiveW}
         height={effectiveH}
         style={{

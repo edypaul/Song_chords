@@ -100,15 +100,6 @@ export function useLineBoxes(
         const l = Number(el.dataset.annotLineIndex);
         if (!Number.isFinite(s) || !Number.isFinite(l)) return;
         const r = el.getBoundingClientRect();
-        // Store raw bcr differences — Chromium reports bcr on
-        // descendants of a CSS-zoomed element in the SAME frame as
-        // bcr on the wrapper itself, so subtraction is
-        // frame-consistent. The pointer path in AnnotationDrawSurface
-        // subtracts the same wrapper bcr and (in perf mode) divides
-        // by zoom; the divide is compensated by the SVG rendering
-        // inside the same zoomed wrapper — CSS zoom scales the
-        // shape's rendered position back up to match the visual
-        // click point.
         next.set(KEY(s, l), {
           sectionIndex: s,
           lineIndex: l,
