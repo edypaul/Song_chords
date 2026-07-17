@@ -990,7 +990,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   </div>
                 )}
                 {displayedSong && (
-                  <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
+                  <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || (fontSize + 2)} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} inlineDiagramsOverride={inlineDiagrams} />
                 )}
               </div>
               {/* Annotation overlays sit OUTSIDE the animated inner

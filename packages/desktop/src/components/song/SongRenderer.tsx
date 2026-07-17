@@ -10,6 +10,13 @@ interface Props {
   viewMode: 'chords' | 'lyrics-only' | 'chords-only';
   onChordClick?: (chord: string) => void;
   chordVariations?: Record<string, number>;
+  /** Optional per-render override for inline chord diagrams.
+   *  Setlist entries carry their own `inlineChordDiagrams` override
+   *  that overrides the app-wide setting for that specific entry;
+   *  passing it here lets the caller (PerformPage) apply that
+   *  override without touching the global setting. When undefined,
+   *  falls back to the app-wide setting. */
+  inlineDiagramsOverride?: boolean;
 }
 
 // Section types that get a left border
@@ -63,13 +70,16 @@ function groupLines(lines: ParsedLine[]): LineGroup[] {
   return groups;
 }
 
-export default function SongRenderer({ song, fontSize, viewMode, onChordClick, chordVariations }: Props): React.ReactElement {
+export default function SongRenderer({ song, fontSize, viewMode, onChordClick, chordVariations, inlineDiagramsOverride }: Props): React.ReactElement {
   const groups = useMemo(() => groupLines(song.lines), [song.lines]);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
-  const inlineDiagramsRaw = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
+  const globalInline = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   // Piano keyboards don't fit cleanly inline above lyric syllables, so
   // inline diagrams are disabled for piano regardless of the stored setting.
+  // Prop override takes precedence so the setlist-entry-scoped toggle
+  // wins in PerformPage without needing to touch the global setting.
+  const inlineDiagramsRaw = inlineDiagramsOverride ?? globalInline;
   const inlineDiagrams = inlineDiagramsRaw && instrument !== 'piano';
   const lyricsFontSize = svs.lyrics.fontSize || 16;
   const showInline = inlineDiagrams && viewMode !== 'lyrics-only';
