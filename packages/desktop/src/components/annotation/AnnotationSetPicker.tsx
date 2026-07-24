@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Layers, Check, Star, EyeOff, Edit2, Trash2 } from 'lucide-react';
 import {
   ANNOTATION_OFF,
+  finalizeUntaggedPresets,
   listSetsForViewMode,
   parseSongAnnotations,
   pickActiveSet,
@@ -15,6 +16,8 @@ interface Props {
   songId: string;
   annotationsJson: string | undefined;
   viewMode: AnnotationViewMode;
+  /** Currently-active style preset key. */
+  preset: string;
 }
 
 /**
@@ -32,12 +35,12 @@ interface Props {
  * `annotationsJson` prop: whichever writes first, the other sees
  * the update on the next render and updates its local `doc` state.
  */
-export default function AnnotationSetPicker({ songId, annotationsJson, viewMode }: Props): React.ReactElement {
+export default function AnnotationSetPicker({ songId, annotationsJson, viewMode, preset }: Props): React.ReactElement {
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
   const selectedSetId = selectedSetIds[songId] ?? null;
 
-  const controller = useAnnotationDoc(songId, annotationsJson, viewMode);
+  const controller = useAnnotationDoc(songId, annotationsJson, viewMode, preset);
   const { rename, remove, setDefault } = controller;
 
   const [open, setOpen] = useState(false);
@@ -90,9 +93,12 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode 
   // latest annotationsJson from props even if the controller's own
   // memoization is a tick behind. The controller's own writes flow
   // back through this same annotationsJson on the next render.
-  const doc = useMemo(() => parseSongAnnotations(annotationsJson), [annotationsJson]);
-  const setsInMode = useMemo(() => listSetsForViewMode(doc, viewMode), [doc, viewMode]);
-  const active = useMemo(() => pickActiveSet(doc, viewMode, selectedSetId), [doc, viewMode, selectedSetId]);
+  const doc = useMemo(() => {
+    const raw = parseSongAnnotations(annotationsJson);
+    return raw ? finalizeUntaggedPresets(raw, preset) : raw;
+  }, [annotationsJson, preset]);
+  const setsInMode = useMemo(() => listSetsForViewMode(doc, viewMode, preset), [doc, viewMode, preset]);
+  const active = useMemo(() => pickActiveSet(doc, viewMode, preset, selectedSetId), [doc, viewMode, preset, selectedSetId]);
   const isOff = selectedSetId === ANNOTATION_OFF;
 
   useEffect(() => {

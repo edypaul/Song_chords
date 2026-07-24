@@ -15,7 +15,7 @@ export type {
 } from './types/annotation.types';
 export {
   parseSongAnnotations, stringifySongAnnotations,
-  pickActiveSet, listSetsForViewMode,
+  pickActiveSet, listSetsForViewMode, finalizeUntaggedPresets,
   annotationModeFromToggles, viewModeEquals, viewModeLabel,
   DEFAULT_VIEW_MODE, ANNOTATION_OFF,
 } from './types/annotation.types';

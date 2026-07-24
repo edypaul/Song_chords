@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download, Highlighter } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download } from 'lucide-react';
 import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore, annotationModeFromToggles } from '@song-chords/shared';
 import SongExportModal from './SongExportModal';
 import SetListPickerModal from './SetListPickerModal';
@@ -20,7 +20,7 @@ import PlayLinkButton from './PlayLinkButton';
 import BottomSectionSpacer from './BottomSectionSpacer';
 import AnnotationLayer from '../annotation/AnnotationLayer';
 import AnnotationEditingRoot from '../annotation/AnnotationEditingRoot';
-import AnnotationSetPicker from '../annotation/AnnotationSetPicker';
+import AnnotationMenu from '../annotation/AnnotationMenu';
 import { useAnnotationEditStore } from '../annotation/annotation-store';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { useMetronome } from '../../hooks/useMetronome';
@@ -256,6 +256,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
+  const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
   const activeDraft = useAnnotationEditStore((s) => s.activeDraft);
   // The four-way annotation mode is derived from the three top-toolbar
@@ -344,28 +345,21 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     zoomReset:            () => void updateSetting(db, 'perfZoom', 1),
     onCapo:               (fret) => usePlayerStore.getState().setCapo(fret),
   });
-  // Auto-open the sticky note only when the SONG genuinely CHANGES (i.e.
-  // the user navigated to a different entry in the set list). Once the
-  // user has manually toggled the panel for the current song, nothing in
-  // this component may override that choice until they navigate away.
-  //
-  // Implementation: track the last id we auto-opened for in a ref. The
-  // effect runs on every render but ONLY calls setShowSongNotes when the
-  // id it sees differs from the last one it acted on. That means:
-  //   - Manual toggle click → deps unchanged, id unchanged → effect body
-  //     runs but early-returns, so `showSongNotes` is untouched.
-  //   - Song navigation → id differs from lastId → effect updates state.
-  // The earlier `useEffect(..., [dep])` approach was fragile because any
-  // spurious dep churn (a `null → same-value` blip during a store update,
-  // or a ref-identity change bubbling through Zustand) could re-run the
-  // effect and clobber the manual toggle.
+  // Every entry change starts with notes CLOSED and the annotation
+  // selection cleared. `null` means the read layer falls back to the
+  // DEFAULT set for the current (viewMode, preset) pair — so a song
+  // opens with its default annotation visible when one exists, and
+  // stays clean when none does. Same ref-guarded pattern as before
+  // so manual toggles within the current entry aren't clobbered by
+  // unrelated re-renders.
   const lastAutoOpenedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const isSong = currentItem?.type === 'song';
     const id = isSong ? (activeSong?.id ?? null) : (currentItem?.id ?? null);
     if (lastAutoOpenedIdRef.current === id) return;
     lastAutoOpenedIdRef.current = id;
-    setShowSongNotes(isSong && !!activeSong?.notes && activeSong.notes.trim().length > 0);
+    setShowSongNotes(false);
+    if (isSong && activeSong?.id) setSelectedSetId(activeSong.id, null);
   });
 
   // Load the current song (merging its overrides) when the index changes.
@@ -800,32 +794,18 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           );
         })()}
 
-        {/* Annotation editing + set-picker. Skipped on note items
-             where there's no song to draw on. Visibility toggle
-             (was an eye icon here) is now folded into the Annotations
-             list dropdown ("Off" entry). */}
-        {activeSong && !isNoteActive && (() => {
-          return (
-            <>
-              <button
-                onClick={() => setAnnotationEditing(!annotationEditing)}
-                className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-                title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
-                aria-label="Annotate"
-                aria-pressed={annotationEditing}
-              >
-                <Highlighter size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
-              </button>
-              {activeSong && (
-                <AnnotationSetPicker
-                  songId={activeSong.id}
-                  annotationsJson={activeSong.annotations}
-                  viewMode={annotationMode}
-                />
-              )}
-            </>
-          );
-        })()}
+        {/* Merged Annotations menu — one Highlighter icon that opens
+             either the drawing panel (zero saved sets) or a dropdown
+             list with Edit / Star / Delete + "New annotation"
+             (one or more sets). Skipped on note items. */}
+        {activeSong && !isNoteActive && (
+          <AnnotationMenu
+            songId={activeSong.id}
+            annotationsJson={activeSong.annotations}
+            viewMode={annotationMode}
+            preset={svs.preset}
+          />
+        )}
 
         {/* Cast — reuses the existing CastQuickButton, which already
              renders as its own p-2 icon button (title="Cast"). */}
@@ -1009,10 +989,11 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                 <AnnotationLayer
                   annotationsJson={activeSong.annotations}
                   scrollRef={scrollRef as React.RefObject<HTMLElement>}
-                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
+                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}|${svs.preset}`}
                   visible={showAnnotations}
                   suppress={annotationEditing && activeDraft}
                   viewMode={annotationMode}
+                  preset={svs.preset}
                   selectedSetId={selectedSetIds[activeSong.id] ?? null}
                 />
               )}
@@ -1021,9 +1002,10 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   songId={activeSong.id}
                   annotationsJson={activeSong.annotations}
                   scrollRef={scrollRef as React.RefObject<HTMLElement>}
-                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}`}
+                  recomputeKey={`perform|${perfZoom}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${activeSong.id}|${svs.preset}`}
                   showCommitted={showAnnotations}
                   viewMode={annotationMode}
+                  preset={svs.preset}
                   onCloseToolbar={() => setAnnotationEditing(false)}
                 />
               )}

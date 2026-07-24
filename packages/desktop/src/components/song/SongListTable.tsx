@@ -6,6 +6,7 @@ import { db } from '../../ipc/ipc-client';
 import { toTitleCase } from '../../utils/text';
 import PlayLinkButton from './PlayLinkButton';
 import NotesLinkButton from './NotesLinkButton';
+import AnnotationsLinkButton from './AnnotationsLinkButton';
 import { COLUMN_LABEL } from './songListColumnLabels';
 import {
   DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
@@ -285,6 +286,7 @@ function SongRow({
         <span className="inline-flex items-center">
           <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
           <NotesLinkButton title={song.title} notes={song.notes} />
+          <AnnotationsLinkButton title={song.title} annotationsJson={song.annotations} />
         </span>
       </td>
       {columns.map((col) => (

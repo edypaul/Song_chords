@@ -780,12 +780,7 @@ function renderChordLyricLine(
   // bump every chord-cell height in this line to keep lyrics aligned
   // along a single baseline.
   const useDiagrams = !!chunkDiagramMap && Object.keys(chunkDiagramMap).length > 0;
-  // 1.2em (instead of 1.4em) packs the chord-name row above the lyric
-  // a touch tighter — same visual readability, but trims a few px per
-  // line. Across a chorus that adds up to one extra line fitting per
-  // page, which significantly reduces orphan-gap visibility when
-  // break-inside:avoid pushes a multi-row line forward.
-  const chordRowHeight = useDiagrams ? '7.5em' : '1.2em';
+  const chordRowHeight = useDiagrams ? '7.5em' : '1.4em';
   // Render diagrams as zero-width absolute markers anchored to the
   // chunk's top-left, so the chunk's intrinsic width is determined
   // by the lyric below it (not the SVG's 80px width). That keeps
@@ -991,22 +986,8 @@ function renderLineHtml(
   inlineDiagrams?: Record<string, string>,
   chordGrids?: Record<number, string>,
   chunkDiagrams?: Record<string, string>,
-  annot?: { sectionIndex: number; lineIndex: number },
 ): string {
   const lyricsOnly = layout === 'lyrics-only';
-
-  // Annotation anchor attributes — mirror the SongRenderer's data-attrs
-  // so the cast receiver can look up rendered lines the same way the
-  // desktop overlay does. Empty when `annot` is omitted (non-cast
-  // exporters like PDF don't need this).
-  const annotAttrs = annot
-    ? ` data-annot-line="" data-annot-section="${annot.sectionIndex}" data-annot-line-index="${annot.lineIndex}"`
-    : '';
-  // Wrap the raw line HTML in a <div> that carries the annot attrs.
-  // A bare block div wrapper adds no visual side effect (line-height
-  // and margins are already on the inner element).
-  const wrap = (inner: string): string =>
-    annot ? `<div${annotAttrs}>${inner}</div>` : inner;
 
   // Order matches SongRenderer: chord-grid → empty → section → comment →
   // directive. Critically, isComment must come BEFORE isDirective — the
@@ -1014,9 +995,9 @@ function renderLineHtml(
   // isDirective first would drop every section-title chip.
   if (line.isChordGrid) {
     if (lyricsOnly) return '';
-    return wrap(chordGrids?.[absoluteIndex] ?? '');
+    return chordGrids?.[absoluteIndex] ?? '';
   }
-  if (line.isEmpty) return wrap('<div style="height:1rem;"></div>');
+  if (line.isEmpty) return '<div style="height:1rem;"></div>';
   if (line.isSectionEnd) return '';
 
   // Section labels ({start_of_verse: X}, {sov: X}) and comment labels
@@ -1024,27 +1005,28 @@ function renderLineHtml(
   // look visually consistent in the export regardless of which ChordPro
   // syntax the source song uses. Uses the preset's section color/background,
   // falling back to var(--accent) / white so a chip is always visible.
-  const renderSectionChip = (label: string): string => {
+  const renderSectionChip = (label: string, kind: 'section' | 'comment'): string => {
     const ss = style.section;
     const bg = ss.background || 'var(--accent)';
     const color = ss.color || 'white';
     const fs = ss.fontSize ? `${ss.fontSize}px` : '0.82em';
     const upper = style.sectionUppercase ? 'uppercase' : 'none';
-    return `<div style="display:inline-block;background:${bg};color:${color};font-family:inherit;font-weight:700;font-size:${fs};letter-spacing:0.06em;text-transform:${upper};padding:2px 8px;border-radius:4px;margin:6px 0 3px;">${escapeHtml(label)}</div>`;
+    const margin = kind === 'section' ? '8px 0 2px' : '6px 0 3px';
+    return `<div style="display:inline-block;background:${bg};color:${color};font-family:inherit;font-weight:700;font-size:${fs};letter-spacing:0.06em;text-transform:${upper};padding:2px 8px;border-radius:4px;margin:${margin};">${escapeHtml(label)}</div>`;
   };
 
   if (line.isSection) {
     const tok = line.tokens[0];
     const label = tok?.type === 'section' ? tok.label : undefined;
     if (!label) return '';
-    return wrap(renderSectionChip(label));
+    return renderSectionChip(label, 'section');
   }
 
   if (line.isComment) {
     const tok = line.tokens[0];
     const text = tok?.type === 'comment' ? tok.text : '';
     if (!text) return '';
-    return wrap(renderSectionChip(text));
+    return renderSectionChip(text, 'comment');
   }
 
   if (line.isDirective) return '';
@@ -1058,11 +1040,11 @@ function renderLineHtml(
     // Tight line-height keeps successive lyric lines from inflating
     // half-leading, which would otherwise throw off the visual
     // centering of any chord-line diagrams between them.
-    return wrap(`<div style="line-height:1.4;">${escapeHtml(lyrics) || '&nbsp;'}</div>`);
+    return `<div style="line-height:1.4;">${escapeHtml(lyrics) || '&nbsp;'}</div>`;
   }
 
   if (line.hasChords) {
-    return wrap(renderChordLyricLine(
+    return renderChordLyricLine(
       line,
       chordColor,
       chordFontSize,
@@ -1074,11 +1056,11 @@ function renderLineHtml(
       // lyric font size (used to scale diagram width, line height,
       // long-dash width, etc.).
       style,
-    ));
+    );
   }
 
   const text = line.tokens.map((t) => ((t as { text?: string }).text ?? '')).join('');
-  return wrap(`<div style="line-height:1.4;">${escapeHtml(text) || '&nbsp;'}</div>`);
+  return `<div style="line-height:1.4;">${escapeHtml(text) || '&nbsp;'}</div>`;
 }
 
 function renderSongBody(
@@ -1091,33 +1073,6 @@ function renderSongBody(
 ): string {
   const groups = groupLines(parsed.lines);
   const chorusBorder = style.chorusBorderColor || '#4b73ff';
-
-  // Build a mapping from absoluteIndex → (sectionIndex, lineIndex)
-  // matching SongRenderer.groupLines' anchoring rules. Used to stamp
-  // `data-annot-line` attributes on every rendered line so the cast
-  // receiver overlay can look them up. Section headings themselves
-  // get lineIndex=0; content lines get 1,2,3 within the section.
-  //   sectionIndex = -1 for lines before the first heading (or for
-  //   songs with no headings at all).
-  const annotMap = new Map<number, { sectionIndex: number; lineIndex: number }>();
-  {
-    let sectionIndex = -1;
-    let lineIndexInSection = 0;
-    for (let i = 0; i < parsed.lines.length; i++) {
-      const l = parsed.lines[i]!;
-      if (l.isSection) {
-        sectionIndex += 1;
-        lineIndexInSection = 0;
-        annotMap.set(i, { sectionIndex, lineIndex: lineIndexInSection });
-        lineIndexInSection += 1;
-      } else if (l.isSectionEnd) {
-        // Section-end markers don't emit HTML; skip them.
-      } else {
-        annotMap.set(i, { sectionIndex, lineIndex: lineIndexInSection });
-        lineIndexInSection += 1;
-      }
-    }
-  }
 
   // True when a line carries chords but its lyric tokens are empty /
   // whitespace only — a "chord row" that visually belongs to the
@@ -1168,7 +1123,7 @@ function renderSongBody(
           const upTo = anchorIdx - group.startIndex;
           const slice: string[] = [];
           for (let k = li; k <= upTo; k++) {
-            slice.push(renderLineHtml(group.lines[k]!, group.startIndex + k, style, layout, inlineDiagrams, chordGrids, chunkDiagrams, annotMap.get(group.startIndex + k)));
+            slice.push(renderLineHtml(group.lines[k]!, group.startIndex + k, style, layout, inlineDiagrams, chordGrids, chunkDiagrams));
           }
           renderedSlots.push(`<div style="page-break-inside:avoid;break-inside:avoid;">${slice.join('')}</div>`);
           li = upTo;
@@ -1176,7 +1131,7 @@ function renderSongBody(
         }
       }
 
-      renderedSlots.push(renderLineHtml(line, absIdx, style, layout, inlineDiagrams, chordGrids, chunkDiagrams, annotMap.get(absIdx)));
+      renderedSlots.push(renderLineHtml(line, absIdx, style, layout, inlineDiagrams, chordGrids, chunkDiagrams));
     }
     const inner = renderedSlots.join('');
     if (group.bordered) {

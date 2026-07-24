@@ -232,10 +232,11 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
       }
     }
     if (isMulti) {
-      // Build a per-song extras map only when the chosen layout actually
-      // needs them — keeps text and JSON exports cheap.
+      // Build a per-song extras map for any HTML/PDF export — the
+      // layout might need chord-bar / inline-diagrams / chord-grids
+      // per song. Text / JSON exports skip it entirely.
       const perSongExtras: Record<string, PerSongExtras> = {};
-      if (needsLayout && (layout === 'chords-with-bar' || layout === 'inline-diagrams' || layout !== 'lyrics-only')) {
+      if (needsLayout) {
         for (const s of songs) perSongExtras[s.id] = buildExtrasFor(s);
       }
       void exportSongs(songs, format, heading.trim() || (bookTitle ?? `${songs.length} songs`), options, perSongExtras);

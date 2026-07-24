@@ -489,18 +489,11 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
   // `data-cast-mode="lyrics"` CSS rules pick up the change.
   finalHtml = finalHtml.replace('</body>', toolbar + '</body>');
 
-  // Annotation overlay — only baked in when there's something to draw
-  // and the user hasn't hidden the layer app-wide. Same anchoring
-  // model as the desktop AnnotationLayer: measure every
-  // [data-annot-line] on the receiver, translate shape offsets in
-  // the anchor line's local frame, paint an SVG on top of the page.
-  // Re-measures on window resize so a viewer rotating their phone
-  // doesn't leave marks stranded off the line they belong to.
-  const showAnnotations = settings.showAnnotations !== false;
-  if (showAnnotations && song.annotations && song.annotations.length > 2) {
-    const overlay = buildReceiverAnnotationOverlay(song.annotations);
-    finalHtml = finalHtml.replace('</body>', overlay + '</body>');
-  }
+  // Annotations are intentionally NOT sent to the cast receiver.
+  // They're private notes the performer draws on their desktop copy
+  // of the song; the audience-facing cast page stays clean. The
+  // desktop-side annotation overlay lives in <AnnotationLayer /> and
+  // never leaves the local render.
 
   // Initial view-mode defaults to lyrics-only — most audiences want
   // to sing along without the chord clutter, and the receiver toolbar

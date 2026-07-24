@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown, Highlighter } from 'lucide-react';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown } from 'lucide-react';
 import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
@@ -17,7 +17,7 @@ import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import CastQuickButton from '../components/song/CastQuickButton';
 import AnnotationLayer from '../components/annotation/AnnotationLayer';
 import AnnotationEditingRoot from '../components/annotation/AnnotationEditingRoot';
-import AnnotationSetPicker from '../components/annotation/AnnotationSetPicker';
+import AnnotationMenu from '../components/annotation/AnnotationMenu';
 import { useAnnotationEditStore } from '../components/annotation/annotation-store';
 import PlayLinkButton from '../components/song/PlayLinkButton';
 import { useAutoScroll } from '../hooks/useAutoScroll';
@@ -200,6 +200,7 @@ export default function SongViewPage(): React.ReactElement {
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
+  const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
   const activeDraft = useAnnotationEditStore((s) => s.activeDraft);
   // The four-way annotation mode is derived from the three top-toolbar
   // toggle booleans. Sets are tagged with whichever mode was active
@@ -209,11 +210,17 @@ export default function SongViewPage(): React.ReactElement {
     chordBarVisible,
     inlineDiagrams,
   });
-  // Auto-open the sticky note when a song that has notes becomes active.
-  // Runs on song change so switching songs refreshes the visibility.
+  // Every song change starts with notes CLOSED and the annotation
+  // selection cleared. `null` (no explicit choice) means the
+  // read layer falls back to the DEFAULT set for the current
+  // (viewMode, preset) pair — so a song opens with its default
+  // annotation visible, and stays clean when no default exists.
+  // Notes stay in the DB, only their visibility resets. Keyed on
+  // song id so switching songs also resets.
   useEffect(() => {
-    setShowNotes(!!activeSong?.notes && activeSong.notes.trim().length > 0);
-  }, [activeSong?.id, activeSong?.notes]);
+    setShowNotes(false);
+    if (activeSong?.id) setSelectedSetId(activeSong.id, null);
+  }, [activeSong?.id, setSelectedSetId]);
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
   // Collapse the whole toolbar to give the song content more vertical
@@ -697,10 +704,11 @@ export default function SongViewPage(): React.ReactElement {
                 and only READ in fullscreen. The picker below stays
                 so the user can still switch between sets or turn them
                 off during a performance. */}
-            <AnnotationSetPicker
+            <AnnotationMenu
               songId={activeSong.id}
               annotationsJson={activeSong.annotations}
               viewMode={annotationMode}
+              preset={svs.preset}
             />
             <CastQuickButton />
           </div>
@@ -734,10 +742,11 @@ export default function SongViewPage(): React.ReactElement {
           <AnnotationLayer
             annotationsJson={activeSong.annotations}
             scrollRef={scrollRef as React.RefObject<HTMLElement>}
-            recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+            recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${svs.preset}`}
             visible={showAnnotations}
             suppress={annotationEditing && activeDraft}
             viewMode={annotationMode}
+            preset={svs.preset}
             selectedSetId={selectedSetIds[activeSong.id] ?? null}
           />
           {annotationEditing && (
@@ -745,9 +754,10 @@ export default function SongViewPage(): React.ReactElement {
               songId={activeSong.id}
               annotationsJson={activeSong.annotations}
               scrollRef={scrollRef as React.RefObject<HTMLElement>}
-              recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+              recomputeKey={`perf|${perfZoom}|${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${svs.preset}`}
               showCommitted={showAnnotations}
               viewMode={annotationMode}
+              preset={svs.preset}
               onCloseToolbar={() => setAnnotationEditing(false)}
             />
           )}
@@ -1143,26 +1153,15 @@ export default function SongViewPage(): React.ReactElement {
             );
           })()}
 
-          {/* Annotation visibility is now controlled via the
-              Annotations list dropdown ("Off" entry) — the separate
-              eye toggle was redundant. */}
-
-          {/* Enter / exit annotation editing mode. Opens the floating
-              annotation toolbar and mounts the drawing surface. */}
-          <button
-            onClick={() => setAnnotationEditing(!annotationEditing)}
-            className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={annotationEditing ? 'Close annotation tools' : 'Annotate this song'}
-            aria-label="Annotate"
-            aria-pressed={annotationEditing}
-          >
-            <Highlighter size={16} style={{ color: annotationEditing ? 'var(--accent)' : 'var(--text-secondary)' }} />
-          </button>
-
-          <AnnotationSetPicker
+          {/* Merged Annotations menu — one Highlighter button that
+              opens the drawing panel (zero saved sets) or a dropdown
+              listing sets with Edit / Star / Delete + "New annotation"
+              at the bottom (one or more sets). */}
+          <AnnotationMenu
             songId={activeSong.id}
             annotationsJson={activeSong.annotations}
             viewMode={annotationMode}
+            preset={svs.preset}
           />
 
           {/* Cast to receiver */}
@@ -1283,10 +1282,11 @@ export default function SongViewPage(): React.ReactElement {
           <AnnotationLayer
             annotationsJson={activeSong.annotations}
             scrollRef={scrollRef as React.RefObject<HTMLElement>}
-            recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+            recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${svs.preset}`}
             visible={showAnnotations}
             suppress={annotationEditing && activeDraft}
             viewMode={annotationMode}
+            preset={svs.preset}
             selectedSetId={selectedSetIds[activeSong.id] ?? null}
           />
           {annotationEditing && (
@@ -1294,9 +1294,10 @@ export default function SongViewPage(): React.ReactElement {
               songId={activeSong.id}
               annotationsJson={activeSong.annotations}
               scrollRef={scrollRef as React.RefObject<HTMLElement>}
-              recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}`}
+              recomputeKey={`${zoomLevel}|${viewMode}|${svs.lyrics.fontSize ?? 16}|${chordBarVisible}|${chordBarPosition}|${svs.preset}`}
               showCommitted={showAnnotations}
               viewMode={annotationMode}
+              preset={svs.preset}
               onCloseToolbar={() => setAnnotationEditing(false)}
             />
           )}

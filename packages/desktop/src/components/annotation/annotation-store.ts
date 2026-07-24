@@ -59,6 +59,24 @@ interface AnnotationEditState {
    *  editing yet — the picked set should keep showing). */
   activeDraft: boolean;
 
+  /** One-shot instruction handed to the next-mounted
+   *  `AnnotationEditingRoot`. When the merged Annotations menu
+   *  launches the drawing panel with a specific action
+   *  ("Edit this set", "New annotation"), it stashes the intent
+   *  here; `useAnnotationDoc` consumes it on its first render and
+   *  clears it. Prevents ambiguity like "user hits Edit, panel
+   *  opens showing an old unrelated draft". */
+  pendingDraftIntent:
+    | { kind: 'new' }
+    | { kind: 'edit'; setId: string }
+    | null;
+
+  /** One-shot: when true, the merged Annotations menu opens its
+   *  dropdown as soon as it renders and clears the flag. Set by
+   *  the drawing panel's Cancel button so the user is returned to
+   *  the list they came from. */
+  reopenMenuAfterClose: boolean;
+
   setEditing: (v: boolean) => void;
   setTool: (t: AnnotationTool) => void;
   setColor: (c: string) => void;
@@ -68,6 +86,8 @@ interface AnnotationEditState {
    *  to view-mode default). */
   setSelectedSetId: (songId: string, setId: string | null) => void;
   setActiveDraft: (v: boolean) => void;
+  setPendingDraftIntent: (intent: AnnotationEditState['pendingDraftIntent']) => void;
+  setReopenMenuAfterClose: (v: boolean) => void;
 }
 
 export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
@@ -78,6 +98,8 @@ export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
   fontSize: 18,
   selectedSetIds: {},
   activeDraft: false,
+  pendingDraftIntent: null,
+  reopenMenuAfterClose: false,
 
   setEditing: (editing) => set({ editing }),
   setTool: (tool) => set({ tool }),
@@ -88,4 +110,6 @@ export const useAnnotationEditStore = create<AnnotationEditState>((set) => ({
     selectedSetIds: { ...state.selectedSetIds, [songId]: setId },
   })),
   setActiveDraft: (activeDraft) => set({ activeDraft }),
+  setPendingDraftIntent: (pendingDraftIntent) => set({ pendingDraftIntent }),
+  setReopenMenuAfterClose: (reopenMenuAfterClose) => set({ reopenMenuAfterClose }),
 }));

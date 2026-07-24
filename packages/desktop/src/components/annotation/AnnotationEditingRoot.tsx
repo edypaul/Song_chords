@@ -11,6 +11,10 @@ interface Props {
   recomputeKey: string;
   showCommitted: boolean;
   viewMode: AnnotationViewMode;
+  /** Currently-active style preset key (`SongViewStyle.preset`).
+   *  Combined with `viewMode` to decide which set is visible /
+   *  editable — see AnnotationSet.preset in the shared types. */
+  preset: string;
   onCloseToolbar: () => void;
 }
 
@@ -32,9 +36,10 @@ export default function AnnotationEditingRoot({
   recomputeKey,
   showCommitted,
   viewMode,
+  preset,
   onCloseToolbar,
 }: Props): React.ReactElement {
-  const controller = useAnnotationDoc(songId, annotationsJson, viewMode);
+  const controller = useAnnotationDoc(songId, annotationsJson, viewMode, preset);
 
   return (
     <>

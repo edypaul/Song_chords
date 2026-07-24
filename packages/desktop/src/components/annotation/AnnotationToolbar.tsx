@@ -69,6 +69,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
   const setColor = useAnnotationEditStore((s) => s.setColor);
   const setStrokeWidth = useAnnotationEditStore((s) => s.setStrokeWidth);
   const setFontSize = useAnnotationEditStore((s) => s.setFontSize);
+  const setReopenMenuAfterClose = useAnnotationEditStore((s) => s.setReopenMenuAfterClose);
 
   const {
     draft, doc, activeSet, draftSourceSetId,
@@ -88,9 +89,16 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
   const hasShapesInDraft = !!draft && draft.shapes.length > 0;
 
   // Auto-numbered default name for "save as new". Recomputes on
-  // save so the next name auto-advances.
+  // save so the next name auto-advances. Only counts sets in the
+  // CURRENT (viewMode, preset) pair so each pair has its own numbering.
   const defaultName = useMemo(() => {
-    const existing = doc.sets.filter((s) => viewModeEquals(s.viewMode, viewMode));
+    // Read the draft's preset — it's whatever the controller stamped
+    // when the draft was created and matches the currently-active
+    // preset the user is drawing under.
+    const draftPreset = draft?.preset ?? '';
+    const existing = doc.sets.filter(
+      (s) => viewModeEquals(s.viewMode, viewMode) && s.preset === draftPreset,
+    );
     let maxN = 0;
     for (const s of existing) {
       const m = /^Annotation #(\d+)$/.exec(s.name);
@@ -100,7 +108,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
       }
     }
     return `Annotation #${maxN + 1}`;
-  }, [doc.sets, viewMode]);
+  }, [doc.sets, viewMode, draft]);
 
   const [saveAsName, setSaveAsName] = useState(defaultName);
   const [nameDirty, setNameDirty] = useState(false);
@@ -163,14 +171,26 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
     if (!name || !hasShapesInDraft) return;
     saveDraftAs(name, viewMode);
     setNameDirty(false);
+    // Same hand-off as Cancel — after saving, close the drawing
+    // panel and return the user to the merged annotations menu's
+    // list dropdown (they'll see the set they just saved).
+    setReopenMenuAfterClose(true);
+    onClose();
   };
   const doSaveOverwrite = () => {
     if (!editingFromSet || !hasShapesInDraft) return;
     saveDraftOverwriting();
+    setReopenMenuAfterClose(true);
+    onClose();
   };
   const doCancel = () => {
     discardDraft();
     setNameDirty(false);
+    // Return the user to the annotations list dropdown they came
+    // from. The merged AnnotationMenu watches this flag and opens
+    // its dropdown on next render, then clears it.
+    setReopenMenuAfterClose(true);
+    onClose();
   };
   const doNewAnnotation = () => {
     startNewDraft();

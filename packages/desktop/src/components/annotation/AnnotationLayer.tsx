@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { parseSongAnnotations, pickActiveSet } from '@song-chords/shared';
+import { finalizeUntaggedPresets, parseSongAnnotations, pickActiveSet } from '@song-chords/shared';
 import type { Annotation, AnnotationViewMode, StrokeAnnotation, LineAnnotation, BoxAnnotation, TextAnnotation } from '@song-chords/shared';
 
 interface Props {
@@ -20,13 +20,15 @@ interface Props {
   /** Instant hide, no fade — used by the parent when the draw
    *  surface takes over. */
   suppress?: boolean;
-  /** Current view mode. Together with `selectedSetId` decides which
-   *  annotation SET is rendered — sets are tagged with a view mode
-   *  and only appear in matching modes. See
-   *  `pickActiveSet` in the shared types for the rules. */
+  /** Current view mode. Together with `preset` + `selectedSetId`
+   *  decides which annotation SET is rendered — sets are tagged with
+   *  a view mode + preset and only appear in matching modes / presets.
+   *  See `pickActiveSet` in the shared types for the rules. */
   viewMode: AnnotationViewMode;
+  /** Currently-active style preset key (`SongViewStyle.preset`). */
+  preset: string;
   /** Explicit user selection from the set-picker dropdown (or null to
-   *  fall back to the view-mode default). */
+   *  fall back to the (viewMode, preset) default). */
   selectedSetId?: string | null;
 }
 
@@ -144,7 +146,17 @@ export function useLineBoxes(
       const wrapperRect = contentEl?.getBoundingClientRect();
       const wrapperVisualW = wrapperRect?.width ?? container.clientWidth;
       const wrapperLayoutW = wrapperVisualW / zoom;
-      const wrapperH = contentEl?.scrollHeight ?? container.clientHeight;
+      // Use offsetHeight, NOT scrollHeight, for the wrapper height.
+      // The SVG we mount is `position: absolute` but its declared
+      // `height` still contributes to the wrapper's `scrollHeight`
+      // (Chromium includes out-of-flow descendants when computing
+      // scrollable extent). Using scrollHeight would create a
+      // positive feedback loop: SVG height = scrollHeight ⇒ next
+      // measurement sees an inflated scrollHeight ⇒ SVG grows ⇒
+      // scroll container's trailing whitespace grows. offsetHeight
+      // measures the wrapper's OWN layout height, which is
+      // unaffected by absolutely-positioned children.
+      const wrapperH = contentEl?.offsetHeight ?? container.clientHeight;
       const containerVisualW = container.clientWidth;
       const containerLayoutW = containerVisualW / zoom;
       // If container is narrower than wrapper (fully-populated zoom),
@@ -330,15 +342,19 @@ export default function AnnotationLayer({
   visible,
   suppress = false,
   viewMode,
+  preset,
   selectedSetId,
 }: Props): React.ReactElement | null {
-  const parsed = useMemo(() => parseSongAnnotations(annotationsJson), [annotationsJson]);
+  const parsed = useMemo(() => {
+    const raw = parseSongAnnotations(annotationsJson);
+    return raw ? finalizeUntaggedPresets(raw, preset) : raw;
+  }, [annotationsJson, preset]);
   const svgRef = useRef<SVGSVGElement>(null);
   const { boxes, layerSize, measured } = useLineBoxes(scrollRef, svgRef, recomputeKey);
 
   const activeSet = useMemo(
-    () => pickActiveSet(parsed, viewMode, selectedSetId),
-    [parsed, viewMode, selectedSetId],
+    () => pickActiveSet(parsed, viewMode, preset, selectedSetId),
+    [parsed, viewMode, preset, selectedSetId],
   );
   if (!activeSet || activeSet.shapes.length === 0) return null;
 

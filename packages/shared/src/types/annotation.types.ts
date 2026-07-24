@@ -83,7 +83,7 @@ export const DEFAULT_VIEW_MODE: AnnotationViewMode = {
   inlineDiagrams: false,
 };
 
-/** One named collection of shapes tied to a view mode. */
+/** One named collection of shapes tied to a view mode + style preset. */
 export interface AnnotationSet {
   id: string;
   name: string;
@@ -91,9 +91,17 @@ export interface AnnotationSet {
    *  mode. Enforced by `pickActiveSet` — the render/draw code never
    *  has to check view mode directly. */
   viewMode: AnnotationViewMode;
-  /** At most one set per (song, viewMode) can be default. When true
-   *  AND no explicit selection is active, this set is used for that
-   *  view mode. */
+  /** Style preset key (`SongViewStyle.preset`) the set was drawn
+   *  against. Shapes are anchored to line positions that depend on
+   *  the preset's font family + font sizes, so a set drawn under
+   *  "classic" doesn't look right under "midnight" (different font
+   *  metrics → different line heights). Only visible when the
+   *  current preset matches. Migrated to the current preset on
+   *  first load for sets saved before this field existed. */
+  preset: string;
+  /** At most one set per (song, viewMode, preset) can be default.
+   *  When true AND no explicit selection is active, this set is
+   *  used for that (viewMode, preset) pair. */
   isDefault: boolean;
   shapes: Annotation[];
 }
@@ -278,10 +286,12 @@ function wrapShapesAsDraft(shapes: Annotation[]): SongAnnotations {
   const draft: AnnotationSet = {
     id: 'draft',
     name: '',
-    // Placeholder view mode. The draft renders in every view mode
-    // (see `pickActiveSet`) until the user saves it, at which point
-    // it takes the currently-active toggle-button state.
+    // Placeholder view mode + preset. The draft renders in every
+    // view mode / preset (see `pickActiveSet`) until the user saves
+    // it, at which point it takes the currently-active toggle-button
+    // state and the currently-active style preset.
     viewMode: DEFAULT_VIEW_MODE,
+    preset: '',
     isDefault: false,
     shapes,
   };
@@ -290,12 +300,13 @@ function wrapShapesAsDraft(shapes: Annotation[]): SongAnnotations {
 
 /** Migrate a v3 doc whose `viewMode` field is still the old string
  *  enum ('default' / 'lyrics-only' / 'chord-bar' / 'inline-diagrams')
- *  to the current object form. Called on every v3 read so users don't
- *  lose sets they saved under the earlier v3 model. */
-function migrateV3SetViewMode(set: unknown): AnnotationSet {
-  const s = set as AnnotationSet & { viewMode: AnnotationViewMode | string };
+ *  to the current object form, and fill in a missing `preset` field
+ *  with an empty-string placeholder so `finalizeUntaggedPresets` can
+ *  later stamp it with the current preset key at load time. */
+function migrateV3Set(set: unknown): AnnotationSet {
+  const s = set as AnnotationSet & { viewMode: AnnotationViewMode | string; preset?: string };
+  let vm: AnnotationViewMode;
   if (typeof s.viewMode === 'string') {
-    let vm: AnnotationViewMode;
     switch (s.viewMode) {
       case 'lyrics-only':     vm = { lyricsOnly: true,  chordBar: false, inlineDiagrams: false }; break;
       case 'chord-bar':       vm = { lyricsOnly: false, chordBar: true,  inlineDiagrams: false }; break;
@@ -303,18 +314,39 @@ function migrateV3SetViewMode(set: unknown): AnnotationSet {
       // 'default', 'chords', 'chords-only' (never really used), anything unknown
       default:                vm = DEFAULT_VIEW_MODE;
     }
-    return { ...s, viewMode: vm };
+  } else {
+    // Already the new shape; defensive shape check so a malformed
+    // row doesn't crash the picker.
+    const raw = s.viewMode as Partial<AnnotationViewMode> | null | undefined;
+    vm = {
+      lyricsOnly: !!raw?.lyricsOnly,
+      chordBar: !!raw?.chordBar,
+      inlineDiagrams: !!raw?.inlineDiagrams,
+    };
   }
-  // Already the new shape; return as-is (with defensive shape check
-  // so a malformed row doesn't crash the picker).
-  const vm = s.viewMode as Partial<AnnotationViewMode> | null | undefined;
   return {
     ...s,
-    viewMode: {
-      lyricsOnly: !!vm?.lyricsOnly,
-      chordBar: !!vm?.chordBar,
-      inlineDiagrams: !!vm?.inlineDiagrams,
-    },
+    viewMode: vm,
+    preset: typeof s.preset === 'string' ? s.preset : '',
+  };
+}
+
+/** Stamp the current preset key onto any set whose `preset` field is
+ *  the empty-string placeholder (i.e. saved before the preset field
+ *  existed). Called by loaders that know the current preset — the
+ *  raw parser doesn't, so it leaves the placeholder in place.
+ *
+ *  Returns the same doc when no set needs stamping so React memos
+ *  can rely on referential equality. */
+export function finalizeUntaggedPresets(
+  doc: SongAnnotations,
+  currentPreset: string,
+): SongAnnotations {
+  const untagged = doc.sets.some((s) => s.preset === '');
+  if (!untagged) return doc;
+  return {
+    ...doc,
+    sets: doc.sets.map((s) => (s.preset === '' ? { ...s, preset: currentPreset } : s)),
   };
 }
 
@@ -336,8 +368,8 @@ export function parseSongAnnotations(raw: string | null | undefined): SongAnnota
       // already in the new shape.
       return {
         version: 3,
-        sets: parsed.sets.map(migrateV3SetViewMode),
-        draft: parsed.draft ? migrateV3SetViewMode(parsed.draft) : undefined,
+        sets: parsed.sets.map(migrateV3Set),
+        draft: parsed.draft ? migrateV3Set(parsed.draft) : undefined,
       };
     }
     if (parsed.version === 2) {
@@ -385,6 +417,7 @@ export const ANNOTATION_OFF = 'off';
 export function pickActiveSet(
   doc: SongAnnotations | undefined,
   viewMode: AnnotationViewMode,
+  preset: string,
   explicitId?: string | null,
 ): AnnotationSet | undefined {
   if (!doc) return undefined;
@@ -392,26 +425,30 @@ export function pickActiveSet(
   // sets exist for this view mode. Draft included: the toggle is a
   // hard mute.
   if (explicitId === ANNOTATION_OFF) return undefined;
+  const matches = (s: AnnotationSet): boolean =>
+    viewModeEquals(s.viewMode, viewMode) && s.preset === preset;
   if (explicitId) {
     const picked = doc.sets.find((s) => s.id === explicitId);
-    if (picked && viewModeEquals(picked.viewMode, viewMode)) return picked;
+    if (picked && matches(picked)) return picked;
     if (explicitId === 'draft' && doc.draft) return doc.draft;
   }
   if (doc.draft) return doc.draft;
-  const defaultForMode = doc.sets.find(
-    (s) => viewModeEquals(s.viewMode, viewMode) && s.isDefault,
-  );
+  const defaultForMode = doc.sets.find((s) => matches(s) && s.isDefault);
   if (defaultForMode) return defaultForMode;
-  return doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode));
+  return doc.sets.find(matches);
 }
 
-/** List every set for a specific view mode (used by the set-picker
- *  dropdown). Draft is included and appears first when present. */
+/** List every set for a specific view mode + preset (used by the
+ *  set-picker dropdown). Draft is included and appears first when
+ *  present. */
 export function listSetsForViewMode(
   doc: SongAnnotations | undefined,
   viewMode: AnnotationViewMode,
+  preset: string,
 ): AnnotationSet[] {
   if (!doc) return [];
-  const inMode = doc.sets.filter((s) => viewModeEquals(s.viewMode, viewMode));
+  const inMode = doc.sets.filter(
+    (s) => viewModeEquals(s.viewMode, viewMode) && s.preset === preset,
+  );
   return doc.draft ? [doc.draft, ...inMode] : inMode;
 }

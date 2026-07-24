@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  finalizeUntaggedPresets,
   listSetsForViewMode,
   parseSongAnnotations,
   pickActiveSet,
@@ -40,7 +41,12 @@ interface DocHistoryEntry {
  * and schedules a debounced save. Undo / redo just pop / push through
  * that same snapshot stack.
  */
-export function useAnnotationDoc(songId: string, annotationsJson: string | undefined, viewMode: AnnotationViewMode) {
+export function useAnnotationDoc(
+  songId: string,
+  annotationsJson: string | undefined,
+  viewMode: AnnotationViewMode,
+  preset: string,
+) {
   const saveAnnotations = useSongStore((s) => s.saveAnnotations);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
@@ -49,18 +55,74 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
 
   // Live document. Sourced from the song's JSON on mount / when the
   // JSON changes for a reason other than our own writes.
+  //
+  // On FIRST mount, if the merged Annotations menu handed us a
+  // pending intent (New annotation / Edit set X), apply it here so
+  // the first render already reflects the resulting draft. If we
+  // waited until an effect ran, the toolbar would flash a
+  // "no-draft" state for one frame before switching to
+  // "editing-draft" — noticeable especially when opening the panel
+  // on a song with no saved sets. This is the fix for that flash.
+  //
+  // Sets saved before the preset field existed carry a `preset: ''`
+  // placeholder from the parser. `finalizeUntaggedPresets` stamps
+  // them with the currently-active preset so they show up under
+  // that preset (and only that preset) from here on.
   const initialDoc = useMemo<SongAnnotations>(
-    () => parseSongAnnotations(annotationsJson) ?? { version: 3, sets: [] },
-    [annotationsJson],
+    () => {
+      const raw = parseSongAnnotations(annotationsJson) ?? { version: 3, sets: [] };
+      return finalizeUntaggedPresets(raw, preset);
+    },
+    [annotationsJson, preset],
   );
-  const [doc, setDoc] = useState<SongAnnotations>(initialDoc);
+  const [doc, setDoc] = useState<SongAnnotations>(() => {
+    const base = initialDoc;
+    const intent = useAnnotationEditStore.getState().pendingDraftIntent;
+    if (!intent) return base;
+    if (intent.kind === 'new') {
+      return {
+        ...base,
+        draft: {
+          id: 'draft',
+          name: '',
+          viewMode,
+          preset,
+          isDefault: false,
+          shapes: [],
+        },
+      };
+    }
+    if (intent.kind === 'edit') {
+      const src = base.sets.find((s) => s.id === intent.setId);
+      if (!src) return base;
+      return {
+        ...base,
+        draft: {
+          id: 'draft',
+          name: src.name,
+          viewMode,
+          preset,
+          isDefault: false,
+          shapes: [...src.shapes],
+        },
+      };
+    }
+    return base;
+  });
+  // Also mirror the source-set-id on first render so
+  // `saveDraftOverwriting` knows what to write back into.
+  const [initialSourceId] = useState<string | null>(() => {
+    const intent = useAnnotationEditStore.getState().pendingDraftIntent;
+    return intent?.kind === 'edit' ? intent.setId : null;
+  });
   const lastSavedJson = useRef<string | undefined>(annotationsJson);
   useEffect(() => {
     if (annotationsJson !== lastSavedJson.current) {
-      setDoc(parseSongAnnotations(annotationsJson) ?? { version: 3, sets: [] });
+      const raw = parseSongAnnotations(annotationsJson) ?? { version: 3, sets: [] };
+      setDoc(finalizeUntaggedPresets(raw, preset));
       lastSavedJson.current = annotationsJson;
     }
-  }, [annotationsJson]);
+  }, [annotationsJson, preset]);
 
   // Broadcast whether there's an active draft so the read-only
   // AnnotationLayer knows whether to hide (draft renders live) or
@@ -120,18 +182,18 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
   // ─── Set-level operations ─────────────────────────────────────
 
   /** Currently active set — draft OR a named set matching the current
-   *  view mode, honouring the user's explicit selection. Reading and
-   *  writing shapes both go through this. */
+   *  view mode + preset, honouring the user's explicit selection.
+   *  Reading and writing shapes both go through this. */
   const activeSet = useMemo(
-    () => pickActiveSet(doc, viewMode, selectedSetId),
-    [doc, viewMode, selectedSetId],
+    () => pickActiveSet(doc, viewMode, preset, selectedSetId),
+    [doc, viewMode, preset, selectedSetId],
   );
 
-  /** Sets visible in the picker dropdown for the CURRENT view mode.
-   *  Draft appears first when present. */
+  /** Sets visible in the picker dropdown for the CURRENT (viewMode,
+   *  preset) pair. Draft appears first when present. */
   const setsForPicker = useMemo(
-    () => listSetsForViewMode(doc, viewMode),
-    [doc, viewMode],
+    () => listSetsForViewMode(doc, viewMode, preset),
+    [doc, viewMode, preset],
   );
 
   /** Replace the DRAFT's shapes. All drawing goes to the draft; a
@@ -150,18 +212,19 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
       id: 'draft',
       name: '',
       viewMode,
+      preset,
       isDefault: false,
       shapes,
     };
     commitDoc({ ...doc, draft });
-  }, [doc, viewMode, commitDoc]);
+  }, [doc, viewMode, preset, commitDoc]);
 
   /** Which saved set the current draft was loaded FROM (via
    *  `loadSetIntoDraft`). Session-only — cleared when the draft is
    *  discarded or promoted. When set, the toolbar shows a plain
    *  "Save" that overwrites this set; when null, "Save" prompts for
    *  a name and creates a new set. */
-  const [draftSourceSetId, setDraftSourceSetId] = useState<string | null>(null);
+  const [draftSourceSetId, setDraftSourceSetId] = useState<string | null>(initialSourceId);
 
   /** Start a fresh empty draft — the "New annotation" flow. Clears
    *  any prior draft so the user gets a blank canvas. Doesn't touch
@@ -171,12 +234,13 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
       id: 'draft',
       name: '',
       viewMode,
+      preset,
       isDefault: false,
       shapes: [],
     };
     commitDoc({ ...doc, draft });
     setDraftSourceSetId(null);
-  }, [doc, viewMode, commitDoc]);
+  }, [doc, viewMode, preset, commitDoc]);
 
   /** Load an existing set's shapes into the draft for editing. The
    *  set itself is unchanged until the user clicks Save (which
@@ -189,12 +253,23 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
       id: 'draft',
       name: src.name,
       viewMode,
+      preset,
       isDefault: false,
       shapes: [...src.shapes],
     };
     commitDoc({ ...doc, draft });
     setDraftSourceSetId(setId);
-  }, [doc, viewMode, commitDoc]);
+  }, [doc, viewMode, preset, commitDoc]);
+
+  // The pending intent was already applied SYNCHRONOUSLY during the
+  // `useState` initializers above so the first render reflects it
+  // (no flash of no-draft toolbar). Here we just clear the store
+  // flag so a later re-mount doesn't re-apply it.
+  const setPendingDraftIntent = useAnnotationEditStore((s) => s.setPendingDraftIntent);
+  useEffect(() => {
+    setPendingDraftIntent(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** Discard the draft without saving. If the toolbar is showing an
    *  editing session, this is the Cancel action. */
@@ -216,17 +291,21 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
   }, [doc, draftSourceSetId, commitDoc]);
 
   /** Promote the current draft to a named set. Draft is cleared.
-   *  Chosen view mode overrides the draft's placeholder. If it's the
-   *  first set for that viewMode, it becomes default. */
+   *  Chosen view mode + current preset override the draft's
+   *  placeholders. If it's the first set for that (viewMode, preset)
+   *  pair, it becomes default. */
   const saveDraftAs = useCallback((name: string, setViewMode: AnnotationViewMode) => {
     const draft = doc.draft;
     if (!draft || !name.trim()) return;
-    const existingForMode = doc.sets.filter((s) => viewModeEquals(s.viewMode, setViewMode));
+    const existingForMode = doc.sets.filter(
+      (s) => viewModeEquals(s.viewMode, setViewMode) && s.preset === preset,
+    );
     const isDefault = existingForMode.length === 0;
     const newSet: AnnotationSet = {
       id: uuidv4(),
       name: name.trim(),
       viewMode: setViewMode,
+      preset,
       isDefault,
       shapes: draft.shapes,
     };
@@ -237,11 +316,11 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     };
     commitDoc(nextDoc);
     // Auto-select the new set (only makes a difference if it matches
-    // the current view mode — otherwise the layer picks by default
-    // rules on view mode change).
+    // the current view mode + preset — otherwise the layer picks by
+    // default rules on view mode / preset change).
     setSelectedSetId(songId, newSet.id);
     setDraftSourceSetId(null);
-  }, [doc, commitDoc, setSelectedSetId, songId]);
+  }, [doc, preset, commitDoc, setSelectedSetId, songId]);
 
   /** Overwrite the currently-active NAMED set with fresh shapes. No-op
    *  when the active target is the draft. */
@@ -262,8 +341,9 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     });
   }, [doc, commitDoc]);
 
-  /** Delete a set by id. If it was the default for its view mode,
-   *  the first remaining set (if any) becomes default. */
+  /** Delete a set by id. If it was the default for its (viewMode,
+   *  preset) pair, the first remaining set in the same pair (if any)
+   *  becomes default. */
   const remove = useCallback((setId: string) => {
     if (setId === 'draft') {
       commitDoc({ ...doc, draft: undefined });
@@ -274,7 +354,9 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     if (!target) return;
     const remaining = doc.sets.filter((s) => s.id !== setId);
     if (target.isDefault) {
-      const nextDefaultIdx = remaining.findIndex((s) => viewModeEquals(s.viewMode, target.viewMode));
+      const nextDefaultIdx = remaining.findIndex(
+        (s) => viewModeEquals(s.viewMode, target.viewMode) && s.preset === target.preset,
+      );
       if (nextDefaultIdx >= 0) {
         remaining[nextDefaultIdx] = { ...remaining[nextDefaultIdx], isDefault: true };
       }
@@ -283,15 +365,15 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
     if (selectedSetId === setId) setSelectedSetId(songId, null);
   }, [doc, selectedSetId, songId, commitDoc, setSelectedSetId]);
 
-  /** Mark `setId` as the default for its view mode; unset any other
-   *  default in that mode. */
+  /** Mark `setId` as the default for its (viewMode, preset) pair;
+   *  unset any other default in that same pair. */
   const setDefault = useCallback((setId: string) => {
     const target = doc.sets.find((s) => s.id === setId);
     if (!target) return;
     commitDoc({
       ...doc,
       sets: doc.sets.map((s) =>
-        viewModeEquals(s.viewMode, target.viewMode)
+        viewModeEquals(s.viewMode, target.viewMode) && s.preset === target.preset
           ? { ...s, isDefault: s.id === setId }
           : s,
       ),
@@ -299,12 +381,16 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
   }, [doc, commitDoc]);
 
   /** Change the view mode a named set is tied to. Preserves default
-   *  status only if there's no existing default in the new mode. */
+   *  status only if there's no existing default in the new
+   *  (viewMode, preset) pair. */
   const changeSetViewMode = useCallback((setId: string, newViewMode: AnnotationViewMode) => {
     const target = doc.sets.find((s) => s.id === setId);
     if (!target || viewModeEquals(target.viewMode, newViewMode)) return;
     const hasDefaultInNewMode = doc.sets.some(
-      (s) => s.id !== setId && viewModeEquals(s.viewMode, newViewMode) && s.isDefault,
+      (s) => s.id !== setId
+        && viewModeEquals(s.viewMode, newViewMode)
+        && s.preset === target.preset
+        && s.isDefault,
     );
     const wasDefaultInOldMode = target.isDefault;
     let sets = doc.sets.map((s) =>
@@ -313,7 +399,11 @@ export function useAnnotationDoc(songId: string, annotationsJson: string | undef
         : s,
     );
     if (wasDefaultInOldMode) {
-      const promotedIdx = sets.findIndex((s) => s.id !== setId && viewModeEquals(s.viewMode, target.viewMode));
+      const promotedIdx = sets.findIndex(
+        (s) => s.id !== setId
+          && viewModeEquals(s.viewMode, target.viewMode)
+          && s.preset === target.preset,
+      );
       if (promotedIdx >= 0) sets[promotedIdx] = { ...sets[promotedIdx], isDefault: true };
     }
     commitDoc({ ...doc, sets });
