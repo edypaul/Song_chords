@@ -1,9 +1,12 @@
 import React from 'react';
 import { ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { usePlayerStore } from '@song-chords/shared';
+import { useShortcutHint, useCapoHint } from '../../hooks/useShortcutHint';
 
 export default function TransposeControl(): React.ReactElement {
   const { transposeSteps, transposeUp, transposeDown, resetTranspose, capo, setCapo } = usePlayerStore();
+  const hint = useShortcutHint();
+  const capoHint = useCapoHint();
 
   return (
     <div className="flex items-center gap-3 text-sm">
@@ -12,7 +15,7 @@ export default function TransposeControl(): React.ReactElement {
         <button
           onClick={transposeDown}
           className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-          title="Transpose down"
+          title={`Transpose down${hint('transposeDown')}`}
         >
           <ChevronDown size={16} />
         </button>
@@ -25,7 +28,7 @@ export default function TransposeControl(): React.ReactElement {
         <button
           onClick={transposeUp}
           className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-          title="Transpose up"
+          title={`Transpose up${hint('transposeUp')}`}
         >
           <ChevronUp size={16} />
         </button>
@@ -33,7 +36,7 @@ export default function TransposeControl(): React.ReactElement {
           <button
             onClick={resetTranspose}
             className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Reset transpose"
+            title={`Reset transpose${hint('resetTranspose')}`}
           >
             <RotateCcw size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
@@ -46,6 +49,7 @@ export default function TransposeControl(): React.ReactElement {
         onChange={(e) => setCapo(Number(e.target.value))}
         className="text-xs rounded px-2 py-1"
         style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+        title={`Capo${capoHint}`}
       >
         {Array.from({ length: 12 }, (_, i) => (
           <option key={i} value={i}>{i === 0 ? 'None' : `Capo ${i}`}</option>

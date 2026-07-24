@@ -26,6 +26,7 @@ import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { useMetronome } from '../../hooks/useMetronome';
 import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { useShortcutHint } from '../../hooks/useShortcutHint';
 import { db } from '../../ipc/ipc-client';
 import { toTitleCase } from '../../utils/text';
 
@@ -304,6 +305,10 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   const effectiveTheme: 'dark' | 'light' = (typeof document !== 'undefined'
     && document.documentElement.getAttribute('data-theme') === 'dark') ? 'dark' : 'light';
 
+  // Shortcut-hint helper — returns `" (…)"` suffixes for tooltips
+  // from the user's current bindings.
+  const hint = useShortcutHint();
+
   // Shortcut handlers — transpose/capo mutate the player store, which in
   // turn fires the overrides-changed subscription to persist them onto the
   // setlist / favorite entry. Zoom adjusts the global perfZoom setting.
@@ -324,7 +329,9 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     resetTranspose:       () => usePlayerStore.getState().resetTranspose(),
     toggleFavorite:       () => { if (activeSong) void toggleFavorite(db, activeSong.id); },
     cast:                 () => {
-      const btn = document.querySelector('button[title="Cast"]') as HTMLButtonElement | null;
+      // Prefix-match: the button's title now carries a
+      // " (Ctrl+Shift+C)" shortcut-hint suffix.
+      const btn = document.querySelector('button[title^="Cast"]') as HTMLButtonElement | null;
       btn?.click();
     },
     addToSetList:         () => setShowSetListPicker(true),
@@ -470,7 +477,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             onClick={() => setToolbarHidden(false)}
             className="flex items-center justify-center gap-1.5 text-xs rounded-md px-3 py-0.5 hover:bg-[var(--surface-elevated)] transition-colors"
             style={{ color: 'var(--text-muted)', cursor: 'pointer' }}
-            title="Show toolbar"
+            title={`Show toolbar${hint('toggleToolbar')}`}
             aria-label="Show toolbar"
           >
             <ChevronDown size={14} />
@@ -527,7 +534,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               background: 'transparent',
               color: 'var(--text-secondary)',
             }}
-            title="Previous"
+            title={`Previous${hint('prevSong')}`}
             aria-label="Previous item"
           >
             <ChevronLeft size={14} />
@@ -589,7 +596,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               background: 'transparent',
               color: 'var(--text-secondary)',
             }}
-            title="Next"
+            title={`Next${hint('nextSong')}`}
             aria-label="Next item"
           >
             <ChevronRight size={14} />
@@ -693,7 +700,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   onClick={activateLyricsOnly}
                   className="p-1.5 rounded-md"
                   style={btnStyle(lyricsOnly, false)}
-                  title={lyricsOnly ? 'Show chord names' : 'Show lyrics only'}
+                  title={`${lyricsOnly ? 'Show chord names' : 'Show lyrics only'}${hint('toggleLyricsOnly')}`}
                 >
                   <FileText size={14} />
                 </button>
@@ -701,7 +708,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   onClick={activateChordBar}
                   className="p-1.5 rounded-md"
                   style={btnStyle(chordBarOn, false)}
-                  title={chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar'}
+                  title={`${chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar'}${hint('toggleChordBar')}`}
                 >
                   <Guitar size={14} />
                 </button>
@@ -712,7 +719,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   style={btnStyle(inlineOn, isPiano)}
                   title={isPiano
                     ? 'Inline diagrams are unavailable for piano'
-                    : (inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams')}
+                    : `${inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams'}${hint('toggleInlineDiagrams')}`}
                 >
                   <LayoutGrid size={14} />
                 </button>
@@ -733,7 +740,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => void toggleFavorite(db, activeSong.id)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            title={`${activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}${hint('toggleFavorite')}`}
             aria-label={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
           >
             <Star
@@ -756,7 +763,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => setShowSetListPicker(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Add to set list"
+            title={`Add to set list${hint('addToSetList')}`}
             aria-label="Add to set list"
           >
             <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
@@ -768,7 +775,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => setShowExport(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Export song"
+            title={`Export song${hint('exportSong')}`}
             aria-label="Export song"
           >
             <Download size={16} style={{ color: 'var(--text-secondary)' }} />
@@ -786,7 +793,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               disabled={!hasNotes}
               className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
               style={{ opacity: hasNotes ? 1 : 0.4, cursor: hasNotes ? 'pointer' : 'not-allowed' }}
-              title={hasNotes ? (showSongNotes ? 'Hide song notes' : 'Show song notes') : 'This song has no notes'}
+              title={hasNotes ? `${showSongNotes ? 'Hide song notes' : 'Show song notes'}${hint('toggleSongNotes')}` : 'This song has no notes'}
               aria-label="Toggle song notes"
             >
               <StickyNote size={16} style={{ color: hasNotes && showSongNotes ? 'var(--accent)' : 'var(--text-secondary)' }} />
@@ -869,7 +876,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
         <button
           onClick={() => setToolbarHidden(true)}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-          title="Hide toolbar"
+          title={`Hide toolbar${hint('toggleToolbar')}`}
           aria-label="Hide toolbar"
         >
           <ChevronUp size={16} style={{ color: 'var(--text-secondary)' }} />

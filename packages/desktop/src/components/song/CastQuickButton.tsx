@@ -5,6 +5,7 @@ import { Cast, X, Power, LayoutGrid, Copy, Check } from 'lucide-react';
 import { usePlayerStore } from '@song-chords/shared';
 import { buildCastHtml, type CastMode as HtmlCastMode } from '../../utils/cast-html';
 import { useCastSyncStore } from '../../store/cast-sync-store';
+import { useShortcutHint } from '../../hooks/useShortcutHint';
 
 type Mode = HtmlCastMode; // 'lyrics' | 'lyrics-chords'
 
@@ -22,6 +23,7 @@ type Mode = HtmlCastMode; // 'lyrics' | 'lyrics-chords'
  * Stop button shuts everything back down.
  */
 export default function CastQuickButton(): React.ReactElement {
+  const hint = useShortcutHint();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const [serverInfo, setServerInfo] = useState<{ host: string; port: number } | null>(null);
@@ -391,7 +393,7 @@ export default function CastQuickButton(): React.ReactElement {
         ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-        title="Cast"
+        title={`Cast${hint('cast')}`}
         style={{ color: serverInfo ? 'var(--accent)' : 'var(--text-secondary)' }}
       >
         <Cast size={16} fill={serverInfo ? 'currentColor' : 'none'} />

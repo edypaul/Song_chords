@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Play, Pause, ChevronDown } from 'lucide-react';
 import { usePlayerStore, useSongStore, useSetListStore } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
+import { useShortcutHint } from '../../hooks/useShortcutHint';
 
 /**
  * Auto-scroll toolbar control. The play/stop button is the primary
@@ -19,6 +20,7 @@ import { db } from '../../ipc/ipc-client';
  * the chevron, closes on outside-click, clicks inside don't close it.
  */
 export default function AutoScrollControl(): React.ReactElement {
+  const hint = useShortcutHint();
   const { autoScrollActive, toggleAutoScroll, autoScrollSpeed, setScrollSpeed, autoScrollMode, setScrollMode, activeSong } = usePlayerStore();
   const savePreferences = useSongStore((s) => s.savePreferences);
   const hasDuration = Boolean(activeSong?.duration);
@@ -96,6 +98,8 @@ export default function AutoScrollControl(): React.ReactElement {
           onClick={toggleAutoScroll}
           className="flex items-center gap-1.5 px-3 py-1.5 transition-colors font-medium"
           style={{ color: autoScrollActive ? 'white' : 'var(--text-secondary)' }}
+          title={`${autoScrollActive ? 'Stop auto-scroll' : 'Start auto-scroll'}${hint('toggleAutoScroll')}`}
+          aria-label={autoScrollActive ? 'Stop auto-scroll' : 'Start auto-scroll'}
         >
           {autoScrollActive ? <Pause size={14} /> : <Play size={14} />}
           {autoScrollActive ? 'Stop' : 'Scroll'}

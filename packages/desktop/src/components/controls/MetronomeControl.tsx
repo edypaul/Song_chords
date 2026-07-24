@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Timer, ChevronDown } from 'lucide-react';
+import { useShortcutHint } from '../../hooks/useShortcutHint';
 
 /**
  * Metronome cluster: the BPM-button (toggles play/stop) sits next to a
@@ -34,6 +35,7 @@ export default function MetronomeControl({
   onToggle: () => void;
   onMultiplierChange: (m: 0.5 | 1 | 2) => void;
 }): React.ReactElement {
+  const hint = useShortcutHint();
   const [open, setOpen] = useState(false);
   const chevronRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -77,7 +79,7 @@ export default function MetronomeControl({
           onClick={onToggle}
           className="flex items-center gap-1.5 px-2 py-1.5 text-xs transition-colors"
           style={{ color: isPlaying ? 'white' : 'var(--text-secondary)' }}
-          title={`Metronome — ${effectiveBpm} BPM, ${timeSig ?? '4/4'}`}
+          title={`Metronome — ${effectiveBpm} BPM, ${timeSig ?? '4/4'}${hint('toggleMetronome')}`}
         >
           <Timer size={13} />
           <span>{effectiveBpm}</span>
