@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord } from '@song-chords/shared';
 import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
@@ -55,6 +55,9 @@ export default function ChordLibraryPage(): React.ReactElement {
   const [customOnly, setCustomOnly] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedChord, setSelectedChord] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const gridTopRef = useRef<HTMLDivElement>(null);
 
   const builtin = getBuiltinDiagrams(instrument);
 
@@ -122,6 +125,30 @@ export default function ChordLibraryPage(): React.ReactElement {
     // `instrument` participates via hasCustomForInstrument — include it
     // so toggling the instrument re-filters "My Chords".
   }, [allChords, rootFilter, typeFilter, bassFilter, customOnly, customChords, instrument]);
+
+  // Numbered pagination. Whenever the filter set changes (any filter,
+  // any instrument, or a chord list mutation that shortens the total)
+  // we snap back to page 1 so the user isn't stranded on an empty
+  // trailing page.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  useEffect(() => {
+    setPage(1);
+  }, [rootFilter, typeFilter, bassFilter, customOnly, instrument]);
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const paged = useMemo(() => filtered.slice(pageStart, pageEnd), [filtered, pageStart, pageEnd]);
+
+  const goToPage = (p: number) => {
+    setPage(Math.max(1, Math.min(totalPages, p)));
+    // Scroll to the top of the grid so the first row of the new
+    // page is in view — the user's viewport otherwise stays where
+    // it was, which reads as "nothing happened" on a full-screen
+    // pager click.
+    gridTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
 
   const addCustomChord = (diagram: ChordDiagram) => {
     const existing = { ...customChords };
@@ -196,7 +223,9 @@ export default function ChordLibraryPage(): React.ReactElement {
           ★ My Chords
         </button>
         <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
-          {filtered.length} chord{filtered.length !== 1 ? 's' : ''}
+          {filtered.length === 0
+            ? '0 chords'
+            : `${pageStart + 1}–${Math.min(pageEnd, filtered.length)} of ${filtered.length} chord${filtered.length !== 1 ? 's' : ''}`}
         </span>
       </div>
 
@@ -207,8 +236,9 @@ export default function ChordLibraryPage(): React.ReactElement {
         </div>
       ) : (
       <>
+        <div ref={gridTopRef} style={{ scrollMarginTop: 16 }} />
         <div className="flex flex-wrap gap-3">
-          {filtered.map(([name, { diagrams }]) => (
+          {paged.map(([name, { diagrams }]) => (
             <div key={name}
               className="rounded-lg cursor-pointer transition-colors hover:border-[var(--accent)] flex flex-col items-center justify-between"
               // `min-height` not a fixed `height`: ukulele diagrams are
@@ -235,6 +265,9 @@ export default function ChordLibraryPage(): React.ReactElement {
         </div>
         {filtered.length === 0 && (
           <p className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>No chords match the current filter.</p>
+        )}
+        {totalPages > 1 && (
+          <Pager page={page} totalPages={totalPages} onGoto={goToPage} />
         )}
       </>
       )}
@@ -284,6 +317,82 @@ export default function ChordLibraryPage(): React.ReactElement {
         }
         .setting-select:focus { border-color: var(--accent); }
       `}</style>
+    </div>
+  );
+}
+
+/* ── Pager ──────────────────────────────────────────────────────────────── */
+
+/** Compact numbered pager. Always shows first + last page, the current
+ *  page ±1, and inserts a `…` gap wherever the sequence skips. Prev /
+ *  Next buttons flank the numbers and disable at the ends. */
+function Pager({ page, totalPages, onGoto }: {
+  page: number;
+  totalPages: number;
+  onGoto: (p: number) => void;
+}): React.ReactElement {
+  const items: Array<number | 'gap'> = [];
+  const push = (n: number) => { if (items[items.length - 1] !== n) items.push(n); };
+  const gap = () => { if (items[items.length - 1] !== 'gap') items.push('gap'); };
+  const window = [page - 1, page, page + 1].filter((n) => n >= 1 && n <= totalPages);
+  push(1);
+  if (window[0]! > 2) gap();
+  for (const n of window) if (n !== 1 && n !== totalPages) push(n);
+  if (window[window.length - 1]! < totalPages - 1) gap();
+  if (totalPages > 1) push(totalPages);
+
+  const btnBase = 'text-xs px-2.5 py-1 rounded-md transition-colors min-w-[28px]';
+  return (
+    <div className="flex items-center justify-center gap-1 mt-6">
+      <button
+        onClick={() => onGoto(page - 1)}
+        disabled={page <= 1}
+        className={btnBase}
+        style={{
+          background: 'var(--surface-elevated)',
+          color: page <= 1 ? 'var(--text-muted)' : 'var(--text-secondary)',
+          opacity: page <= 1 ? 0.4 : 1,
+          cursor: page <= 1 ? 'not-allowed' : 'pointer',
+        }}
+        aria-label="Previous page"
+      >
+        ‹ Prev
+      </button>
+      {items.map((it, i) => (
+        it === 'gap'
+          ? (
+            <span key={`gap-${i}`} className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>…</span>
+          ) : (
+            <button
+              key={it}
+              onClick={() => onGoto(it)}
+              className={btnBase}
+              style={{
+                background: it === page ? 'var(--accent)' : 'var(--surface-elevated)',
+                color: it === page ? 'white' : 'var(--text-secondary)',
+                fontWeight: it === page ? 600 : 400,
+              }}
+              aria-current={it === page ? 'page' : undefined}
+              aria-label={`Page ${it}`}
+            >
+              {it}
+            </button>
+          )
+      ))}
+      <button
+        onClick={() => onGoto(page + 1)}
+        disabled={page >= totalPages}
+        className={btnBase}
+        style={{
+          background: 'var(--surface-elevated)',
+          color: page >= totalPages ? 'var(--text-muted)' : 'var(--text-secondary)',
+          opacity: page >= totalPages ? 0.4 : 1,
+          cursor: page >= totalPages ? 'not-allowed' : 'pointer',
+        }}
+        aria-label="Next page"
+      >
+        Next ›
+      </button>
     </div>
   );
 }
