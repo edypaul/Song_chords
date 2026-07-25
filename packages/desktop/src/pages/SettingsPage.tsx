@@ -10,7 +10,8 @@ import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
 import {
   downloadJson, pickJsonFile, timestampSlug,
   exportLibrary, importLibrary, mergeLibrary, buildChordsBackup, buildPresetsBackup,
-  type LibraryBackup, type CustomChordsBackup, type CustomPresetsBackup,
+  buildSettingsBackup, importSettings,
+  type LibraryBackup, type CustomChordsBackup, type CustomPresetsBackup, type SettingsBackup,
 } from '../utils/backup';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
 
@@ -54,6 +55,7 @@ export default function SettingsPage(): React.ReactElement {
     | { kind: 'library'; data: LibraryBackup; description: string }
     | { kind: 'chords'; data: CustomChordsBackup; description: string }
     | { kind: 'presets'; data: CustomPresetsBackup; description: string }
+    | { kind: 'settings'; data: SettingsBackup; description: string }
     | null
   >(null);
   const flash = (kind: 'info' | 'error', message: string) => {
@@ -192,6 +194,52 @@ export default function SettingsPage(): React.ReactElement {
       flash('info', mode === 'replace'
         ? 'Replaced custom presets with backup.'
         : 'Combined backup with existing custom presets.');
+    } catch (e) {
+      flash('error', `Import failed: ${String(e)}`);
+    }
+  };
+
+  const handleExportSettings = () => {
+    try {
+      const backup = buildSettingsBackup(settings);
+      const count = Object.keys(backup.settings).length;
+      downloadJson(`songchords-settings-${timestampSlug()}.json`, backup);
+      flash('info', `Exported ${count} settings.`);
+    } catch (e) {
+      flash('error', `Export failed: ${String(e)}`);
+    }
+  };
+
+  const handleImportSettings = async () => {
+    const data = await pickJsonFile<SettingsBackup>();
+    if (!data || typeof data.settings !== 'object') {
+      if (data !== null) flash('error', 'This file does not look like a settings backup.');
+      return;
+    }
+    const count = Object.keys(data.settings).length;
+    setPendingImport({
+      kind: 'settings',
+      data,
+      description: `${count} setting${count === 1 ? '' : 's'}`,
+    });
+  };
+
+  const runSettingsImport = async () => {
+    // Settings backups don't support "combine" — every key either
+    // exists once per user or doesn't; there's no meaningful merge
+    // for a scalar like `theme` or a fully-formed `songViewStyle`.
+    // The confirm dialog is still shown so the user has an explicit
+    // "yes overwrite" step and can review what's about to happen.
+    const pending = pendingImport;
+    if (!pending || pending.kind !== 'settings') return;
+    setPendingImport(null);
+    try {
+      await importSettings(db, pending.data);
+      // Rehydrate the in-memory store so every consumer picks up the
+      // new values (theme, shortcuts, etc.) immediately without a
+      // page reload.
+      await useSettingsStore.getState().loadSettings(db);
+      flash('info', `Restored settings from backup.`);
     } catch (e) {
       flash('error', `Import failed: ${String(e)}`);
     }
@@ -475,6 +523,12 @@ export default function SettingsPage(): React.ReactElement {
           onExport={handleExportPresets}
           onImport={handleImportPresets}
         />
+        <BackupRow
+          label="App settings"
+          hint="Every preference on this page — theme, style preset, keyboard shortcuts, dashboard cards, song-list columns, and so on. Custom chords and custom presets have their own backup files above."
+          onExport={handleExportSettings}
+          onImport={handleImportSettings}
+        />
         {status && (
           <div
             className="px-4 py-2 text-xs"
@@ -553,7 +607,7 @@ export default function SettingsPage(): React.ReactElement {
         />
       )}
 
-      {pendingImport && (
+      {pendingImport && pendingImport.kind !== 'settings' && (
         <ImportModeDialog
           title={
             pendingImport.kind === 'library' ? 'Import songs library'
@@ -590,6 +644,21 @@ export default function SettingsPage(): React.ReactElement {
           // chord names). The chord/preset backups don't, so the
           // spelling warning would be misleading for them.
           showChordSpellingWarning={pendingImport.kind === 'library'}
+        />
+      )}
+
+      {/* Settings backup uses a plain confirm dialog — a "combine" mode
+          isn't meaningful for scalar preferences (theme, songViewStyle,
+          the whole shortcuts table). Restore either fully overwrites or
+          not at all. */}
+      {pendingImport && pendingImport.kind === 'settings' && (
+        <ConfirmDialog
+          title="Restore settings from backup"
+          message={`The backup contains ${pendingImport.description}. Restoring will overwrite the corresponding preferences on this device (theme, shortcuts, song-view style, dashboard cards, and so on). Custom chords and custom presets are not affected — they have their own backup files.`}
+          confirmLabel="Restore"
+          cancelLabel="Cancel"
+          onConfirm={() => { void runSettingsImport(); }}
+          onCancel={() => setPendingImport(null)}
         />
       )}
 

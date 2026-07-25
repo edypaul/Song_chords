@@ -108,6 +108,29 @@ const STATIC_GROUPS: Group[] = [
       { keys: ['Esc'], desc: 'Cancel' },
     ],
   },
+  {
+    // Non-rebindable zoom gestures on the Song view. The keyboard
+    // zoom (Ctrl+= / Ctrl+- / Ctrl+0) IS rebindable and lives in the
+    // dynamic groups below via the ShortcutAction routing; this
+    // group is just for the mouse-wheel + touch equivalents.
+    title: 'Zoom (Song view)',
+    icon: <ZoomIn size={14} />,
+    shortcuts: [
+      { keys: ['Ctrl+Wheel'], desc: 'Zoom song content in / out' },
+      { keys: ['Pinch'],      desc: 'Zoom song content on touch displays' },
+    ],
+  },
+  {
+    // GlobalSearch overlay has its own in-overlay navigation keys —
+    // Escape closes the overlay (covered in the Global group above);
+    // Arrow keys and Enter move through and open results.
+    title: 'Global search overlay',
+    icon: <Search size={14} />,
+    shortcuts: [
+      { keys: ['↓', '↑'], desc: 'Move through results' },
+      { keys: ['↵'],       desc: 'Open the highlighted result' },
+    ],
+  },
 ];
 
 function splitCombo(combo: string): string[] {

@@ -7,6 +7,12 @@ export interface SetList {
   date?: number;
   createdAt: number;
   updatedAt: number;
+  /** Drag-order position on the Set Lists page. Nullable because
+   *  older rows created before v14/v15 may not have one yet — the
+   *  UI falls back to `updatedAt` sort in that case. Included so
+   *  the reorder the user does on the Set Lists page survives a
+   *  backup round-trip. */
+  position?: number;
 }
 
 export type SetListEntryType = 'song' | 'note';

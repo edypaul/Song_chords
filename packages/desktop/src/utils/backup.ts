@@ -1,7 +1,7 @@
 import type {
-  Song, SetList, SetListEntry, FavoriteEntry, ChordDiagram, CustomPreset, IDatabase,
+  Song, SetList, SetListEntry, FavoriteEntry, ChordDiagram, CustomPreset, IDatabase, AppSettings,
 } from '@song-chords/shared';
-import { SongRepository, SetListRepository, FavoriteRepository } from '@song-chords/shared';
+import { SongRepository, SetListRepository, FavoriteRepository, SettingsRepository } from '@song-chords/shared';
 
 // ─── Generic file helpers ──────────────────────────────────────────────────
 
@@ -101,8 +101,8 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
     await db.execute(
       `INSERT INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
         notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order,
-        link, audio_file, last_viewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        link, audio_file, last_viewed_at, annotations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         s.id, s.title, s.artist ?? null, s.album ?? null, s.key ?? null,
         s.tempo ?? null, s.timeSig ?? null, s.capo,
@@ -113,25 +113,39 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
         s.favorite ? 1 : 0,
         JSON.stringify(s.preferences ?? {}),
         s.createdAt, s.updatedAt, s.sortOrder,
-        // Audio source + last-viewed were silently dropped before, so
-        // restoring a backup wiped every song's YouTube/audio link,
-        // local audio-file path, and last-viewed timestamp.
+        // Audio source, last-viewed, and annotations were silently
+        // dropped before, so restoring a backup wiped every song's
+        // YouTube/audio link, local audio-file path, last-viewed
+        // timestamp, and drawn annotations.
         s.link ?? null, s.audioFile ?? null, s.lastViewedAt ?? null,
+        s.annotations ?? null,
       ],
     );
   }
 
   for (const sl of backup.setlists ?? []) {
     await db.execute(
-      'INSERT INTO setlists (id, name, description, date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [sl.id, sl.name, sl.description ?? null, sl.date ?? null, sl.createdAt, sl.updatedAt],
+      // `position` reflects the drag-order the user set on the Set
+      // Lists page (migration v14/v15). Older backups won't have it —
+      // default to 0 in that case, matching the seed value the
+      // migration used for pre-existing rows.
+      'INSERT INTO setlists (id, name, description, date, created_at, updated_at, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [sl.id, sl.name, sl.description ?? null, sl.date ?? null, sl.createdAt, sl.updatedAt, sl.position ?? 0],
     );
   }
 
   for (const e of backup.setlistEntries ?? []) {
     await db.execute(
-      `INSERT INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      // Per-entry overrides (view_mode / auto_scroll_mode /
+      // tempo_multiplier / chord_bar_visible / inline_chord_diagrams)
+      // were added in migrations v16–v17; they're read on export via
+      // rowToEntry but the INSERT here used to stop at `notes`, so
+      // every restore silently wiped a user's per-entry settings.
+      // Booleans are stored as 0/1 (matching how the repo writes them
+      // in updateEntry), with `undefined` collapsing to NULL.
+      `INSERT INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes,
+        view_mode, auto_scroll_mode, tempo_multiplier, chord_bar_visible, inline_chord_diagrams)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         e.id, e.setlistId, e.songId ?? null,
         e.type ?? 'song',
@@ -140,6 +154,11 @@ export async function importLibrary(db: IDatabase, backup: LibraryBackup): Promi
         e.transpose, e.capo,
         e.key ?? null, e.tempo ?? null, e.timeSig ?? null,
         e.notes ?? null,
+        e.viewMode ?? null,
+        e.autoScrollMode ?? null,
+        e.tempoMultiplier ?? null,
+        e.chordBarVisible === undefined ? null : (e.chordBarVisible ? 1 : 0),
+        e.inlineChordDiagrams === undefined ? null : (e.inlineChordDiagrams ? 1 : 0),
       ],
     );
   }
@@ -170,8 +189,8 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
     await db.execute(
       `INSERT OR IGNORE INTO songs (id, title, artist, album, key, tempo, time_sig, capo, genre, year, language, duration,
         notes, content, content_format, tags, difficulty, favorite, preferences, created_at, updated_at, sort_order,
-        link, audio_file, last_viewed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        link, audio_file, last_viewed_at, annotations)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         s.id, s.title, s.artist ?? null, s.album ?? null, s.key ?? null,
         s.tempo ?? null, s.timeSig ?? null, s.capo,
@@ -183,6 +202,7 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
         JSON.stringify(s.preferences ?? {}),
         s.createdAt, s.updatedAt, s.sortOrder,
         s.link ?? null, s.audioFile ?? null, s.lastViewedAt ?? null,
+        s.annotations ?? null,
       ],
     );
   }
@@ -190,8 +210,8 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
   // Setlists — skip if id already in use.
   for (const sl of backup.setlists ?? []) {
     await db.execute(
-      'INSERT OR IGNORE INTO setlists (id, name, description, date, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [sl.id, sl.name, sl.description ?? null, sl.date ?? null, sl.createdAt, sl.updatedAt],
+      'INSERT OR IGNORE INTO setlists (id, name, description, date, created_at, updated_at, position) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [sl.id, sl.name, sl.description ?? null, sl.date ?? null, sl.createdAt, sl.updatedAt, sl.position ?? 0],
     );
   }
 
@@ -199,8 +219,9 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
   // as-is; if the song was skipped above (duplicate id) the FK still resolves.
   for (const e of backup.setlistEntries ?? []) {
     await db.execute(
-      `INSERT OR IGNORE INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO setlist_entries (id, setlist_id, song_id, type, note_title, note_body, position, transpose, capo, key, tempo, time_sig, notes,
+        view_mode, auto_scroll_mode, tempo_multiplier, chord_bar_visible, inline_chord_diagrams)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         e.id, e.setlistId, e.songId ?? null,
         e.type ?? 'song',
@@ -209,6 +230,11 @@ export async function mergeLibrary(db: IDatabase, backup: LibraryBackup): Promis
         e.transpose, e.capo,
         e.key ?? null, e.tempo ?? null, e.timeSig ?? null,
         e.notes ?? null,
+        e.viewMode ?? null,
+        e.autoScrollMode ?? null,
+        e.tempoMultiplier ?? null,
+        e.chordBarVisible === undefined ? null : (e.chordBarVisible ? 1 : 0),
+        e.inlineChordDiagrams === undefined ? null : (e.inlineChordDiagrams ? 1 : 0),
       ],
     );
   }
@@ -248,4 +274,64 @@ export function buildChordsBackup(customChords: Record<string, ChordDiagram[]>):
 
 export function buildPresetsBackup(customPresets: Record<string, CustomPreset>): CustomPresetsBackup {
   return { version: 1, exportedAt: Date.now(), customPresets };
+}
+
+// ─── App-settings backup ───────────────────────────────────────────────────
+
+/** Keys deliberately excluded from the Settings backup:
+ *   - customChords / customPresets: they have their own dedicated backup
+ *     files, so mixing them in would duplicate large blobs and confuse
+ *     the "which file restores what" story.
+ *   - dismissedHints: per-machine UI state (which "don't show again"
+ *     banners the user closed on this specific device). Not portable.
+ *
+ *  Everything else in AppSettings — theme, songViewStyle, the whole
+ *  shortcuts rebinding table, defaultChordVariations, dashboardCards,
+ *  songListColumns/Order, chordNotation, all perf* fields, etc. —
+ *  IS included so a user restoring on a fresh install gets their
+ *  preferences back. */
+const SETTINGS_BACKUP_EXCLUDED = new Set<keyof AppSettings>([
+  'customChords',
+  'customPresets',
+  'dismissedHints',
+]);
+
+export interface SettingsBackup {
+  version: 1;
+  exportedAt: number;
+  /** Partial because we deliberately exclude a few keys (see the
+   *  comment on SETTINGS_BACKUP_EXCLUDED). Restore iterates only the
+   *  keys that appear here, so an older backup that lacks a newer
+   *  setting simply leaves that setting at its current value. */
+  settings: Partial<AppSettings>;
+}
+
+export function buildSettingsBackup(settings: AppSettings): SettingsBackup {
+  const out: Partial<AppSettings> = {};
+  for (const [key, value] of Object.entries(settings) as Array<[keyof AppSettings, unknown]>) {
+    if (SETTINGS_BACKUP_EXCLUDED.has(key)) continue;
+    // Skip undefined values so the backup file is compact and the
+    // restore loop doesn't overwrite a defaulted key with `undefined`.
+    if (value === undefined) continue;
+    (out as Record<string, unknown>)[key] = value;
+  }
+  return { version: 1, exportedAt: Date.now(), settings: out };
+}
+
+/** Restore an app-settings backup. Writes every included key to the
+ *  settings table, then the caller should trigger a `loadSettings()`
+ *  reload so the in-memory store rehydrates.
+ *
+ *  Ignores keys in SETTINGS_BACKUP_EXCLUDED even if a hand-edited
+ *  backup file tries to smuggle them in — the excluded keys are
+ *  intentionally out of scope. */
+export async function importSettings(db: IDatabase, backup: SettingsBackup): Promise<void> {
+  const repo = new SettingsRepository(db);
+  const partial: Partial<AppSettings> = {};
+  for (const [key, value] of Object.entries(backup.settings ?? {}) as Array<[keyof AppSettings, unknown]>) {
+    if (SETTINGS_BACKUP_EXCLUDED.has(key)) continue;
+    if (value === undefined) continue;
+    (partial as Record<string, unknown>)[key] = value;
+  }
+  await repo.save(partial);
 }

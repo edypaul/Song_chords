@@ -9,6 +9,7 @@ interface SetListRow {
   date: number | null;
   created_at: number;
   updated_at: number;
+  position: number | null;
 }
 
 interface SetListEntryRow {
@@ -52,6 +53,7 @@ function rowToSetList(row: SetListRow): SetList {
     date: row.date ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    position: row.position ?? undefined,
   };
 }
 
