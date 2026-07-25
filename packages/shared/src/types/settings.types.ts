@@ -84,7 +84,8 @@ export type ShortcutAction =
   | 'zoomOut'
   | 'zoomReset'
   | 'openSearch'
-  | 'toggleToolbar';
+  | 'toggleToolbar'
+  | 'toggleSongTrainer';
 
 export interface KeyboardShortcuts {
   toggleInlineDiagrams: string;
@@ -113,6 +114,11 @@ export interface KeyboardShortcuts {
    *  gets more vertical room. Distinct from auto-scroll (which used to
    *  hide it as a side effect). */
   toggleToolbar: string;
+  /** Toggle the Song Trainer — hides a percentage of chord names
+   *  behind `?` marks the user can click to reveal, so they can
+   *  practise guessing the next chord. Only active in the default
+   *  chords-over-lyrics view. */
+  toggleSongTrainer: string;
   /** Modifier used for capo shortcuts — combined with a digit 0-9 to set
    *  the capo to that fret. */
   capoModifier: 'Alt' | 'Ctrl' | 'Shift' | 'Meta';

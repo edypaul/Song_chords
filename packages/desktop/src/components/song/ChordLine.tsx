@@ -3,6 +3,7 @@ import type { ParsedLine, ChordToken, LyricToken, SectionStyle, InstrumentType }
 import { getDiagramExact, getDiagramByIndex, useSettingsStore, formatChord } from '@song-chords/shared';
 import type { SongViewStyle } from '@song-chords/shared';
 import ChordDiagramSVG from '../chord-diagram/ChordDiagramSVG';
+import { useSongTrainerStore, isHiddenAtPercentage } from '../../store/song-trainer-store';
 
 interface Props {
   line: ParsedLine;
@@ -13,6 +14,15 @@ interface Props {
   instrument?: InstrumentType;
   svs?: SongViewStyle;
   chordVariations?: Record<string, number>;
+  /** Song trainer inputs — passed together so the same line can be
+   *  rendered under different songs / positions without collisions. The
+   *  trainer only activates when `trainerEnabled` is true AND
+   *  `inlineDiagrams` is false (it's a chord-names-over-lyrics feature).
+   *  Undefined values simply skip the masking. */
+  songId?: string;
+  sectionIndex?: number;
+  lineIndex?: number;
+  trainerEnabled?: boolean;
 }
 
 interface Chunk {
@@ -143,9 +153,26 @@ function groupByWords(chunks: Chunk[]): Chunk[][] {
  * For chordless chunks (mid-word fragments like the "i" in i[A]nevitable),
  * the chord row is a zero-width placeholder so no gap is introduced.
  */
-export default React.memo(function ChordLine({ line, showChords, onChordClick, chordStyle, inlineDiagrams, instrument, svs, chordVariations }: Props): React.ReactElement {
+export default React.memo(function ChordLine({ line, showChords, onChordClick, chordStyle, inlineDiagrams, instrument, svs, chordVariations, songId, sectionIndex, lineIndex, trainerEnabled }: Props): React.ReactElement {
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
+
+  // Song trainer: hides a percentage of chord-name occurrences behind
+  // clickable `?` marks so the user can practise guessing the next
+  // chord. Only active on the chord-names-over-lyrics render branch
+  // (bottom of this file) — the inline-diagrams branch above is
+  // intentionally left untouched because there's no plain chord-name
+  // element to swap out there.
+  const trainerPct = useSongTrainerStore((s) => s.percentage);
+  const trainerNonce = useSongTrainerStore((s) => s.nonce);
+  const revealed = useSongTrainerStore((s) => s.revealed);
+  const revealShape = useSongTrainerStore((s) => s.reveal);
+  const trainerActive = !!trainerEnabled
+    && !inlineDiagrams
+    && showChords
+    && typeof songId === 'string'
+    && typeof sectionIndex === 'number'
+    && typeof lineIndex === 'number';
 
   // Inline-diagrams data, mirroring the cast view's pathway in
   // utils/song-export.ts (renderChordLyricLine inline branch).
@@ -992,21 +1019,73 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
                           vertical={instrument === 'piano'} />
                       </span>
                     ) : (
-                      <span
-                        className="chord"
-                        style={{
-                          fontWeight: 600,
-                          fontSize: chordFontSize,
-                          whiteSpace: 'nowrap',
-                          paddingRight: '0.3em',
-                          color: chordStyle?.color || undefined,
-                          cursor: onChordClick ? 'pointer' : undefined,
-                        }}
-                        onClick={() => onChordClick?.(chunk.chord!)}
-                        title={chunk.chord ? `Click to view ${formatChord(chunk.chord, notation)} diagram` : undefined}
-                      >
-                        {formatChord(chunk.chord, notation)}
-                      </span>
+                      (() => {
+                        // Song trainer masking. Stable key per chord
+                        // occurrence: (section, line, group, chunk,
+                        // chord). Hash decides whether this occurrence
+                        // is hidden at the current percentage; the
+                        // `revealed` set overrides once the user
+                        // clicks the `?` to reveal it.
+                        const occKey = trainerActive
+                          ? `${sectionIndex}:${lineIndex}:${gi}:${ci}:${chunk.chord}`
+                          : '';
+                        const isHidden = trainerActive
+                          && !revealed.has(occKey)
+                          && isHiddenAtPercentage(songId!, occKey, trainerPct, trainerNonce);
+                        if (isHidden) {
+                          return (
+                            <span
+                              className="chord chord-trainer-mask"
+                              style={{
+                                fontWeight: 700,
+                                fontSize: chordFontSize,
+                                whiteSpace: 'nowrap',
+                                paddingRight: '0.3em',
+                                // Trainer `?` is always red so the
+                                // "guess me" affordance is visually
+                                // distinct from the surrounding chord
+                                // names in ANY style preset (including
+                                // presets whose chord color is red-ish
+                                // — using the preset color could make
+                                // the `?` blend in). --danger is the
+                                // app-wide red token.
+                                color: 'var(--danger, #ef4444)',
+                                cursor: 'pointer',
+                                userSelect: 'none',
+                              }}
+                              onClick={(e) => {
+                                // Reveal-only: don't fall through to the
+                                // chord-diagram popup, which would fire
+                                // simultaneously and confuse "click to
+                                // reveal" vs "click to view diagram".
+                                e.stopPropagation();
+                                revealShape(occKey);
+                              }}
+                              title="Click to reveal chord"
+                              aria-label="Hidden chord — click to reveal"
+                            >
+                              ?
+                            </span>
+                          );
+                        }
+                        return (
+                          <span
+                            className="chord"
+                            style={{
+                              fontWeight: 600,
+                              fontSize: chordFontSize,
+                              whiteSpace: 'nowrap',
+                              paddingRight: '0.3em',
+                              color: chordStyle?.color || undefined,
+                              cursor: onChordClick ? 'pointer' : undefined,
+                            }}
+                            onClick={() => onChordClick?.(chunk.chord!)}
+                            title={chunk.chord ? `Click to view ${formatChord(chunk.chord, notation)} diagram` : undefined}
+                          >
+                            {formatChord(chunk.chord, notation)}
+                          </span>
+                        );
+                      })()
                     )
                   ) : (
                     // Zero-width space so the chord row keeps its fixed height.

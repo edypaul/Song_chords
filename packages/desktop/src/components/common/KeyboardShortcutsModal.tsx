@@ -42,6 +42,7 @@ const ACTION_LABELS: Record<ShortcutAction, string> = {
   zoomReset:            'Reset zoom',
   openSearch:           'Open global search',
   toggleToolbar:        'Show / hide the toolbar',
+  toggleSongTrainer:    'Song trainer (hide chord names to guess)',
 };
 
 const STATIC_GROUPS: Group[] = [
@@ -176,6 +177,7 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
       { action: 'toggleSongNotes',      target: songPerform },
       { action: 'toggleFullscreen',     target: songPerform },
       { action: 'toggleToolbar',        target: songPerform },
+      { action: 'toggleSongTrainer',    target: songOnly },
       { action: 'transposeUp',          target: songPerform },
       { action: 'transposeDown',        target: songPerform },
       { action: 'resetTranspose',       target: songPerform },

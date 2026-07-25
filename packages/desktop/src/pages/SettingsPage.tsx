@@ -644,6 +644,7 @@ const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
   zoomReset:            'Reset zoom',
   openSearch:           'Open global search',
   toggleToolbar:        'Show / hide the toolbar',
+  toggleSongTrainer:    'Song trainer (hide chord names to guess)',
 };
 
 interface ShortcutGroup {
@@ -662,7 +663,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'View & Display',
     hint: 'Active in the Song view and Perform pages.',
-    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen', 'toggleToolbar'],
+    actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen', 'toggleToolbar', 'toggleSongTrainer'],
   },
   {
     title: 'Playback',

@@ -24,6 +24,7 @@ export const DEFAULT_SHORTCUTS: KeyboardShortcuts = {
   zoomReset: 'Ctrl+0',
   openSearch: 'Ctrl+Space',
   toggleToolbar: 'T',
+  toggleSongTrainer: 'Shift+T',
   capoModifier: 'Alt',
 };
 

@@ -17,6 +17,15 @@ interface Props {
    *  override without touching the global setting. When undefined,
    *  falls back to the app-wide setting. */
   inlineDiagramsOverride?: boolean;
+  /** Song id — passed through to ChordLine so the Song Trainer can
+   *  hash occurrences stably per-song. Optional so pure-render call
+   *  sites (previews, exports) can omit it. */
+  songId?: string;
+  /** Enable the Song Trainer — hides a percentage of chord-name
+   *  occurrences behind `?` marks. Only takes effect on the plain
+   *  chord-names-over-lyrics render (inline-diagrams path is left
+   *  alone). Caller decides eligibility (view mode + inline flag). */
+  trainerEnabled?: boolean;
 }
 
 // Section types that get a left border
@@ -70,7 +79,7 @@ function groupLines(lines: ParsedLine[]): LineGroup[] {
   return groups;
 }
 
-export default function SongRenderer({ song, fontSize, viewMode, onChordClick, chordVariations, inlineDiagramsOverride }: Props): React.ReactElement {
+export default function SongRenderer({ song, fontSize, viewMode, onChordClick, chordVariations, inlineDiagramsOverride, songId, trainerEnabled }: Props): React.ReactElement {
   const groups = useMemo(() => groupLines(song.lines), [song.lines]);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const globalInline = useSettingsStore((s) => s.settings.inlineChordDiagrams ?? false);
@@ -104,12 +113,12 @@ export default function SongRenderer({ song, fontSize, viewMode, onChordClick, c
             }}
           >
             {group.lines.map((entry, li) => (
-              <RenderLine key={li} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
+              <RenderLine key={li} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} songId={songId} trainerEnabled={trainerEnabled} />
             ))}
           </div>
         ) : (
           group.lines.map((entry, li) => (
-            <RenderLine key={`${gi}-${li}`} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} />
+            <RenderLine key={`${gi}-${li}`} line={entry.line} sectionIndex={entry.sectionIndex} lineIndex={entry.lineIndex} fontSize={lyricsFontSize} viewMode={viewMode} onChordClick={onChordClick} svs={svs} showInline={showInline} instrument={instrument} chordVariations={chordVariations} songId={songId} trainerEnabled={trainerEnabled} />
           ))
         )
       )}
@@ -128,6 +137,8 @@ const RenderLine = memo(function RenderLine({
   showInline,
   instrument,
   chordVariations,
+  songId,
+  trainerEnabled,
 }: {
   line: ParsedLine;
   /** Section index within the parsed song (-1 for songs with no
@@ -145,6 +156,8 @@ const RenderLine = memo(function RenderLine({
   chordVariations?: Record<string, number>;
   onChordClick?: (chord: string) => void;
   svs: SongViewStyle;
+  songId?: string;
+  trainerEnabled?: boolean;
 }): React.ReactElement | null {
   // Every rendered line gets a stable annotation anchor via these
   // data attributes. The draw / render code walks the DOM for
@@ -288,7 +301,8 @@ const RenderLine = memo(function RenderLine({
     return (
       <div {...annotAttrs}>
         <ChordLine line={line} onChordClick={onChordClick} showChords={viewMode !== 'lyrics-only'} chordStyle={svs.chords}
-          inlineDiagrams={showInline} instrument={instrument} svs={svs} chordVariations={chordVariations} />
+          inlineDiagrams={showInline} instrument={instrument} svs={svs} chordVariations={chordVariations}
+          songId={songId} sectionIndex={sectionIndex} lineIndex={lineIndex} trainerEnabled={trainerEnabled} />
       </div>
     );
   }

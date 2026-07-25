@@ -15,6 +15,8 @@ import StickyNotePanel from '../components/song/StickyNotePanel';
 import SectionNavigator from '../components/song/SectionNavigator';
 import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import CastQuickButton from '../components/song/CastQuickButton';
+import SongTrainerButton from '../components/song/SongTrainerButton';
+import { useSongTrainerStore } from '../store/song-trainer-store';
 import AnnotationLayer from '../components/annotation/AnnotationLayer';
 import AnnotationEditingRoot from '../components/annotation/AnnotationEditingRoot';
 import AnnotationMenu from '../components/annotation/AnnotationMenu';
@@ -222,6 +224,34 @@ export default function SongViewPage(): React.ReactElement {
     setShowNotes(false);
     if (activeSong?.id) setSelectedSetId(activeSong.id, null);
   }, [activeSong?.id, setSelectedSetId]);
+
+  // Song trainer eligibility: only the default chord-names-over-lyrics
+  // view. Any other layout (lyrics-only, inline diagrams) hides the
+  // plain chord-name text this feature masks — showing `?` there would
+  // be confusing (and in the inline-diagram case the ChordLine's
+  // fallback text branch doesn't render at all).
+  const trainerEnabledStore = useSongTrainerStore((s) => s.enabled);
+  const setTrainerEnabled = useSongTrainerStore((s) => s.setEnabled);
+  const toggleTrainerEnabled = useSongTrainerStore((s) => s.toggleEnabled);
+  const syncTrainerSong = useSongTrainerStore((s) => s.syncActiveSong);
+  const trainerEligible = viewMode === 'chords' && !inlineDiagrams;
+  const trainerActive = trainerEnabledStore && trainerEligible;
+  // Force-off when the view leaves the eligible layout — otherwise
+  // switching back later would silently re-activate a masking pass the
+  // user hadn't asked for.
+  useEffect(() => {
+    if (!trainerEligible && trainerEnabledStore) setTrainerEnabled(false);
+  }, [trainerEligible, trainerEnabledStore, setTrainerEnabled]);
+  // Clear the revealed set when the active song changes so Song A's
+  // reveals don't leak into Song B.
+  useEffect(() => {
+    syncTrainerSong(activeSong?.id ?? null);
+  }, [activeSong?.id, syncTrainerSong]);
+  const trainerIneligibleReason = viewMode === 'lyrics-only'
+    ? 'Song trainer is off in lyrics-only mode.'
+    : inlineDiagrams
+      ? 'Song trainer is off when inline chord diagrams are on.'
+      : 'Song trainer is only available in the default chord-names view.';
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
   // Collapse the whole toolbar to give the song content more vertical
@@ -280,6 +310,12 @@ export default function SongViewPage(): React.ReactElement {
     addToSetList:         () => setShowSetListPicker(true),
     toggleFullscreen:     () => { if (performanceMode) exitPerformance(); else enterFullscreen(); },
     toggleToolbar:        () => setToolbarHidden((v) => !v),
+    toggleSongTrainer:    () => {
+      // Silently ignore when the view isn't eligible so the shortcut
+      // doesn't turn something on the user can't see or interact with.
+      if (!trainerEligible) return;
+      toggleTrainerEnabled();
+    },
     zoomIn:               () => setZoomLevel((z) => Math.min(z + 0.1, 3)),
     zoomOut:              () => setZoomLevel((z) => Math.max(z - 0.1, 0.5)),
     zoomReset:            () => setZoomLevel(1),
@@ -709,6 +745,9 @@ export default function SongViewPage(): React.ReactElement {
           {/* Audio source + Cast + Annotations (full-screen perf) */}
           <div className="ml-auto flex items-center gap-1">
             <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
+            {/* Song trainer — same button as the non-perf toolbar so
+                the user can start practising from either surface. */}
+            <SongTrainerButton eligible={trainerEligible} ineligibleReason={trainerIneligibleReason} />
             {/* Fullscreen intentionally omits the "annotate this song"
                 button — annotations are created in the normal view
                 and only READ in fullscreen. The picker below stays
@@ -747,7 +786,7 @@ export default function SongViewPage(): React.ReactElement {
             {activeSong.artist && <p className="mt-1" style={{ color: svs.details.color || 'var(--text-secondary)', fontSize: svs.details.fontSize || undefined, fontFamily: svs.fontFamily || undefined }}>{activeSong.artist}</p>}
             <SongDetails centered={songCentered} />
           </div>
-          <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} />
+          <SongRenderer song={displayedSong} fontSize={svs.lyrics.fontSize || 16} viewMode={viewMode} onChordClick={(chord) => setSelectedChord(chord)} chordVariations={effectiveChordVariations} songId={activeSong.id} trainerEnabled={trainerActive} />
           {/* Always mounted — see rationale in the non-perf branch. */}
           <AnnotationLayer
             annotationsJson={activeSong.annotations}
@@ -1163,6 +1202,11 @@ export default function SongViewPage(): React.ReactElement {
             );
           })()}
 
+          {/* Song trainer — hides a percentage of chord names behind
+              `?` so the user can practise guessing them. Eligible only
+              in the default chord-names view. */}
+          <SongTrainerButton eligible={trainerEligible} ineligibleReason={trainerIneligibleReason} />
+
           {/* Merged Annotations menu — one Highlighter button that
               opens the drawing panel (zero saved sets) or a dropdown
               listing sets with Edit / Star / Delete + "New annotation"
@@ -1278,6 +1322,8 @@ export default function SongViewPage(): React.ReactElement {
             viewMode={viewMode}
             onChordClick={(chord) => setSelectedChord(chord)}
             chordVariations={effectiveChordVariations}
+            songId={activeSong.id}
+            trainerEnabled={trainerActive}
           />
           {/* Read-only annotation layer — always mounted so measurement
               stays warm; visibility is toggled via `showAnnotations`.
