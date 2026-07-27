@@ -84,8 +84,44 @@ export function useLineBoxes(
   const [currentZoom, setCurrentZoom] = useState(1);
   const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
+    // In production builds, `scrollRef.current` can be null on the
+    // very first useLayoutEffect run: the parent's ref-attach
+    // ordering isn't guaranteed relative to a child effect that
+    // fires within the same commit. If we bail out here, none of
+    // the retry signals below get scheduled, and the layer stays
+    // hidden until something else (a view toggle) forces the
+    // effect to re-run. Instead of returning early, poll for the
+    // ref on animation frames until it appears — no more than
+    // 60 frames (~1 s) as a hard ceiling.
+    let container = scrollRef.current;
+    let cleanup: (() => void) | null = null;
+    if (!container) {
+      let attempts = 0;
+      let waitRaf: number | null = null;
+      const wait = () => {
+        attempts += 1;
+        container = scrollRef.current;
+        if (container) {
+          waitRaf = null;
+          cleanup = runSetup(container);
+          return;
+        }
+        if (attempts >= 60) {
+          waitRaf = null;
+          return;
+        }
+        waitRaf = requestAnimationFrame(wait);
+      };
+      waitRaf = requestAnimationFrame(wait);
+      return () => {
+        if (waitRaf !== null) cancelAnimationFrame(waitRaf);
+        cleanup?.();
+      };
+    }
+    cleanup = runSetup(container);
+    return () => cleanup?.();
+
+    function runSetup(container: HTMLElement): (() => void) {
     const measure = () => {
       const contentEl = container.firstElementChild as HTMLElement | null;
       const originEl = contentEl ?? originRef.current;
@@ -114,6 +150,17 @@ export function useLineBoxes(
 
       setBoxes(next);
       setCurrentZoom(zoom);
+      // Reveal the layer as soon as we have measured boxes. Previous
+      // code gated visibility behind a separate "committed" flag that
+      // was set by a tangle of raf / fontsReady / safety-timer
+      // signals — in production builds those signals could fire
+      // against an empty container, mark measured=true, and leave
+      // the layer visible-but-empty until the user forced a re-mount
+      // by toggling view mode. Simpler + correct: every measure()
+      // call that finds ≥1 box commits the layer. Zero-box measures
+      // (before SongRenderer mounts its lines) leave `measured`
+      // alone so the layer stays hidden until real content arrives.
+      if (next.size > 0) setMeasured(true);
       // SVG sizing has TWO goals:
       //   1. Cover the whole visual width of the CONTAINER so the user
       //      can draw in the left / right margins of the song text
@@ -168,7 +215,6 @@ export function useLineBoxes(
     };
 
     let cancelled = false;
-    let committed = false;
     const hasRunningAnimation = (): boolean => {
       const el = container as unknown as { getAnimations?: (opts?: { subtree?: boolean }) => Animation[] };
       if (typeof el.getAnimations !== 'function') return false;
@@ -193,56 +239,40 @@ export function useLineBoxes(
       const anims = slideEl.getAnimations();
       return anims.some((a) => a.playState === 'running' || a.playState === 'idle' || a.playState === 'paused');
     })();
-    // Initial synchronous measure — BUT only when no song-slide is
-    // pending or running. Perform-mode runs a 260ms slide-in on every
-    // song change; measuring during it captures section positions
-    // that are offset by the transform and would then "jump" into
-    // place at animationend. Skipping the sync measure while a slide
-    // is pending, AND resetting `measured` so the visibility gate
-    // hides the layer, together produce a clean "layer is hidden for
-    // 260ms then appears with correct coords" transition instead of
-    // a visible jump.
-    if (hasPendingSlide || hasRunningAnimation()) {
-      setMeasured(false);
-    } else {
+    // Initial synchronous measure — skip during a song-slide so the
+    // layer doesn't capture transformed positions that would jump
+    // when the slide finishes. `measured` starts false and only
+    // flips true inside `measure()` when we actually found boxes,
+    // so a skipped initial measure keeps the layer hidden until a
+    // later signal produces real content.
+    if (!hasPendingSlide && !hasRunningAnimation()) {
       measure();
     }
-    const guardedMeasure = () => {
+    const safeMeasure = () => {
       if (cancelled) return;
-      if (!committed) return;
       measure();
     };
-    const commitStable = () => {
-      if (cancelled || committed) return;
-      committed = true;
-      measure();
-      setMeasured(true);
-    };
-    const onAnimationEnd = () => {
-      commitStable();
-      guardedMeasure();
-    };
+    const onAnimationEnd = () => safeMeasure();
     container.addEventListener('animationend', onAnimationEnd);
     container.addEventListener('transitionend', onAnimationEnd);
+    // Double RAF to catch layout after the first paint — useful when
+    // the initial synchronous measure ran too early (e.g. before
+    // fonts finished loading, so line heights shifted after).
     const raf1 = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (hasRunningAnimation()) return;
-        commitStable();
-      });
+      requestAnimationFrame(safeMeasure);
     });
     const anyDoc = document as Document & { fonts?: { ready?: Promise<unknown> } };
     if (anyDoc.fonts?.ready) {
-      void anyDoc.fonts.ready.then(() => {
-        if (cancelled) return;
-        if (!hasRunningAnimation()) commitStable();
-        guardedMeasure();
-      });
+      void anyDoc.fonts.ready.then(safeMeasure);
     }
-    const safetyTimer = window.setTimeout(commitStable, 500);
-    const onResize = () => guardedMeasure();
+    // Safety timer: force one more measurement pass at 500 ms so
+    // any layout that stabilised late still ends up reflected in
+    // the boxes. Reveal only happens if boxes are non-empty (see
+    // measure()), so this is safe to always fire.
+    const safetyTimer = window.setTimeout(safeMeasure, 500);
+    const onResize = () => safeMeasure();
     window.addEventListener('resize', onResize);
-    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(guardedMeasure) : null;
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(safeMeasure) : null;
     ro?.observe(container);
     const contentEl = container.firstElementChild as HTMLElement | null;
     if (ro && contentEl) ro.observe(contentEl);
@@ -273,11 +303,20 @@ export function useLineBoxes(
           if (moRaf !== null) return;
           moRaf = requestAnimationFrame(() => {
             moRaf = null;
-            guardedMeasure();
+            safeMeasure();
           });
         })
       : null;
-    if (mo && contentEl) mo.observe(contentEl, { childList: true, subtree: true });
+    // Observe BOTH the container and (when it exists) the current
+    // firstElementChild. Observing the container catches the case
+    // where the zoom-wrapper is added or replaced after this effect
+    // runs (fresh install / fast route transition: `contentEl`
+    // captured above could be stale). Observing contentEl catches
+    // deeper subtree changes when the wrapper stays constant.
+    if (mo) {
+      mo.observe(container, { childList: true, subtree: true });
+      if (contentEl) mo.observe(contentEl, { childList: true, subtree: true });
+    }
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf1);
@@ -289,6 +328,7 @@ export function useLineBoxes(
       ro?.disconnect();
       mo?.disconnect();
     };
+    } // end runSetup
   }, [scrollRef, originRef, recomputeKey]);
   return { boxes, layerSize, currentZoom, measured };
 }

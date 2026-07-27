@@ -435,7 +435,21 @@ export function pickActiveSet(
   if (doc.draft) return doc.draft;
   const defaultForMode = doc.sets.find((s) => matches(s) && s.isDefault);
   if (defaultForMode) return defaultForMode;
-  return doc.sets.find(matches);
+  const anyForMode = doc.sets.find(matches);
+  if (anyForMode) return anyForMode;
+  // Fallback: no set matches the CURRENT (viewMode, preset) pair.
+  // This is common right after a fresh install or a library import,
+  // where annotations were saved under a different preset than the
+  // one now active. Rather than silently showing nothing, fall back
+  // to any set that matches the current viewMode regardless of
+  // preset, preferring `isDefault`. This restores the pre-preset-
+  // feature behavior — a user always sees SOMETHING when the song
+  // has annotations, and the render will still look reasonable
+  // (line anchors are preset-independent; only fine placement may
+  // differ if the two presets have very different font metrics).
+  const defaultAnyPreset = doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode) && s.isDefault);
+  if (defaultAnyPreset) return defaultAnyPreset;
+  return doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode));
 }
 
 /** List every set for a specific view mode + preset (used by the
