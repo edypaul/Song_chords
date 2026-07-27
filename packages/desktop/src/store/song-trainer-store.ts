@@ -18,6 +18,10 @@ import { create } from 'zustand';
  * mid-session), but the CHOICE of which occurrences to hide is
  * random each session.
  *
+ * The trainer is also turned OFF on every song change so a user
+ * who opted in for Song A doesn't get chord names silently hidden
+ * on Song B. They re-enable per song from the toolbar.
+ *
  * Nothing persists — the feature is a practice aid, not a preference.
  */
 
@@ -108,7 +112,18 @@ export const useSongTrainerStore = create<SongTrainerState>((set) => ({
   }),
   syncActiveSong: (songId) => set((s) => {
     if (s.currentSongId === songId) return s;
-    return { currentSongId: songId, revealed: new Set<string>(), nonce: nextNonce() };
+    // Turn the trainer OFF on every song change. The user opted in
+    // for a specific song; carrying that opt-in silently into the
+    // next song surprised them (chord names suddenly hidden on a
+    // song they hadn't asked to train on). They can re-enable per
+    // song from the toolbar. Reveals + nonce also reset so the
+    // next enable starts with a fresh random hidden set.
+    return {
+      currentSongId: songId,
+      enabled: false,
+      revealed: new Set<string>(),
+      nonce: nextNonce(),
+    };
   }),
   reshuffle: () => set(() => ({ revealed: new Set<string>(), nonce: nextNonce() })),
 }));
