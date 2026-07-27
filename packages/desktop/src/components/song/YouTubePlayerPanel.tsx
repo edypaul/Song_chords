@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, ExternalLink, GripHorizontal } from 'lucide-react';
+import { useT } from '../../i18n';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -60,6 +61,7 @@ interface Props {
  * provider still routes those to the BrowserWindow popup.
  */
 export default function YouTubePlayerPanel({ title, videoId, watchUrl, onClose }: Props): React.ReactElement {
+  const t = useT();
   // 16:9 at a compact width — matches the old 400×300 popup footprint
   // but a touch wider so the video isn't letterboxed.
   const WIDTH = 420;
@@ -152,7 +154,7 @@ export default function YouTubePlayerPanel({ title, videoId, watchUrl, onClose }
         border: '1px solid var(--border)',
       }}
       role="dialog"
-      aria-label={`YouTube player — ${title}`}
+      aria-label={t('youtube.playerAria', { title })}
     >
       {/* Drag handle / header */}
       <div
@@ -171,8 +173,8 @@ export default function YouTubePlayerPanel({ title, videoId, watchUrl, onClose }
           onClick={() => { void window.electronAPI.shell.openExternal(watchUrl); }}
           className="p-1 rounded transition-colors hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          title="Open in browser"
-          aria-label="Open in browser"
+          title={t('youtube.openInBrowser')}
+          aria-label={t('youtube.openInBrowser')}
         >
           <ExternalLink size={14} />
         </button>
@@ -181,8 +183,8 @@ export default function YouTubePlayerPanel({ title, videoId, watchUrl, onClose }
           onClick={onClose}
           className="p-1 rounded transition-colors hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          title="Close player"
-          aria-label="Close player"
+          title={t('youtube.closePlayer')}
+          aria-label={t('youtube.closePlayer')}
         >
           <X size={15} />
         </button>
@@ -211,9 +213,9 @@ export default function YouTubePlayerPanel({ title, videoId, watchUrl, onClose }
           borderTop: '1px solid var(--border)',
           flexShrink: 0,
         }}
-        title="If the video shows “unavailable”, open it in a browser window instead"
+        title={t('youtube.notPlayingTitle')}
       >
-        Not playing? Open in browser ↗
+        {t('youtube.notPlaying')}
       </button>
     </div>
   );

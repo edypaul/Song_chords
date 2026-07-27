@@ -81,4 +81,5 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   shortcuts: { ...DEFAULT_SHORTCUTS },
   dismissedHints: {},
+  uiLanguage: 'en',
 };

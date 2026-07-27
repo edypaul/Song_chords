@@ -30,8 +30,10 @@ import { useShortcutHint, useCapoHint } from '../hooks/useShortcutHint';
 import { db } from '../ipc/ipc-client';
 import type { ViewMode } from '@song-chords/shared';
 import { toTitleCase } from '../utils/text';
+import { useT } from '../i18n';
 
 export default function SongViewPage(): React.ReactElement {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -248,10 +250,10 @@ export default function SongViewPage(): React.ReactElement {
     syncTrainerSong(activeSong?.id ?? null);
   }, [activeSong?.id, syncTrainerSong]);
   const trainerIneligibleReason = viewMode === 'lyrics-only'
-    ? 'Song trainer is off in lyrics-only mode.'
+    ? t('songView.trainerOffLyricsOnly')
     : inlineDiagrams
-      ? 'Song trainer is off when inline chord diagrams are on.'
-      : 'Song trainer is only available in the default chord-names view.';
+      ? t('songView.trainerOffInlineOn')
+      : t('songView.trainerOffOnlyDefault');
   const [showExport, setShowExport] = useState(false);
   const [showSetListPicker, setShowSetListPicker] = useState(false);
   // Collapse the whole toolbar to give the song content more vertical
@@ -661,7 +663,7 @@ export default function SongViewPage(): React.ReactElement {
   if (!displayedSong || !activeSong) {
     return (
       <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-muted)' }}>
-        Song not found
+        {t('songView.notFound')}
       </div>
     );
   }
@@ -684,9 +686,9 @@ export default function SongViewPage(): React.ReactElement {
                   opacity: activeSong?.tempo ? 1 : 0.4,
                   cursor: activeSong?.tempo ? 'pointer' : 'not-allowed',
                 }}
-                title={activeSong?.tempo ? `Metronome${hint('toggleMetronome')}` : 'No tempo set for this song'}
+                title={activeSong?.tempo ? `${t('songView.perf.metronome')}${hint('toggleMetronome')}` : t('songView.perf.noTempo')}
               >
-                <Timer size={13} /> Metronome
+                <Timer size={13} /> {t('songView.perf.metronome')}
               </button>
               <button
                 onClick={() => setPerfScrollWanted((v) => !v)}
@@ -695,16 +697,16 @@ export default function SongViewPage(): React.ReactElement {
                   background: perfScrollWanted ? 'var(--accent)' : 'var(--surface-elevated)',
                   color: perfScrollWanted ? 'white' : 'var(--text-muted)',
                 }}
-                title={`Auto-scroll${hint('toggleAutoScroll')}`}
+                title={`${t('songView.perf.autoScroll')}${hint('toggleAutoScroll')}`}
               >
-                <Play size={13} /> Auto-scroll
+                <Play size={13} /> {t('songView.perf.autoScroll')}
               </button>
               <button
                 onClick={perfStart}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: 'var(--accent)', color: 'white' }}
               >
-                <Play size={13} /> Play
+                <Play size={13} /> {t('songView.perf.play')}
               </button>
             </>
           ) : (
@@ -715,14 +717,14 @@ export default function SongViewPage(): React.ReactElement {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: 'var(--surface-elevated)', color: perfPaused ? 'var(--accent)' : 'var(--text-secondary)' }}
               >
-                {perfPaused ? <><Play size={13} /> Resume</> : <><Pause size={13} /> Pause</>}
+                {perfPaused ? <><Play size={13} /> {t('songView.perf.resume')}</> : <><Pause size={13} /> {t('songView.perf.pause')}</>}
               </button>
               <button
                 onClick={perfStop}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: 'var(--danger, #ef4444)', color: 'white' }}
               >
-                <Square size={13} /> Stop
+                <Square size={13} /> {t('songView.perf.stop')}
               </button>
             </>
           )}
@@ -763,8 +765,8 @@ export default function SongViewPage(): React.ReactElement {
           </div>
 
           {/* Exit */}
-          <button onClick={exitPerformance} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }} title={`Exit performance mode${hint('toggleFullscreen')}`}>
-            <X size={13} /> Exit
+          <button onClick={exitPerformance} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }} title={`${t('songView.perf.exitTooltip')}${hint('toggleFullscreen')}`}>
+            <X size={13} /> {t('songView.perf.exit')}
           </button>
         </div>
 
@@ -832,8 +834,8 @@ export default function SongViewPage(): React.ReactElement {
             onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
             className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
             style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
-            title="Back to top"
-            aria-label="Back to top"
+            title={t('songView.backToTop')}
+            aria-label={t('songView.backToTop')}
           >
             <ArrowUp size={18} />
           </button>
@@ -860,14 +862,14 @@ export default function SongViewPage(): React.ReactElement {
         >
           <ListMusic size={13} />
           <span>
-            Editing this song <strong>for set list</strong>: {toTitleCase(activeSetListName)}. Transpose and capo save to the set list only.
+            {t('songView.editingForSetlistPrefix')}<strong>{t('songView.editingForSetlistLabel')}</strong>{t('songView.editingForSetlistDetail', { name: toTitleCase(activeSetListName) })}
           </span>
           {activeSetListId && (
             <button
               onClick={() => navigate(`/setlists/${activeSetListId}`)}
               className="ml-auto underline hover:no-underline"
             >
-              Back to set list
+              {t('songView.backToSetlist')}
             </button>
           )}
         </div>
@@ -879,13 +881,13 @@ export default function SongViewPage(): React.ReactElement {
         >
           <Star size={13} fill="currentColor" />
           <span>
-            Editing this song <strong>for favorites</strong>. Transpose and capo save to the favorite only.
+            {t('songView.editingForFavoritesPrefix')}<strong>{t('songView.editingForFavoritesLabel')}</strong>{t('songView.editingForFavoritesDetail')}
           </span>
           <button
             onClick={() => navigate('/favorites')}
             className="ml-auto underline hover:no-underline"
           >
-            Back to favorites
+            {t('songView.backToFavorites')}
           </button>
         </div>
       )}
@@ -912,12 +914,12 @@ export default function SongViewPage(): React.ReactElement {
               opacity: toolbarHidden ? 1 : 0,
               transition: 'opacity 200ms ease 120ms',
             }}
-            title={`Show toolbar${hint('toggleToolbar')}`}
-            aria-label="Show toolbar"
+            title={`${t('songView.showToolbar')}${hint('toggleToolbar')}`}
+            aria-label={t('songView.showToolbar')}
             tabIndex={toolbarHidden ? 0 : -1}
           >
             <ChevronDown size={14} />
-            <span>Show toolbar</span>
+            <span>{t('songView.showToolbar')}</span>
           </button>
         </div>
       </div>
@@ -992,7 +994,7 @@ export default function SongViewPage(): React.ReactElement {
             disabled={transposeSteps <= -11}
             className="px-1.5 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-secondary)', opacity: transposeSteps <= -11 ? 0.35 : 1, cursor: transposeSteps <= -11 ? 'not-allowed' : 'pointer' }}
-            title={`Transpose down${hint('transposeDown')}`}
+            title={`${t('songView.transposeDown')}${hint('transposeDown')}`}
           >−</button>
           <span className="text-xs w-6 text-center font-mono font-semibold" style={{ color: transposeSteps !== 0 ? 'var(--accent)' : 'var(--text-muted)' }}>
             {transposeSteps > 0 ? `+${transposeSteps}` : transposeSteps}
@@ -1002,10 +1004,10 @@ export default function SongViewPage(): React.ReactElement {
             disabled={transposeSteps >= 11}
             className="px-1.5 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-secondary)', opacity: transposeSteps >= 11 ? 0.35 : 1, cursor: transposeSteps >= 11 ? 'not-allowed' : 'pointer' }}
-            title={`Transpose up${hint('transposeUp')}`}
+            title={`${t('songView.transposeUp')}${hint('transposeUp')}`}
           >+</button>
           {transposeSteps !== 0 && (
-            <button onClick={resetTranspose} className="px-1 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }} title={`Reset transpose${hint('resetTranspose')}`}>↺</button>
+            <button onClick={resetTranspose} className="px-1 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }} title={`${t('songView.resetTranspose')}${hint('resetTranspose')}`}>↺</button>
           )}
         </div>
 
@@ -1015,10 +1017,10 @@ export default function SongViewPage(): React.ReactElement {
           onChange={(e) => setCapo(Number(e.target.value))}
           className="text-xs rounded px-1.5 py-1"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-          title={`Capo${capoHint}`}
+          title={`${t('transpose.capo')}${capoHint}`}
         >
           {Array.from({ length: 12 }, (_, i) => (
-            <option key={i} value={i}>{i === 0 ? 'No capo' : `Capo ${i}`}</option>
+            <option key={i} value={i}>{i === 0 ? t('songView.capoNone') : t('songView.capoFret', { fret: i })}</option>
           ))}
         </select>
 
@@ -1059,7 +1061,7 @@ export default function SongViewPage(): React.ReactElement {
               minWidth: 44,
               textAlign: 'center',
             }}
-            title={`Click to reset zoom${hint('zoomReset')} · Ctrl+scroll to zoom`}
+            title={t('songView.zoomResetTooltip', { hint: hint('zoomReset') })}
           >
             {Math.round(zoomLevel * 100)}%
           </button>
@@ -1113,7 +1115,7 @@ export default function SongViewPage(): React.ReactElement {
                   onClick={activateLyricsOnly}
                   className="p-1.5 rounded-md transition-colors"
                   style={btnStyle(lyricsOnly, false)}
-                  title={`${lyricsOnly ? 'Show chord names' : 'Show lyrics only'}${hint('toggleLyricsOnly')}`}
+                  title={`${lyricsOnly ? t('songView.showChordNames') : t('songView.showLyricsOnly')}${hint('toggleLyricsOnly')}`}
                 >
                   <FileText size={14} />
                 </button>
@@ -1121,7 +1123,7 @@ export default function SongViewPage(): React.ReactElement {
                   onClick={activateChordBar}
                   className="p-1.5 rounded-md transition-colors"
                   style={btnStyle(chordBarOn, false)}
-                  title={`${chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar'}${hint('toggleChordBar')}`}
+                  title={`${chordBarOn ? t('songView.hideChordBar') : t('songView.showChordBar')}${hint('toggleChordBar')}`}
                 >
                   <Guitar size={14} />
                 </button>
@@ -1131,8 +1133,8 @@ export default function SongViewPage(): React.ReactElement {
                   className="p-1.5 rounded-md transition-colors"
                   style={btnStyle(inlineOn, isPiano)}
                   title={isPiano
-                    ? 'Inline diagrams are unavailable for piano'
-                    : `${inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams'}${hint('toggleInlineDiagrams')}`}
+                    ? t('songView.inlinePianoUnavailable')
+                    : `${inlineOn ? t('songView.hideInlineDiagrams') : t('songView.showInlineDiagrams')}${hint('toggleInlineDiagrams')}`}
                 >
                   <LayoutGrid size={14} />
                 </button>
@@ -1151,8 +1153,8 @@ export default function SongViewPage(): React.ReactElement {
           <button
             onClick={() => void toggleFavorite(db, activeSong.id)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`${activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}${hint('toggleFavorite')}`}
-            aria-label={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            title={`${activeSong.favorite ? t('songView.removeFromFavorites') : t('songView.addToFavorites')}${hint('toggleFavorite')}`}
+            aria-label={activeSong.favorite ? t('songView.removeFromFavorites') : t('songView.addToFavorites')}
           >
             <Star
               size={16}
@@ -1169,8 +1171,8 @@ export default function SongViewPage(): React.ReactElement {
           <button
             onClick={() => setShowSetListPicker(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Add to set list${hint('addToSetList')}`}
-            aria-label="Add to set list"
+            title={`${t('songView.addToSetList')}${hint('addToSetList')}`}
+            aria-label={t('songView.addToSetList')}
           >
             <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -1179,8 +1181,8 @@ export default function SongViewPage(): React.ReactElement {
           <button
             onClick={() => setShowExport(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Export song${hint('exportSong')}`}
-            aria-label="Export song"
+            title={`${t('songView.exportSong')}${hint('exportSong')}`}
+            aria-label={t('songView.exportSong')}
           >
             <Download size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -1194,8 +1196,8 @@ export default function SongViewPage(): React.ReactElement {
                 disabled={!hasNotes}
                 className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
                 style={{ opacity: hasNotes ? 1 : 0.4, cursor: hasNotes ? 'pointer' : 'not-allowed' }}
-                title={hasNotes ? `${showNotes ? 'Hide song notes' : 'Show song notes'}${hint('toggleSongNotes')}` : 'This song has no notes'}
-                aria-label="Toggle song notes"
+                title={hasNotes ? `${showNotes ? t('songView.hideNotes') : t('songView.showNotes')}${hint('toggleSongNotes')}` : t('songView.noNotes')}
+                aria-label={t('songView.toggleNotes')}
               >
                 <StickyNote size={16} style={{ color: hasNotes && showNotes ? 'var(--accent)' : 'var(--text-secondary)' }} />
               </button>
@@ -1225,8 +1227,8 @@ export default function SongViewPage(): React.ReactElement {
           <button
             onClick={() => navigate(`/song/${id}/edit`)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Edit song${hint('editSong')}`}
-            aria-label="Edit song"
+            title={`${t('songView.editSong')}${hint('editSong')}`}
+            aria-label={t('songView.editSong')}
           >
             <Edit2 size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -1244,22 +1246,22 @@ export default function SongViewPage(): React.ReactElement {
             }}
             className="text-xs rounded px-1.5 py-1 max-w-[9rem]"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-            title="Style preset"
-            aria-label="Style preset"
+            title={t('songView.stylePreset')}
+            aria-label={t('songView.stylePreset')}
           >
-            <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
+            <optgroup label={effectiveTheme === 'dark' ? t('songView.stylePresetDark') : t('songView.stylePresetLight')}>
               {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
                 <option key={k} value={k}>{p.name}</option>
               ))}
             </optgroup>
             {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
-              <optgroup label="My Presets">
+              <optgroup label={t('songView.stylePresetMyPresets')}>
                 {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
                   <option key={k} value={k}>{p.name}</option>
                 ))}
               </optgroup>
             )}
-            {svs.preset === 'custom' && <option value="custom">Custom</option>}
+            {svs.preset === 'custom' && <option value="custom">{t('songView.stylePresetCustom')}</option>}
           </select>
         </div>
 
@@ -1267,7 +1269,7 @@ export default function SongViewPage(): React.ReactElement {
             onClick={enterFullscreen}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors hover:opacity-90"
             style={{ background: 'var(--accent)', color: 'white' }}
-            title={`Full Screen${hint('toggleFullscreen')}`}
+            title={`${t('songView.fullscreen')}${hint('toggleFullscreen')}`}
           >
             <Maximize size={13} />
           </button>
@@ -1277,8 +1279,8 @@ export default function SongViewPage(): React.ReactElement {
           <button
             onClick={() => setToolbarHidden(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Hide toolbar${hint('toggleToolbar')}`}
-            aria-label="Hide toolbar"
+            title={`${t('songView.hideToolbar')}${hint('toggleToolbar')}`}
+            aria-label={t('songView.hideToolbar')}
           >
             <ChevronUp size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -1379,8 +1381,8 @@ export default function SongViewPage(): React.ReactElement {
           onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
           style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
-          title="Back to top"
-          aria-label="Back to top"
+          title={t('songView.backToTop')}
+          aria-label={t('songView.backToTop')}
         >
           <ArrowUp size={18} />
         </button>
@@ -1431,7 +1433,7 @@ export default function SongViewPage(): React.ReactElement {
       {showSetListPicker && activeSong && (
         <SetListPickerModal
           initialSelected={[]}
-          hint={`"${toTitleCase(activeSong.title)}" will be added to the chosen set list${'' /* plural handled by user */}.`}
+          hint={t('songView.setListPickerHint', { title: toTitleCase(activeSong.title) })}
           onClose={() => setShowSetListPicker(false)}
           onConfirm={async (ids) => {
             for (const slId of ids) {

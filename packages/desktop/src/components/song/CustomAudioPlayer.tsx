@@ -1,5 +1,6 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX } from 'lucide-react';
+import { useT } from '../../i18n';
 
 /** Imperative handle the parent panel can use to control playback
  *  (e.g. pause when the user hands the file off to an external app). */
@@ -36,6 +37,7 @@ function CustomAudioPlayer(
   { src, onError, autoPlay }: Props,
   ref: React.Ref<CustomAudioPlayerHandle>,
 ): React.ReactElement {
+  const t = useT();
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Let the parent pause us without reaching into the audio element.
@@ -322,7 +324,7 @@ function CustomAudioPlayer(
           aria-valuemin={0}
           aria-valuemax={seekable}
           aria-valuenow={displayedTime}
-          aria-label="Seek"
+          aria-label={t('audio.player.seek')}
         >
           <div style={{ height: 4, borderRadius: 2, background: 'var(--surface-elevated)' }}>
             <div
@@ -363,8 +365,8 @@ function CustomAudioPlayer(
           onClick={() => setMuted((m) => !m)}
           className="p-1.5 rounded-md hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-secondary)' }}
-          title={muted ? 'Unmute' : 'Mute'}
-          aria-label={muted ? 'Unmute' : 'Mute'}
+          title={muted ? t('audio.player.unmute') : t('audio.player.mute')}
+          aria-label={muted ? t('audio.player.unmute') : t('audio.player.mute')}
         >
           {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
         </button>
@@ -379,7 +381,7 @@ function CustomAudioPlayer(
             setVolume(v);
             if (v > 0 && muted) setMuted(false);
           }}
-          aria-label="Volume"
+          aria-label={t('audio.player.volume')}
           style={{ width: 70, accentColor: 'var(--accent)' }}
         />
 
@@ -390,8 +392,8 @@ function CustomAudioPlayer(
           onClick={() => skip(-10)}
           className="p-1.5 rounded-md hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-secondary)' }}
-          title="Back 10 seconds"
-          aria-label="Back 10 seconds"
+          title={t('audio.player.back10')}
+          aria-label={t('audio.player.back10')}
         >
           <SkipBack size={16} />
         </button>
@@ -407,8 +409,8 @@ function CustomAudioPlayer(
             alignItems: 'center',
             justifyContent: 'center',
           }}
-          title={playing ? 'Pause' : 'Play'}
-          aria-label={playing ? 'Pause' : 'Play'}
+          title={playing ? t('audio.player.pause') : t('audio.player.play')}
+          aria-label={playing ? t('audio.player.pause') : t('audio.player.play')}
         >
           {playing ? <Pause size={20} fill="currentColor" strokeWidth={0} /> : <Play size={20} fill="currentColor" strokeWidth={0} style={{ marginLeft: 2 }} />}
         </button>
@@ -416,8 +418,8 @@ function CustomAudioPlayer(
           onClick={() => skip(10)}
           className="p-1.5 rounded-md hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-secondary)' }}
-          title="Forward 10 seconds"
-          aria-label="Forward 10 seconds"
+          title={t('audio.player.forward10')}
+          aria-label={t('audio.player.forward10')}
         >
           <SkipForward size={16} />
         </button>

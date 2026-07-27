@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, DEFAULT_SHORTCUTS, DEFAULT_SETTINGS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
-import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, KeyboardShortcuts, ShortcutAction } from '@song-chords/shared';
+import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, KeyboardShortcuts, ShortcutAction, UiLanguage } from '@song-chords/shared';
+import { LANGUAGE_LABELS, useT } from '../i18n';
+import type { TKey } from '../i18n';
 import SongListColumnsEditor from '../components/song/SongListColumnsEditor';
 import ShortcutRecorder from '../components/common/ShortcutRecorder';
 import { Download, Upload, Trash2, Palette, Music as MusicIcon, Layout, Keyboard, Database, AlertTriangle } from 'lucide-react';
@@ -17,6 +19,7 @@ import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
 
 export default function SettingsPage(): React.ReactElement {
   const { settings, updateSetting } = useSettingsStore();
+  const t = useT();
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     void updateSetting(db, key, value);
@@ -63,13 +66,32 @@ export default function SettingsPage(): React.ReactElement {
     window.setTimeout(() => setStatus((s) => (s?.message === message ? null : s)), 4000);
   };
 
+  // Small helper: build a "N songs, M set lists" style description with
+  // singular/plural key selection driven by the count.
+  const librarySongsDesc = (n: number) =>
+    t(n === 1 ? 'settings.backup.description.librarySongsOne' : 'settings.backup.description.librarySongsMany', { count: n });
+  const librarySetlistsDesc = (n: number) =>
+    t(n === 1 ? 'settings.backup.description.librarySetlistsOne' : 'settings.backup.description.librarySetlistsMany', { count: n });
+  const libraryDesc = (songs: number, setlists: number) =>
+    librarySongsDesc(songs) + t('settings.backup.description.librarySeparator') + librarySetlistsDesc(setlists);
+  const chordVoicingsDesc = (count: number, chords: number) => {
+    if (count === 1 && chords === 1) return t('settings.backup.description.chordVoicingsOne', { count, chords });
+    if (count === 1 && chords !== 1) return t('settings.backup.description.chordVoicingsOneMany', { count, chords });
+    if (count !== 1 && chords === 1) return t('settings.backup.description.chordVoicingsManyOne', { count, chords });
+    return t('settings.backup.description.chordVoicingsMany', { count, chords });
+  };
+  const presetsDesc = (n: number) =>
+    t(n === 1 ? 'settings.backup.description.presetsOne' : 'settings.backup.description.presetsMany', { count: n });
+  const settingsDesc = (n: number) =>
+    t(n === 1 ? 'settings.backup.description.settingsOne' : 'settings.backup.description.settingsMany', { count: n });
+
   const handleExportLibrary = async () => {
     try {
       const backup = await exportLibrary(db);
       downloadJson(`songchords-library-${timestampSlug()}.json`, backup);
-      flash('info', `Exported ${backup.songs.length} songs, ${backup.setlists.length} set lists.`);
+      flash('info', t('settings.backup.status.exportedLibrary', { songs: backup.songs.length, setlists: backup.setlists.length }));
     } catch (e) {
-      flash('error', `Export failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.exportFailed', { error: String(e) }));
     }
   };
 
@@ -77,13 +99,13 @@ export default function SettingsPage(): React.ReactElement {
     const data = await pickJsonFile<LibraryBackup>();
     if (!data) return;
     if (!Array.isArray(data.songs)) {
-      flash('error', 'This file does not look like a library backup.');
+      flash('error', t('settings.backup.status.notLibraryBackup'));
       return;
     }
     setPendingImport({
       kind: 'library',
       data,
-      description: `${data.songs.length} song${data.songs.length === 1 ? '' : 's'}, ${data.setlists.length} set list${data.setlists.length === 1 ? '' : 's'}`,
+      description: libraryDesc(data.songs.length, data.setlists.length),
     });
   };
 
@@ -97,10 +119,10 @@ export default function SettingsPage(): React.ReactElement {
       await useSongStore.getState().loadSongs(db);
       await useSetListStore.getState().loadSetLists(db);
       flash('info', mode === 'replace'
-        ? `Replaced library with ${pending.description}.`
-        : `Combined backup (${pending.description}) with current library.`);
+        ? t('settings.backup.status.replacedLibrary', { description: pending.description })
+        : t('settings.backup.status.combinedLibrary', { description: pending.description }));
     } catch (e) {
-      flash('error', `Import failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.importFailed', { error: String(e) }));
     }
   };
 
@@ -109,23 +131,23 @@ export default function SettingsPage(): React.ReactElement {
       const backup = buildChordsBackup(settings.customChords ?? {});
       const count = Object.values(backup.customChords).reduce((n, arr) => n + arr.length, 0);
       downloadJson(`songchords-custom-chords-${timestampSlug()}.json`, backup);
-      flash('info', `Exported ${count} custom chord voicing${count === 1 ? '' : 's'}.`);
+      flash('info', t(count === 1 ? 'settings.backup.status.exportedChordsOne' : 'settings.backup.status.exportedChordsMany', { count }));
     } catch (e) {
-      flash('error', `Export failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.exportFailed', { error: String(e) }));
     }
   };
 
   const handleImportChords = async () => {
     const data = await pickJsonFile<CustomChordsBackup>();
     if (!data || typeof data.customChords !== 'object') {
-      if (data !== null) flash('error', 'This file does not look like a custom chords backup.');
+      if (data !== null) flash('error', t('settings.backup.status.notChordsBackup'));
       return;
     }
     const count = Object.values(data.customChords).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
     setPendingImport({
       kind: 'chords',
       data,
-      description: `${count} custom chord voicing${count === 1 ? '' : 's'} across ${Object.keys(data.customChords).length} chord${Object.keys(data.customChords).length === 1 ? '' : 's'}`,
+      description: chordVoicingsDesc(count, Object.keys(data.customChords).length),
     });
   };
 
@@ -150,10 +172,10 @@ export default function SettingsPage(): React.ReactElement {
       }
       set('customChords', next);
       flash('info', mode === 'replace'
-        ? 'Replaced custom chords with backup.'
-        : 'Combined backup with existing custom chords.');
+        ? t('settings.backup.status.replacedChords')
+        : t('settings.backup.status.combinedChords'));
     } catch (e) {
-      flash('error', `Import failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.importFailed', { error: String(e) }));
     }
   };
 
@@ -162,23 +184,23 @@ export default function SettingsPage(): React.ReactElement {
       const backup = buildPresetsBackup(settings.customPresets ?? {});
       const count = Object.keys(backup.customPresets).length;
       downloadJson(`songchords-custom-presets-${timestampSlug()}.json`, backup);
-      flash('info', `Exported ${count} custom preset${count === 1 ? '' : 's'}.`);
+      flash('info', t(count === 1 ? 'settings.backup.status.exportedPresetsOne' : 'settings.backup.status.exportedPresetsMany', { count }));
     } catch (e) {
-      flash('error', `Export failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.exportFailed', { error: String(e) }));
     }
   };
 
   const handleImportPresets = async () => {
     const data = await pickJsonFile<CustomPresetsBackup>();
     if (!data || typeof data.customPresets !== 'object') {
-      if (data !== null) flash('error', 'This file does not look like a custom presets backup.');
+      if (data !== null) flash('error', t('settings.backup.status.notPresetsBackup'));
       return;
     }
     const count = Object.keys(data.customPresets).length;
     setPendingImport({
       kind: 'presets',
       data,
-      description: `${count} custom preset${count === 1 ? '' : 's'}`,
+      description: presetsDesc(count),
     });
   };
 
@@ -192,10 +214,10 @@ export default function SettingsPage(): React.ReactElement {
         : { ...(settings.customPresets ?? {}), ...pending.data.customPresets };
       set('customPresets', next);
       flash('info', mode === 'replace'
-        ? 'Replaced custom presets with backup.'
-        : 'Combined backup with existing custom presets.');
+        ? t('settings.backup.status.replacedPresets')
+        : t('settings.backup.status.combinedPresets'));
     } catch (e) {
-      flash('error', `Import failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.importFailed', { error: String(e) }));
     }
   };
 
@@ -204,23 +226,23 @@ export default function SettingsPage(): React.ReactElement {
       const backup = buildSettingsBackup(settings);
       const count = Object.keys(backup.settings).length;
       downloadJson(`songchords-settings-${timestampSlug()}.json`, backup);
-      flash('info', `Exported ${count} settings.`);
+      flash('info', t('settings.backup.status.exportedSettings', { count }));
     } catch (e) {
-      flash('error', `Export failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.exportFailed', { error: String(e) }));
     }
   };
 
   const handleImportSettings = async () => {
     const data = await pickJsonFile<SettingsBackup>();
     if (!data || typeof data.settings !== 'object') {
-      if (data !== null) flash('error', 'This file does not look like a settings backup.');
+      if (data !== null) flash('error', t('settings.backup.status.notSettingsBackup'));
       return;
     }
     const count = Object.keys(data.settings).length;
     setPendingImport({
       kind: 'settings',
       data,
-      description: `${count} setting${count === 1 ? '' : 's'}`,
+      description: settingsDesc(count),
     });
   };
 
@@ -239,9 +261,9 @@ export default function SettingsPage(): React.ReactElement {
       // new values (theme, shortcuts, etc.) immediately without a
       // page reload.
       await useSettingsStore.getState().loadSettings(db);
-      flash('info', `Restored settings from backup.`);
+      flash('info', t('settings.backup.status.restoredSettings'));
     } catch (e) {
-      flash('error', `Import failed: ${String(e)}`);
+      flash('error', t('settings.backup.status.importFailed', { error: String(e) }));
     }
   };
 
@@ -273,15 +295,15 @@ export default function SettingsPage(): React.ReactElement {
         set('customPresets', {});
       }
       const parts: string[] = [];
-      if (deleteSongs) parts.push('songs, favorites, set lists');
-      if (deleteChords) parts.push('custom chords');
-      if (deletePresets) parts.push('custom presets');
-      flash('info', `Deleted: ${parts.join(' · ')}.`);
+      if (deleteSongs) parts.push(t('settings.danger.deleted.songs'));
+      if (deleteChords) parts.push(t('settings.danger.deleted.chords'));
+      if (deletePresets) parts.push(t('settings.danger.deleted.presets'));
+      flash('info', t('settings.danger.deleted.status', { parts: parts.join(' · ') }));
       setDeleteSongs(false);
       setDeleteChords(false);
       setDeletePresets(false);
     } catch (e) {
-      flash('error', `Delete failed: ${String(e)}`);
+      flash('error', t('settings.danger.deleted.failed', { error: String(e) }));
     }
   };
 
@@ -289,12 +311,12 @@ export default function SettingsPage(): React.ReactElement {
   // content stays inline below; we just gate each Section on the
   // active category so the page renders one logical group at a time.
   const CATEGORIES = [
-    { id: 'general',   label: 'General',   icon: <Palette size={14} /> },
-    { id: 'display',   label: 'Display',   icon: <Layout size={14} /> },
-    { id: 'playback',  label: 'Playback',  icon: <MusicIcon size={14} /> },
-    { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={14} /> },
-    { id: 'data',      label: 'Data',      icon: <Database size={14} /> },
-    { id: 'danger',    label: 'Danger Zone', icon: <AlertTriangle size={14} /> },
+    { id: 'general',   labelKey: 'settings.nav.general',   icon: <Palette size={14} /> },
+    { id: 'display',   labelKey: 'settings.nav.display',   icon: <Layout size={14} /> },
+    { id: 'playback',  labelKey: 'settings.nav.playback',  icon: <MusicIcon size={14} /> },
+    { id: 'shortcuts', labelKey: 'settings.nav.shortcuts', icon: <Keyboard size={14} /> },
+    { id: 'data',      labelKey: 'settings.nav.data',      icon: <Database size={14} /> },
+    { id: 'danger',    labelKey: 'settings.nav.danger',    icon: <AlertTriangle size={14} /> },
   ] as const;
   type CategoryId = typeof CATEGORIES[number]['id'];
   const [activeCat, setActiveCat] = useState<CategoryId>('general');
@@ -313,13 +335,13 @@ export default function SettingsPage(): React.ReactElement {
       <nav
         className="shrink-0 flex items-center gap-1 px-4 border-b overflow-x-auto"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
-        aria-label="Settings categories"
+        aria-label={t('settings.nav.aria')}
       >
         <h1
           className="text-[13px] font-semibold uppercase tracking-wider pr-4 mr-2 shrink-0"
           style={{ color: 'var(--text-muted)', letterSpacing: '0.08em', borderRight: '1px solid var(--border)', paddingTop: 14, paddingBottom: 14 }}
         >
-          Settings
+          {t('settings.title')}
         </h1>
         {CATEGORIES.map((c) => {
           const active = activeCat === c.id;
@@ -350,7 +372,7 @@ export default function SettingsPage(): React.ReactElement {
               >
                 {c.icon}
               </span>
-              <span>{c.label}</span>
+              <span>{t(c.labelKey)}</span>
             </button>
           );
         })}
@@ -360,8 +382,22 @@ export default function SettingsPage(): React.ReactElement {
       <div className="flex-1 overflow-y-auto">
         <div className="p-8 max-w-2xl mx-auto">
 
-      {showCat('general') && (<Section title="Appearance">
-        <SettingRow label="Theme">
+      {showCat('general') && (<Section title={t('settings.language.title')}>
+        <SettingRow label={t('settings.language.label')} hint={t('settings.language.hint')}>
+          <select
+            value={settings.uiLanguage ?? 'en'}
+            onChange={(e) => set('uiLanguage', e.target.value as UiLanguage)}
+            className="setting-select"
+          >
+            {(Object.entries(LANGUAGE_LABELS) as Array<[UiLanguage, string]>).map(([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ))}
+          </select>
+        </SettingRow>
+      </Section>)}
+
+      {showCat('general') && (<Section title={t('settings.appearance.title')}>
+        <SettingRow label={t('settings.appearance.theme.label')}>
           <select
             value={settings.theme}
             onChange={(e) => {
@@ -373,53 +409,53 @@ export default function SettingsPage(): React.ReactElement {
             }}
             className="setting-select"
           >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value="system">{t('settings.appearance.theme.system')}</option>
+            <option value="light">{t('settings.appearance.theme.light')}</option>
+            <option value="dark">{t('settings.appearance.theme.dark')}</option>
           </select>
         </SettingRow>
       </Section>)}
 
-      {showCat('general') && (<Section title="Music">
-        <SettingRow label="Default Instrument">
+      {showCat('general') && (<Section title={t('settings.music.title')}>
+        <SettingRow label={t('settings.music.defaultInstrument.label')}>
           <select
             value={settings.defaultInstrument}
             onChange={(e) => set('defaultInstrument', e.target.value as InstrumentType)}
             className="setting-select"
           >
-            <option value="guitar">Guitar</option>
-            <option value="ukulele">Ukulele</option>
-            <option value="piano">Piano</option>
+            <option value="guitar">{t('settings.music.defaultInstrument.guitar')}</option>
+            <option value="ukulele">{t('settings.music.defaultInstrument.ukulele')}</option>
+            <option value="piano">{t('settings.music.defaultInstrument.piano')}</option>
           </select>
         </SettingRow>
-        <SettingRow label="Accidentals" hint="Flats / Sharps override the automatic key-based spelling; Auto uses the circle of fifths">
+        <SettingRow label={t('settings.music.accidentals.label')} hint={t('settings.music.accidentals.hint')}>
           <select
             value={settings.accidentalMode ?? 'auto'}
             onChange={(e) => set('accidentalMode', e.target.value as 'auto' | 'flats' | 'sharps')}
             className="setting-select"
           >
-            <option value="auto">Auto</option>
-            <option value="flats">Flats</option>
-            <option value="sharps">Sharps</option>
+            <option value="auto">{t('settings.music.accidentals.auto')}</option>
+            <option value="flats">{t('settings.music.accidentals.flats')}</option>
+            <option value="sharps">{t('settings.music.accidentals.sharps')}</option>
           </select>
         </SettingRow>
-        <SettingRow label="Chord Notation" hint="Letter (A–G) or Latin solfège (DO/RE/MI/FA/SOL/LA/SI). Latin uses uppercase for major and lowercase for minor (e.g. SOL = G, sol = Gm)">
+        <SettingRow label={t('settings.music.chordNotation.label')} hint={t('settings.music.chordNotation.hint')}>
           <select
             value={settings.chordNotation ?? 'letter'}
             onChange={(e) => set('chordNotation', e.target.value as 'letter' | 'latin')}
             className="setting-select"
           >
-            <option value="letter">Letter (A–G)</option>
-            <option value="latin">Latin (Do–Si)</option>
+            <option value="letter">{t('settings.music.chordNotation.letter')}</option>
+            <option value="latin">{t('settings.music.chordNotation.latin')}</option>
           </select>
         </SettingRow>
-        <SettingRow label="Show chord diagrams bar" hint="Default visibility of the chord diagrams bar for all songs">
+        <SettingRow label={t('settings.music.showChordDiagrams.label')} hint={t('settings.music.showChordDiagrams.hint')}>
           <Toggle checked={settings.showChordDiagrams} onChange={(v) => set('showChordDiagrams', v)} />
         </SettingRow>
       </Section>)}
 
-      {showCat('playback') && (<Section title="Auto-Scroll">
-        <SettingRow label="Default Scroll Speed">
+      {showCat('playback') && (<Section title={t('settings.autoScroll.title')}>
+        <SettingRow label={t('settings.autoScroll.speed.label')}>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -439,22 +475,22 @@ export default function SettingsPage(): React.ReactElement {
           customPresets={settings.customPresets ?? {}} onCustomPresetsChange={(v) => set('customPresets', v)} />
       )}
 
-      {showCat('display') && (<Section title="Song Layout">
-        <SettingRow label="Center Song" hint="Center the song content on the page">
+      {showCat('display') && (<Section title={t('settings.songLayout.title')}>
+        <SettingRow label={t('settings.songLayout.centerSong.label')} hint={t('settings.songLayout.centerSong.hint')}>
           <Toggle checked={settings.songCentered ?? false} onChange={(v) => set('songCentered', v)} />
         </SettingRow>
-        <SettingRow label="Chord Diagrams Bar" hint="Position of the chord diagrams bar">
+        <SettingRow label={t('settings.songLayout.chordBarPosition.label')} hint={t('settings.songLayout.chordBarPosition.hint')}>
           <select
             value={settings.chordBarPosition ?? 'top'}
             onChange={(e) => set('chordBarPosition', e.target.value as 'top' | 'bottom' | 'right' | 'off')}
             className="setting-select"
           >
-            <option value="top">Top</option>
-            <option value="bottom">Bottom</option>
-            <option value="right">Right</option>
+            <option value="top">{t('settings.songLayout.chordBarPosition.top')}</option>
+            <option value="bottom">{t('settings.songLayout.chordBarPosition.bottom')}</option>
+            <option value="right">{t('settings.songLayout.chordBarPosition.right')}</option>
           </select>
         </SettingRow>
-        <SettingRow label="Performance Zoom" hint="Zoom level when in performance mode">
+        <SettingRow label={t('settings.songLayout.perfZoom.label')} hint={t('settings.songLayout.perfZoom.hint')}>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -470,10 +506,10 @@ export default function SettingsPage(): React.ReactElement {
         </SettingRow>
       </Section>)}
 
-      {showCat('display') && (<Section title="Song List Columns">
+      {showCat('display') && (<Section title={t('settings.songListColumns.title')}>
         <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-            Columns to show in the Songs, Categories, and Favorites lists. Drag to reorder, uncheck to hide. Title is always shown.
+            {t('settings.songListColumns.description')}
           </p>
           <SongListColumnsEditor
             visible={settings.songListColumns ?? DEFAULT_SETTINGS.songListColumns}
@@ -491,14 +527,14 @@ export default function SettingsPage(): React.ReactElement {
         </div>
       </Section>)}
 
-      {showCat('shortcuts') && (<Section title="Keyboard Shortcuts">
+      {showCat('shortcuts') && (<Section title={t('settings.shortcuts.title')}>
         <KeyboardShortcutsEditor
           shortcuts={settings.shortcuts ?? DEFAULT_SHORTCUTS}
           onChange={(next) => set('shortcuts', next)}
         />
       </Section>)}
 
-      {showCat('data') && (<Section title="Backup & Restore">
+      {showCat('data') && (<Section title={t('settings.backup.title')}>
         {/* The chord-spelling warning lives ONLY inside the library
             import confirmation dialog (rendered further down via
             <ImportModeDialog showChordSpellingWarning>). The previous
@@ -506,26 +542,26 @@ export default function SettingsPage(): React.ReactElement {
             request — the dialog already shows it right before the
             irreversible action, which is where the caveat belongs. */}
         <BackupRow
-          label="Songs library"
-          hint="All songs, set lists, and favorites. Restoring replaces everything."
+          label={t('settings.backup.library.label')}
+          hint={t('settings.backup.library.hint')}
           onExport={handleExportLibrary}
           onImport={handleImportLibrary}
         />
         <BackupRow
-          label="Custom chords"
-          hint="Your custom chord voicings from the chord library. Restore merges into existing chords."
+          label={t('settings.backup.chords.label')}
+          hint={t('settings.backup.chords.hint')}
           onExport={handleExportChords}
           onImport={handleImportChords}
         />
         <BackupRow
-          label="Custom style presets"
-          hint="Song-view style presets you've created. Restore merges into existing presets."
+          label={t('settings.backup.presets.label')}
+          hint={t('settings.backup.presets.hint')}
           onExport={handleExportPresets}
           onImport={handleImportPresets}
         />
         <BackupRow
-          label="App settings"
-          hint="Every preference on this page — theme, style preset, keyboard shortcuts, dashboard cards, song-list columns, and so on. Custom chords and custom presets have their own backup files above."
+          label={t('settings.backup.appSettings.label')}
+          hint={t('settings.backup.appSettings.hint')}
           onExport={handleExportSettings}
           onImport={handleImportSettings}
         />
@@ -543,28 +579,28 @@ export default function SettingsPage(): React.ReactElement {
         )}
       </Section>)}
 
-      {showCat('danger') && (<Section title="Danger Zone">
+      {showCat('danger') && (<Section title={t('settings.danger.title')}>
         <div className="flex flex-col gap-3 px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Pick what to delete. This cannot be undone — export a backup first if you want a copy.
+            {t('settings.danger.intro')}
           </p>
           <DeleteCheck
             checked={deleteSongs}
             onChange={setDeleteSongs}
-            label="Songs, favorites and set lists"
-            hint="Wipes every song, along with all favorites and set lists."
+            label={t('settings.danger.songs.label')}
+            hint={t('settings.danger.songs.hint')}
           />
           <DeleteCheck
             checked={deleteChords}
             onChange={setDeleteChords}
-            label="Custom chords"
-            hint="Removes every chord voicing you added from the chord library."
+            label={t('settings.danger.chords.label')}
+            hint={t('settings.danger.chords.hint')}
           />
           <DeleteCheck
             checked={deletePresets}
             onChange={setDeletePresets}
-            label="Custom style presets"
-            hint="Removes every song-view style preset you created."
+            label={t('settings.danger.presets.label')}
+            hint={t('settings.danger.presets.hint')}
           />
           <div className="flex justify-end">
             <button
@@ -577,7 +613,7 @@ export default function SettingsPage(): React.ReactElement {
                 cursor: anyDeletionSelected ? 'pointer' : 'not-allowed',
               }}
             >
-              <Trash2 size={14} /> Delete selected
+              <Trash2 size={14} /> {t('settings.danger.deleteSelected')}
             </button>
           </div>
         </div>
@@ -588,19 +624,20 @@ export default function SettingsPage(): React.ReactElement {
 
       {confirmDelete && (
         <ConfirmDialog
-          title="Delete selected data?"
+          title={t('settings.danger.confirm.title')}
           message={
             <div className="flex flex-col gap-2">
-              <p>This will permanently delete:</p>
+              <p>{t('settings.danger.confirm.willDelete')}</p>
               <ul className="list-disc pl-5 text-sm">
-                {deleteSongs && <li>Songs, favorites and set lists</li>}
-                {deleteChords && <li>Custom chords</li>}
-                {deletePresets && <li>Custom style presets</li>}
+                {deleteSongs && <li>{t('settings.danger.confirm.songsItem')}</li>}
+                {deleteChords && <li>{t('settings.danger.confirm.chordsItem')}</li>}
+                {deletePresets && <li>{t('settings.danger.confirm.presetsItem')}</li>}
               </ul>
-              <p>This cannot be undone.</p>
+              <p>{t('settings.danger.confirm.cannotUndo')}</p>
             </div>
           }
-          confirmLabel="Delete"
+          confirmLabel={t('settings.danger.confirm.button')}
+          cancelLabel={t('common.cancel')}
           danger
           onCancel={() => setConfirmDelete(false)}
           onConfirm={() => { void runDelete(); }}
@@ -610,24 +647,24 @@ export default function SettingsPage(): React.ReactElement {
       {pendingImport && pendingImport.kind !== 'settings' && (
         <ImportModeDialog
           title={
-            pendingImport.kind === 'library' ? 'Import songs library'
-            : pendingImport.kind === 'chords' ? 'Import custom chords'
-            : 'Import custom style presets'
+            pendingImport.kind === 'library' ? t('settings.importDialog.library.title')
+            : pendingImport.kind === 'chords' ? t('settings.importDialog.chords.title')
+            : t('settings.importDialog.presets.title')
           }
           description={pendingImport.description}
           replaceWarning={
             pendingImport.kind === 'library'
-              ? 'Deletes all current songs, set lists, and favorites first. Cannot be undone.'
+              ? t('settings.importDialog.library.replaceWarning')
               : pendingImport.kind === 'chords'
-              ? 'Discards all existing custom chord voicings before loading the backup.'
-              : 'Discards all existing custom style presets before loading the backup.'
+              ? t('settings.importDialog.chords.replaceWarning')
+              : t('settings.importDialog.presets.replaceWarning')
           }
           combineHint={
             pendingImport.kind === 'library'
-              ? 'Adds new songs / set lists / favorites; existing items with the same id are kept untouched.'
+              ? t('settings.importDialog.library.combineHint')
               : pendingImport.kind === 'chords'
-              ? 'Imported chord voicings overwrite any locally-defined voicings with the same chord name.'
-              : 'Imported presets overwrite any locally-defined presets with the same name.'
+              ? t('settings.importDialog.chords.combineHint')
+              : t('settings.importDialog.presets.combineHint')
           }
           onReplace={() => {
             if (pendingImport.kind === 'library') void runLibraryImport('replace');
@@ -653,10 +690,10 @@ export default function SettingsPage(): React.ReactElement {
           not at all. */}
       {pendingImport && pendingImport.kind === 'settings' && (
         <ConfirmDialog
-          title="Restore settings from backup"
-          message={`The backup contains ${pendingImport.description}. Restoring will overwrite the corresponding preferences on this device (theme, shortcuts, song-view style, dashboard cards, and so on). Custom chords and custom presets are not affected — they have their own backup files.`}
-          confirmLabel="Restore"
-          cancelLabel="Cancel"
+          title={t('settings.restoreDialog.title')}
+          message={t('settings.restoreDialog.message', { description: pendingImport.description })}
+          confirmLabel={t('settings.restoreDialog.confirm')}
+          cancelLabel={t('common.cancel')}
           onConfirm={() => { void runSettingsImport(); }}
           onCancel={() => setPendingImport(null)}
         />
@@ -690,74 +727,79 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const SHORTCUT_LABELS: Record<ShortcutAction, string> = {
-  toggleInlineDiagrams: 'Toggle inline chord diagrams',
-  toggleChordBar:       'Toggle chord diagrams bar',
-  toggleLyricsOnly:     'Toggle lyrics-only mode',
-  toggleMetronome:      'Start / stop metronome',
-  toggleSongNotes:      'Show / hide song notes',
-  toggleAutoScroll:     'Start / pause auto-scroll',
-  transposeUp:          'Transpose up',
-  transposeDown:        'Transpose down',
-  resetTranspose:       'Reset transpose to 0',
-  exportSong:           'Open export modal',
-  editSong:             'Enter edit page',
-  toggleFavorite:       'Toggle favorite',
-  cast:                 'Open cast popover',
-  addToSetList:         'Add song to set list',
-  toggleFullscreen:     'Toggle fullscreen / performance mode',
-  nextSong:             'Next song (in a set list)',
-  prevSong:             'Previous song (in a set list)',
-  zoomIn:               'Zoom in',
-  zoomOut:              'Zoom out',
-  zoomReset:            'Reset zoom',
-  openSearch:           'Open global search',
-  toggleToolbar:        'Show / hide the toolbar',
-  toggleSongTrainer:    'Song trainer (hide chord names to guess)',
+/** Dictionary-key lookup for shortcut-action labels. Kept as keys (not
+ *  translated strings) so the module can stay a plain constant; the
+ *  editor component below resolves them via `t()` at render time. */
+const SHORTCUT_LABEL_KEYS: Record<ShortcutAction, TKey> = {
+  toggleInlineDiagrams: 'settings.shortcuts.actions.toggleInlineDiagrams',
+  toggleChordBar:       'settings.shortcuts.actions.toggleChordBar',
+  toggleLyricsOnly:     'settings.shortcuts.actions.toggleLyricsOnly',
+  toggleMetronome:      'settings.shortcuts.actions.toggleMetronome',
+  toggleSongNotes:      'settings.shortcuts.actions.toggleSongNotes',
+  toggleAutoScroll:     'settings.shortcuts.actions.toggleAutoScroll',
+  transposeUp:          'settings.shortcuts.actions.transposeUp',
+  transposeDown:        'settings.shortcuts.actions.transposeDown',
+  resetTranspose:       'settings.shortcuts.actions.resetTranspose',
+  exportSong:           'settings.shortcuts.actions.exportSong',
+  editSong:             'settings.shortcuts.actions.editSong',
+  toggleFavorite:       'settings.shortcuts.actions.toggleFavorite',
+  cast:                 'settings.shortcuts.actions.cast',
+  addToSetList:         'settings.shortcuts.actions.addToSetList',
+  toggleFullscreen:     'settings.shortcuts.actions.toggleFullscreen',
+  nextSong:             'settings.shortcuts.actions.nextSong',
+  prevSong:             'settings.shortcuts.actions.prevSong',
+  zoomIn:               'settings.shortcuts.actions.zoomIn',
+  zoomOut:              'settings.shortcuts.actions.zoomOut',
+  zoomReset:            'settings.shortcuts.actions.zoomReset',
+  openSearch:           'settings.shortcuts.actions.openSearch',
+  toggleToolbar:        'settings.shortcuts.actions.toggleToolbar',
+  toggleSongTrainer:    'settings.shortcuts.actions.toggleSongTrainer',
 };
 
 interface ShortcutGroup {
-  title: string;
-  hint: string;
+  /** i18n key for the group heading. */
+  titleKey: TKey;
+  /** i18n key for the descriptive hint below the heading. */
+  hintKey: TKey;
   actions: ShortcutAction[];
   includeCapo?: boolean;
 }
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
-    title: 'Global',
-    hint: 'Available from anywhere in the app.',
+    titleKey: 'settings.shortcuts.groups.global.title',
+    hintKey: 'settings.shortcuts.groups.global.hint',
     actions: ['openSearch'],
   },
   {
-    title: 'View & Display',
-    hint: 'Active in the Song view and Perform pages.',
+    titleKey: 'settings.shortcuts.groups.viewDisplay.title',
+    hintKey: 'settings.shortcuts.groups.viewDisplay.hint',
     actions: ['toggleInlineDiagrams', 'toggleChordBar', 'toggleLyricsOnly', 'toggleSongNotes', 'toggleFullscreen', 'toggleToolbar', 'toggleSongTrainer'],
   },
   {
-    title: 'Playback',
-    hint: 'Metronome and auto-scroll. Active in the Song view and Perform pages.',
+    titleKey: 'settings.shortcuts.groups.playback.title',
+    hintKey: 'settings.shortcuts.groups.playback.hint',
     actions: ['toggleMetronome', 'toggleAutoScroll'],
   },
   {
-    title: 'Set list navigation',
-    hint: 'Move between songs while performing a set list.',
+    titleKey: 'settings.shortcuts.groups.setList.title',
+    hintKey: 'settings.shortcuts.groups.setList.hint',
     actions: ['nextSong', 'prevSong'],
   },
   {
-    title: 'Key & Capo',
-    hint: 'Transpose the song up or down; hold the capo modifier with a digit to set the capo directly. Active in the Song view and Perform pages.',
+    titleKey: 'settings.shortcuts.groups.keyCapo.title',
+    hintKey: 'settings.shortcuts.groups.keyCapo.hint',
     actions: ['transposeUp', 'transposeDown', 'resetTranspose'],
     includeCapo: true,
   },
   {
-    title: 'Song actions',
-    hint: 'Favorite, cast, add to set list, export, edit. Active when a song is open.',
+    titleKey: 'settings.shortcuts.groups.songActions.title',
+    hintKey: 'settings.shortcuts.groups.songActions.hint',
     actions: ['toggleFavorite', 'cast', 'addToSetList', 'exportSong', 'editSong'],
   },
   {
-    title: 'Zoom',
-    hint: 'Zooms the Song view / Perform content when on those pages, otherwise scales the whole interface.',
+    titleKey: 'settings.shortcuts.groups.zoom.title',
+    hintKey: 'settings.shortcuts.groups.zoom.hint',
     actions: ['zoomIn', 'zoomOut', 'zoomReset'],
   },
 ];
@@ -768,6 +810,7 @@ function KeyboardShortcutsEditor({
   shortcuts: KeyboardShortcuts;
   onChange: (next: KeyboardShortcuts) => void;
 }): React.ReactElement {
+  const t = useT();
   const update = <K extends keyof KeyboardShortcuts>(key: K, value: KeyboardShortcuts[K]) => {
     onChange({ ...shortcuts, [key]: value });
   };
@@ -775,18 +818,18 @@ function KeyboardShortcutsEditor({
   return (
     <div>
       <div className="p-4 text-xs" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
-        Click any binding to record a new key combination. Press Escape while recording to cancel. Use the × button to disable the shortcut.
+        {t('settings.shortcuts.intro')}
       </div>
       {SHORTCUT_GROUPS.map((group, gi) => (
-        <div key={group.title} style={{ borderTop: gi === 0 ? undefined : '1px solid var(--border)' }}>
+        <div key={group.titleKey} style={{ borderTop: gi === 0 ? undefined : '1px solid var(--border)' }}>
           <div
             className="px-4 py-2.5 flex flex-col gap-0.5"
             style={{ background: 'var(--bg-secondary)' }}
           >
             <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-              {group.title}
+              {t(group.titleKey)}
             </h3>
-            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{group.hint}</p>
+            <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t(group.hintKey)}</p>
           </div>
           <div>
             {group.actions.map((action) => (
@@ -796,7 +839,7 @@ function KeyboardShortcutsEditor({
                 style={{ borderTop: '1px solid var(--border)' }}
               >
                 <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>
-                  {SHORTCUT_LABELS[action]}
+                  {t(SHORTCUT_LABEL_KEYS[action])}
                 </p>
                 <ShortcutRecorder value={shortcuts[action] ?? ''} onChange={(next) => update(action, next)} />
               </div>
@@ -807,9 +850,9 @@ function KeyboardShortcutsEditor({
                 style={{ borderTop: '1px solid var(--border)' }}
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>Capo modifier</p>
+                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>{t('settings.shortcuts.capo.label')}</p>
                   <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Held with a digit 0-9 to set the capo to that fret.
+                    {t('settings.shortcuts.capo.hint')}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 min-w-[10rem]">
@@ -819,6 +862,9 @@ function KeyboardShortcutsEditor({
                     className="px-3 py-1.5 rounded-lg text-sm text-left min-w-[8rem]"
                     style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                   >
+                    {/* Modifier key NAMES (Alt/Ctrl/Shift/Meta) are OS-level
+                        keyboard identifiers rather than translated UI text —
+                        they must match what the platform reports. Left as-is. */}
                     <option value="Alt">Alt</option>
                     <option value="Ctrl">Ctrl</option>
                     <option value="Shift">Shift</option>
@@ -836,10 +882,10 @@ function KeyboardShortcutsEditor({
           style={{ background: 'var(--bg-secondary)' }}
         >
           <h3 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-            Help
+            {t('settings.shortcuts.groups.help.title')}
           </h3>
           <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            Built-in shortcut for opening this list. Cannot be changed.
+            {t('settings.shortcuts.groups.help.hint')}
           </p>
         </div>
         <div
@@ -847,7 +893,7 @@ function KeyboardShortcutsEditor({
           style={{ borderTop: '1px solid var(--border)' }}
         >
           <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>
-            Open keyboard shortcuts list
+            {t('settings.shortcuts.help.label')}
           </p>
           <kbd
             className="px-2 py-1 rounded text-xs font-mono"
@@ -869,7 +915,7 @@ function KeyboardShortcutsEditor({
           className="text-xs px-3 py-1.5 rounded hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
         >
-          Restore defaults
+          {t('settings.shortcuts.restoreDefaults')}
         </button>
       </div>
     </div>
@@ -927,6 +973,7 @@ function ImportModeDialog({
   /** Show the chord-spelling notice (library imports only). */
   showChordSpellingWarning?: boolean;
 }): React.ReactElement {
+  const t = useT();
   React.useEffect(() => {
     // Capture phase + stopImmediatePropagation so page-level Escape handlers
     // don't also fire when the user dismisses this dialog.
@@ -940,6 +987,15 @@ function ImportModeDialog({
     window.addEventListener('keydown', onKey, { capture: true });
     return () => window.removeEventListener('keydown', onKey, { capture: true });
   }, [onCancel]);
+
+  // The prompt has an inline <strong>{description}</strong>, which we
+  // can't build with a single interpolated string. Substitute a unique
+  // sentinel token, then split the localized template around it so
+  // both halves stay translatable while the value renders inside a
+  // <strong>.
+  const DESC_SENTINEL = '__DESCRIPTION__';
+  const [promptBefore, promptAfter = ''] =
+    t('settings.importDialog.prompt', { description: DESC_SENTINEL }).split(DESC_SENTINEL);
 
   return (
     <div
@@ -956,7 +1012,7 @@ function ImportModeDialog({
       >
         <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{title}</h3>
         <p className="text-sm mt-1 mb-4" style={{ color: 'var(--text-secondary)' }}>
-          The backup contains <strong>{description}</strong>. How should it be applied?
+          {promptBefore}<strong>{description}</strong>{promptAfter}
         </p>
 
         {showChordSpellingWarning && (
@@ -967,11 +1023,11 @@ function ImportModeDialog({
 
         <div className="flex flex-col gap-2 mb-5">
           <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Replace</p>
+            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('settings.importDialog.replace')}</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{replaceWarning}</p>
           </div>
           <div className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Combine</p>
+            <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{t('settings.importDialog.combine')}</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{combineHint}</p>
           </div>
         </div>
@@ -982,21 +1038,21 @@ function ImportModeDialog({
             className="px-3 py-1.5 rounded-lg text-sm"
             style={{ color: 'var(--text-muted)' }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={onReplace}
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
             style={{ color: 'var(--danger)', background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
           >
-            Replace
+            {t('settings.importDialog.replace')}
           </button>
           <button
             onClick={onCombine}
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            Combine
+            {t('settings.importDialog.combine')}
           </button>
         </div>
       </div>
@@ -1012,6 +1068,7 @@ function BackupRow({
   onExport: () => void | Promise<void>;
   onImport: () => void | Promise<void>;
 }): React.ReactElement {
+  const t = useT();
   return (
     <SettingRow label={label} hint={hint}>
       <div className="flex gap-2">
@@ -1020,14 +1077,14 @@ function BackupRow({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
         >
-          <Download size={12} /> Export
+          <Download size={12} /> {t('settings.backup.buttons.export')}
         </button>
         <button
           onClick={() => void onImport()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
           style={{ background: 'var(--accent)', color: 'white' }}
         >
-          <Upload size={12} /> Import
+          <Upload size={12} /> {t('settings.backup.buttons.import')}
         </button>
       </div>
     </SettingRow>
@@ -1067,6 +1124,7 @@ function SongViewStyleSection({ style, onChange, customPresets, onCustomPresetsC
   customPresets: Record<string, CustomPreset>;
   onCustomPresetsChange: (v: Record<string, CustomPreset>) => void;
 }): React.ReactElement {
+  const t = useT();
   const [editing, setEditing] = useState<'save' | 'rename' | null>(null);
   const [editKey, setEditKey] = useState('');
   const [editValue, setEditValue] = useState('');
@@ -1146,72 +1204,72 @@ function SongViewStyleSection({ style, onChange, customPresets, onCustomPresetsC
   };
 
   return (
-    <Section title="Song View">
+    <Section title={t('settings.songView.title')}>
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Style Preset</p>
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{t('settings.songView.stylePreset')}</p>
         <div className="flex items-center gap-2">
           <select value={style.preset} onChange={(e) => applyPreset(e.target.value)} className="setting-select">
-            <optgroup label={effectiveTheme === 'dark' ? 'Dark Mode' : 'Light Mode'}>
+            <optgroup label={effectiveTheme === 'dark' ? t('settings.songView.darkMode') : t('settings.songView.lightMode')}>
               {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([key, p]) => (
                 <option key={key} value={key}>{p.name}</option>
               ))}
             </optgroup>
             {customEntries.filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
-              <optgroup label="My Presets">
+              <optgroup label={t('settings.songView.myPresets')}>
                 {customEntries.filter(([, p]) => p.mode === effectiveTheme).map(([key, p]) => (
                   <option key={key} value={key}>{p.name}</option>
                 ))}
               </optgroup>
             )}
-            {style.preset === 'custom' && <option value="custom">Custom</option>}
+            {style.preset === 'custom' && <option value="custom">{t('settings.songView.customOption')}</option>}
           </select>
           <button onClick={startSave} className="px-2 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
-            style={{ color: 'var(--accent)' }} title="Save current style as new preset">Save</button>
+            style={{ color: 'var(--accent)' }} title={t('settings.songView.saveTitle')}>{t('settings.songView.save')}</button>
           {isCustomPreset && (
             <>
               <button onClick={updateCurrentPreset} className="px-2 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
-                style={{ color: 'var(--text-secondary)' }} title="Update this preset with current settings">Update</button>
+                style={{ color: 'var(--text-secondary)' }} title={t('settings.songView.updateTitle')}>{t('settings.songView.update')}</button>
               <button onClick={() => startRename(style.preset)} className="px-2 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
-                style={{ color: 'var(--text-secondary)' }} title="Rename preset">Rename</button>
+                style={{ color: 'var(--text-secondary)' }} title={t('settings.songView.renameTitle')}>{t('settings.songView.rename')}</button>
               <button onClick={() => deletePreset(style.preset)} className="px-2 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]"
-                style={{ color: 'var(--danger, #ef4444)' }} title="Delete preset">Delete</button>
+                style={{ color: 'var(--danger, #ef4444)' }} title={t('settings.songView.deleteTitle')}>{t('settings.songView.delete')}</button>
             </>
           )}
         </div>
       </div>
       {editing && (
         <div className="flex items-center gap-2 px-4 py-2 border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{editing === 'save' ? 'Name:' : 'Rename:'}</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{editing === 'save' ? t('settings.songView.editing.nameLabel') : t('settings.songView.editing.renameLabel')}</span>
           <input value={editValue} onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-            placeholder="Preset name"
+            placeholder={t('settings.songView.editing.placeholder')}
             className="flex-1 text-sm rounded px-2 py-1"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
             autoFocus />
           {editing === 'save' && (
             <select value={editMode} onChange={(e) => setEditMode(e.target.value as 'dark' | 'light')}
-              className="setting-select" title="Which theme this preset is for">
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
+              className="setting-select" title={t('settings.songView.editing.modeTitle')}>
+              <option value="dark">{t('settings.songView.presetMode.dark')}</option>
+              <option value="light">{t('settings.songView.presetMode.light')}</option>
             </select>
           )}
-          <button onClick={commitEdit} className="px-2 py-1 text-xs rounded" style={{ color: 'var(--accent)' }}>OK</button>
-          <button onClick={() => setEditing(null)} className="px-2 py-1 text-xs rounded" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+          <button onClick={commitEdit} className="px-2 py-1 text-xs rounded" style={{ color: 'var(--accent)' }}>{t('settings.songView.editing.ok')}</button>
+          <button onClick={() => setEditing(null)} className="px-2 py-1 text-xs rounded" style={{ color: 'var(--text-muted)' }}>{t('settings.songView.editing.cancel')}</button>
         </div>
       )}
       {isCustomPreset && (
-        <SettingRow label="Preset Mode">
+        <SettingRow label={t('settings.songView.presetMode.label')}>
           <select value={customPresets[style.preset]?.mode ?? 'dark'}
             onChange={(e) => setPresetMode(style.preset, e.target.value as 'dark' | 'light')}
             className="setting-select"
-            title="Which theme this preset is for — controls which dropdown group lists it.">
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
+            title={t('settings.songView.presetMode.title')}>
+            <option value="dark">{t('settings.songView.presetMode.dark')}</option>
+            <option value="light">{t('settings.songView.presetMode.light')}</option>
           </select>
         </SettingRow>
       )}
 
-      <SettingRow label="Font">
+      <SettingRow label={t('settings.songView.font')}>
         <select value={style.fontFamily || ''} onChange={(e) => patch({ fontFamily: e.target.value })} className="setting-select">
           {FONT_FAMILIES.map((f) => (
             <option key={f.value} value={f.value} style={f.value ? { fontFamily: f.value } : undefined}>{f.label}</option>
@@ -1219,20 +1277,20 @@ function SongViewStyleSection({ style, onChange, customPresets, onCustomPresetsC
         </select>
       </SettingRow>
 
-      <SizeColorRow label="Lyrics" sectionKey="lyrics" size={style.lyrics.fontSize} color={style.lyrics.color}
+      <SizeColorRow label={t('settings.songView.lyrics')} sectionKey="lyrics" size={style.lyrics.fontSize} color={style.lyrics.color}
         onSize={(v) => patchSec('lyrics', { fontSize: v })} onColor={(v) => patchSec('lyrics', { color: v })} />
-      <SizeColorRow label="Chords" sectionKey="chords" size={style.chords.fontSize} color={style.chords.color}
+      <SizeColorRow label={t('settings.songView.chords')} sectionKey="chords" size={style.chords.fontSize} color={style.chords.color}
         onSize={(v) => patchSec('chords', { fontSize: v })} onColor={(v) => patchSec('chords', { color: v })} />
-      <SizeColorRow label="Song Title" sectionKey="title" size={style.title.fontSize} color={style.title.color}
+      <SizeColorRow label={t('settings.songView.songTitle')} sectionKey="title" size={style.title.fontSize} color={style.title.color}
         onSize={(v) => patchSec('title', { fontSize: v })} onColor={(v) => patchSec('title', { color: v })}
         uppercase={style.titleUppercase} onUppercase={(v) => patch({ titleUppercase: v })} />
-      <SizeColorRow label="Song Details" sectionKey="details" size={style.details.fontSize} color={style.details.color}
+      <SizeColorRow label={t('settings.songView.songDetails')} sectionKey="details" size={style.details.fontSize} color={style.details.color}
         onSize={(v) => patchSec('details', { fontSize: v })} onColor={(v) => patchSec('details', { color: v })} />
-      <SizeColorRow label="Section Titles" sectionKey="section" size={style.section.fontSize} color={style.section.color} bg={style.section.background}
+      <SizeColorRow label={t('settings.songView.sectionTitles')} sectionKey="section" size={style.section.fontSize} color={style.section.color} bg={style.section.background}
         onSize={(v) => patchSec('section', { fontSize: v })} onColor={(v) => patchSec('section', { color: v })} onBg={(v) => patchSec('section', { background: v })}
         uppercase={style.sectionUppercase} onUppercase={(v) => patch({ sectionUppercase: v })} />
       {/* Chorus border */}
-      <SettingRow label="Chorus Border">
+      <SettingRow label={t('settings.songView.chorusBorder')}>
         <ColorInput value={style.chorusBorderColor} onChange={(v) => patch({ chorusBorderColor: v })} />
       </SettingRow>
     </Section>
@@ -1243,6 +1301,7 @@ function SizeColorRow({ label, sectionKey, size, color, bg, uppercase, onSize, o
   label: string; sectionKey: string; size: number; color?: string; bg?: string; uppercase?: boolean;
   onSize: (v: number) => void; onColor?: (v: string) => void; onBg?: (v: string) => void; onUppercase?: (v: boolean) => void;
 }): React.ReactElement {
+  const t = useT();
   const limits = FONT_SIZE_LIMITS[sectionKey] ?? { min: 8, max: 36 };
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-b last:border-b-0" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
@@ -1257,17 +1316,17 @@ function SizeColorRow({ label, sectionKey, size, color, bg, uppercase, onSize, o
         </label>
         {onColor !== undefined && (
           <label className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Color <ColorInput value={color ?? ''} onChange={onColor} />
+            {t('settings.songView.sizeColor.color')} <ColorInput value={color ?? ''} onChange={onColor} />
           </label>
         )}
         {onBg !== undefined && (
           <label className="flex items-center gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Bg <ColorInput value={bg ?? ''} onChange={onBg} />
+            {t('settings.songView.sizeColor.bg')} <ColorInput value={bg ?? ''} onChange={onBg} />
           </label>
         )}
         {onUppercase !== undefined && (
           <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            AA <Toggle checked={!!uppercase} onChange={onUppercase} />
+            {t('settings.songView.sizeColor.uppercase')} <Toggle checked={!!uppercase} onChange={onUppercase} />
           </label>
         )}
       </div>

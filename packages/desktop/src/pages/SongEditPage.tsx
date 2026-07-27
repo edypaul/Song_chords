@@ -10,6 +10,7 @@ import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
 import { useNavigationGuard } from '../context/NavigationGuard';
 import { toTitleCase } from '../utils/text';
 import { extractChordPattern, applyChordPattern, patternHasChords, type ChordPattern } from '../utils/chord-pattern';
+import { useT } from '../i18n';
 
 const SECTION_DIRECTIVES = ['Intro', 'Verse', 'Pre-Chorus', 'Chorus', 'Bridge', 'Solo', 'Instrumental', 'Outro'];
 
@@ -76,6 +77,7 @@ function canonicalBody(body: string): string {
 }
 
 export default function SongEditPage(): React.ReactElement {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -636,7 +638,7 @@ export default function SongEditPage(): React.ReactElement {
   }, [isDirty, registerGuard]);
 
   const handleSave = async () => {
-    if (!title.trim()) { alert('Title is required'); return; }
+    if (!title.trim()) { alert(t('songEdit.alert.titleRequired')); return; }
     setSaving(true);
     try {
       // Normalize Latin (solfège) chord names back to canonical letter form
@@ -729,17 +731,21 @@ export default function SongEditPage(): React.ReactElement {
         <button
           onClick={() => guardedLeave(() => returnTo ? navigate(returnTo) : navigate(-1))}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title={isDirty ? 'Leave (unsaved changes)' : 'Back'}
+          title={isDirty ? t('songEdit.header.backUnsaved') : t('songEdit.header.back')}
         >
           <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <h1 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {isPending ? `Editing import: ${existing?.title || 'Untitled'}` : isNew ? 'New Song' : `Edit: ${existing?.title}`}
+          {isPending
+            ? t('songEdit.header.editingImport', { title: existing?.title || t('songEdit.header.untitled') })
+            : isNew
+              ? t('songEdit.header.newSong')
+              : t('songEdit.header.editSong', { title: existing?.title ?? '' })}
         </h1>
         <div className="flex gap-2 ml-auto">
           {!isNew && !isPending && (
             <button onClick={() => setShowDelete(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm" style={{ color: 'var(--danger)' }}>
-              <Trash2 size={14} />Delete
+              <Trash2 size={14} />{t('common.delete')}
             </button>
           )}
           <button
@@ -748,24 +754,24 @@ export default function SongEditPage(): React.ReactElement {
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white', opacity: saving ? 0.7 : 1 }}
           >
-            <Save size={14} />{saving ? 'Saving...' : 'Save'}
+            <Save size={14} />{saving ? t('songEdit.button.saving') : t('common.save')}
           </button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b shrink-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-        {(['details', 'song'] as const).map((t) => (
+        {(['details', 'song'] as const).map((tabName) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabName}
+            onClick={() => setTab(tabName)}
             className="px-6 py-2 text-sm font-medium capitalize"
             style={{
-              color: tab === t ? 'var(--accent)' : 'var(--text-secondary)',
-              borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+              color: tab === tabName ? 'var(--accent)' : 'var(--text-secondary)',
+              borderBottom: tab === tabName ? '2px solid var(--accent)' : '2px solid transparent',
               marginBottom: -1,
             }}
-          >{t === 'details' ? 'Details' : 'Song'}</button>
+          >{tabName === 'details' ? t('songEdit.tabs.details') : t('songEdit.tabs.song')}</button>
         ))}
       </div>
 
@@ -774,34 +780,34 @@ export default function SongEditPage(): React.ReactElement {
         {tab === 'details' && (
           <div className="h-full overflow-y-auto p-6 text-sm" style={{ background: 'var(--bg-secondary)' }}>
             <div className="max-w-lg flex flex-col gap-4">
-              <Field label="Title *">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" placeholder="Song title" />
+              <Field label={t('songEdit.field.title.label')}>
+                <input value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" placeholder={t('songEdit.field.title.placeholder')} />
               </Field>
-              <Field label="Artist">
-                <SuggestionInput value={artist} onChange={setArtist} suggestions={artistSuggestions} placeholder="Artist name" />
+              <Field label={t('songEdit.field.artist.label')}>
+                <SuggestionInput value={artist} onChange={setArtist} suggestions={artistSuggestions} placeholder={t('songEdit.field.artist.placeholder')} />
               </Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Key">
+                <Field label={t('songEdit.field.key.label')}>
                   <select value={key} onChange={(e) => setKey(e.target.value)} className="input-field">
-                    <option value="">— Select key —</option>
+                    <option value="">{t('songEdit.field.key.selectPrompt')}</option>
                     {ALL_KEYS.map((k) => <option key={k}>{k}</option>)}
                   </select>
                 </Field>
-                <Field label="Time Signature">
+                <Field label={t('songEdit.field.timeSignature.label')}>
                   <select value={timeSig} onChange={(e) => setTimeSig(e.target.value)} className="input-field">
-                    {['4/4', '3/4', '6/8', '2/4', '5/4', '7/8', '12/8'].map((t) => <option key={t}>{t}</option>)}
+                    {['4/4', '3/4', '6/8', '2/4', '5/4', '7/8', '12/8'].map((ts) => <option key={ts}>{ts}</option>)}
                   </select>
                 </Field>
-                <Field label="Tempo (BPM)">
+                <Field label={t('songEdit.field.tempo.label')}>
                   <TempoInput value={tempo} onChange={setTempo} />
                 </Field>
-                <Field label="Capo">
+                <Field label={t('songEdit.field.capo.label')}>
                   <select value={capo} onChange={(e) => setCapo(Number(e.target.value))} className="input-field">
-                    {Array.from({ length: 12 }, (_, i) => <option key={i} value={i}>{i === 0 ? 'None' : `Capo ${i}`}</option>)}
+                    {Array.from({ length: 12 }, (_, i) => <option key={i} value={i}>{i === 0 ? t('songEdit.field.capo.none') : t('songEdit.field.capo.fret', { fret: i })}</option>)}
                   </select>
                 </Field>
               </div>
-              <Field label="Genre" hint="Pick a common genre, or choose Type custom genre to enter your own.">
+              <Field label={t('songEdit.field.genre.label')} hint={t('songEdit.field.genre.hint')}>
                 {/* The text input only appears AFTER the user picks
                     the "Type custom genre…" option. Otherwise the
                     Field is just the dropdown — even when editing a
@@ -826,11 +832,11 @@ export default function SongEditPage(): React.ReactElement {
                     className="input-field shrink-0"
                     style={{ maxWidth: genreCustomMode ? 220 : undefined }}
                   >
-                    <option value="">— Select common genre —</option>
+                    <option value="">{t('songEdit.field.genre.selectPrompt')}</option>
                     {COMMON_GENRES.map((g) => (
                       <option key={g} value={g}>{g}</option>
                     ))}
-                    <option value="__custom__">Type a custom genre…</option>
+                    <option value="__custom__">{t('songEdit.field.genre.customOption')}</option>
                   </select>
                   {genreCustomMode && (
                     <div className="flex-1 min-w-0">
@@ -838,17 +844,17 @@ export default function SongEditPage(): React.ReactElement {
                         value={genre}
                         onChange={setGenre}
                         suggestions={genreSuggestions}
-                        placeholder="Genre"
+                        placeholder={t('songEdit.field.genre.customPlaceholder')}
                       />
                     </div>
                   )}
                 </div>
               </Field>
               <div className="grid grid-cols-4 gap-4">
-                <Field label="Duration (mm:ss)">
+                <Field label={t('songEdit.field.duration.label')}>
                   <DurationInput value={duration} onChange={setDuration} />
                 </Field>
-                <Field label="Year">
+                <Field label={t('songEdit.field.year.label')}>
                   <input
                     type="number"
                     value={year}
@@ -866,7 +872,7 @@ export default function SongEditPage(): React.ReactElement {
                     dropdown reads cleanly. The same span applies in
                     custom mode so the inline text input has room. */}
                 <div style={{ gridColumn: 'span 2', minWidth: 0, width: '100%' }}>
-                  <Field label="Language">
+                  <Field label={t('songEdit.field.language.label')}>
                     {(() => {
                       const COMMON_LANGUAGES = ['Spanish', 'English', 'Portuguese', 'Italian', 'French'] as const;
                       const isCommon = (COMMON_LANGUAGES as readonly string[]).includes(language);
@@ -891,13 +897,13 @@ export default function SongEditPage(): React.ReactElement {
                             // visible (both flex-1 children grow
                             // equally from the same basis).
                             className="input-field flex-1 min-w-0"
-                            aria-label="Pick a common language"
+                            aria-label={t('songEdit.field.language.aria')}
                           >
-                            <option value="">— Select language —</option>
+                            <option value="">{t('songEdit.field.language.selectPrompt')}</option>
                             {COMMON_LANGUAGES.map((l) => (
                               <option key={l} value={l}>{l}</option>
                             ))}
-                            <option value="__custom__">Type a custom language…</option>
+                            <option value="__custom__">{t('songEdit.field.language.customOption')}</option>
                           </select>
                           {languageCustomMode && (
                             <div className="flex-1 min-w-0">
@@ -905,7 +911,7 @@ export default function SongEditPage(): React.ReactElement {
                                 value={language}
                                 onChange={setLanguage}
                                 suggestions={languageSuggestions}
-                                placeholder="Language"
+                                placeholder={t('songEdit.field.language.customPlaceholder')}
                               />
                             </div>
                           )}
@@ -915,13 +921,13 @@ export default function SongEditPage(): React.ReactElement {
                   </Field>
                 </div>
               </div>
-              <Field label="Tags" hint="Type a keyword and press Enter or comma to add.">
+              <Field label={t('songEdit.field.tags.label')} hint={t('songEdit.field.tags.hint')}>
                 <TagsInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
               </Field>
-              <Field label="Difficulty">
+              <Field label={t('songEdit.field.difficulty.label')}>
                 <DifficultyStars value={difficulty} onChange={setDifficulty} />
               </Field>
-              <Field label="Audio Link" hint="Paste a URL where the song can be played (YouTube, SoundCloud, Spotify, a direct mp3, etc.). Optional.">
+              <Field label={t('songEdit.field.audioLink.label')} hint={t('songEdit.field.audioLink.hint')}>
                 <input
                   type="url"
                   value={link}
@@ -930,11 +936,11 @@ export default function SongEditPage(): React.ReactElement {
                   placeholder="https://www.youtube.com/watch?v=…"
                 />
               </Field>
-              <Field label="Audio File" hint="Pick a local audio file (mp3, m4a, ogg, wav, flac, aac, webm). Takes precedence over the link when both are set.">
+              <Field label={t('songEdit.field.audioFile.label')} hint={t('songEdit.field.audioFile.hint')}>
                 <AudioFilePicker value={audioFile} onChange={setAudioFile} />
               </Field>
-              <Field label="Notes">
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={4} placeholder="Performance notes..." />
+              <Field label={t('songEdit.field.notes.label')}>
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={4} placeholder={t('songEdit.field.notes.placeholder')} />
               </Field>
             </div>
           </div>
@@ -994,11 +1000,11 @@ export default function SongEditPage(): React.ReactElement {
                 <button type="button" onClick={undo} disabled={!canUndo}
                   className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                  title="Undo (Ctrl+Z)">↶ Undo</button>
+                  title={t('songEdit.toolbar.undoTitle')}>{'↶ '}{t('songEdit.toolbar.undo')}</button>
                 <button type="button" onClick={redo} disabled={!canRedo}
                   className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                  title="Redo (Ctrl+Shift+Z / Ctrl+Y)">↷ Redo</button>
+                  title={t('songEdit.toolbar.redoTitle')}>{'↷ '}{t('songEdit.toolbar.redo')}</button>
                 <SectionInsert
                   onPick={(section) => {
                     // No trailing newline: that was adding an unwanted empty
@@ -1030,9 +1036,9 @@ export default function SongEditPage(): React.ReactElement {
                     color: showFindReplace ? 'var(--accent)' : 'var(--text-secondary)',
                     border: '1px solid var(--border)',
                   }}
-                  title="Find a chord and replace every occurrence (lyrics are never touched)."
+                  title={t('songEdit.findReplace.buttonTitle')}
                 >
-                  Find / Replace chords
+                  {t('songEdit.findReplace.button')}
                 </button>
                 {format === 'chordpro' && (
                   <>
@@ -1042,16 +1048,16 @@ export default function SongEditPage(): React.ReactElement {
                         const el = textareaRef.current;
                         if (!el) return;
                         const s = el.selectionStart, e = el.selectionEnd;
-                        if (s === e) { alert('Select the source section first (the one that already has chords).'); return; }
+                        if (s === e) { alert(t('songEdit.alert.copyChordsSelectSource')); return; }
                         const pattern = extractChordPattern(content.slice(s, e));
-                        if (!patternHasChords(pattern)) { alert('The selection has no chords to copy.'); return; }
+                        if (!patternHasChords(pattern)) { alert(t('songEdit.alert.copyChordsNoChords')); return; }
                         setChordClipboard(pattern);
                       }}
                       className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)]"
                       style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                      title="Select a section that has chords, then click to copy its chord pattern (chords + their positions)."
+                      title={t('songEdit.copyChords.buttonTitle')}
                     >
-                      Copy chords
+                      {t('songEdit.copyChords.button')}
                     </button>
                     <button
                       type="button"
@@ -1061,15 +1067,15 @@ export default function SongEditPage(): React.ReactElement {
                         const el = textareaRef.current;
                         if (!el) return;
                         const s = el.selectionStart, e = el.selectionEnd;
-                        if (s === e) { alert('Select the target section (lyrics) first, then paste the chords.'); return; }
+                        if (s === e) { alert(t('songEdit.alert.pasteChordsSelectTarget')); return; }
                         const patched = applyChordPattern(chordClipboard, content.slice(s, e));
                         insertAtRange(s, e, patched);
                       }}
                       className="px-2 py-1 rounded text-xs font-medium hover:bg-[var(--surface-elevated)] disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ color: 'var(--accent)', border: '1px solid var(--border)' }}
-                      title="Select the target lyrics and click to insert the copied chords at the same line-relative positions."
+                      title={t('songEdit.pasteChords.buttonTitle')}
                     >
-                      Paste chords
+                      {t('songEdit.pasteChords.button')}
                     </button>
                   </>
                 )}
@@ -1080,20 +1086,20 @@ export default function SongEditPage(): React.ReactElement {
                 className="px-4 py-2 border-b flex items-center gap-2 flex-wrap text-xs"
                 style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
               >
-                <span style={{ color: 'var(--text-muted)' }}>Replace chord</span>
+                <span style={{ color: 'var(--text-muted)' }}>{t('songEdit.findReplace.replaceChord')}</span>
                 <input
                   value={findChord}
                   onChange={(e) => { setFindChord(e.target.value); setLastReplaceMsg(null); }}
-                  placeholder="e.g. D"
+                  placeholder={t('songEdit.findReplace.placeholderFind')}
                   className="input-field"
                   style={{ width: 90 }}
                   spellCheck={false}
                 />
-                <span style={{ color: 'var(--text-muted)' }}>with</span>
+                <span style={{ color: 'var(--text-muted)' }}>{t('songEdit.findReplace.with')}</span>
                 <input
                   value={replaceChord}
                   onChange={(e) => { setReplaceChord(e.target.value); setLastReplaceMsg(null); }}
-                  placeholder="e.g. E"
+                  placeholder={t('songEdit.findReplace.placeholderReplace')}
                   className="input-field"
                   style={{ width: 90 }}
                   spellCheck={false}
@@ -1110,15 +1116,17 @@ export default function SongEditPage(): React.ReactElement {
                     }
                     setLastReplaceMsg(
                       count === 0
-                        ? `No "${findChord.trim()}" chords found`
-                        : `Replaced ${count} occurrence${count === 1 ? '' : 's'}`,
+                        ? t('songEdit.findReplace.noneFound', { chord: findChord.trim() })
+                        : count === 1
+                          ? t('songEdit.findReplace.replacedOne', { count })
+                          : t('songEdit.findReplace.replacedMany', { count }),
                     );
                   }}
                   className="px-2 py-1 rounded text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ background: 'var(--accent)', color: '#fff' }}
-                  title="Replace every standalone occurrence of this exact chord. Lyrics and other chords (e.g. Dm when replacing D) are left untouched."
+                  title={t('songEdit.findReplace.replaceAllTitle')}
                 >
-                  Replace all
+                  {t('songEdit.findReplace.replaceAll')}
                 </button>
                 {lastReplaceMsg && (
                   <span style={{ color: 'var(--text-secondary)' }}>{lastReplaceMsg}</span>
@@ -1128,7 +1136,7 @@ export default function SongEditPage(): React.ReactElement {
                   onClick={() => { setShowFindReplace(false); setLastReplaceMsg(null); }}
                   className="ml-auto px-2 py-1 rounded hover:bg-[var(--surface-elevated)]"
                   style={{ color: 'var(--text-muted)' }}
-                  title="Close"
+                  title={t('common.close')}
                 >
                   ✕
                 </button>
@@ -1152,7 +1160,7 @@ export default function SongEditPage(): React.ReactElement {
                     className="px-3 py-1 text-[11px] font-semibold border-b shrink-0"
                     style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'var(--surface)' }}
                   >
-                    {format === 'chordpro' ? 'ChordPro' : 'Chords over lyrics'} · editing
+                    {format === 'chordpro' ? t('songEdit.split.chordpro') : t('songEdit.split.chordsOverLyrics')} {t('songEdit.split.editingSuffix')}
                   </div>
                 )}
                 <div className="relative flex-1 min-h-0">
@@ -1282,7 +1290,7 @@ export default function SongEditPage(): React.ReactElement {
                     className="px-3 py-1 text-[11px] font-semibold border-b shrink-0"
                     style={{ color: 'var(--text-muted)', borderColor: 'var(--border)', background: 'var(--surface)' }}
                   >
-                    {format === 'chordpro' ? 'Chords over lyrics' : 'ChordPro'} · preview
+                    {format === 'chordpro' ? t('songEdit.split.chordsOverLyrics') : t('songEdit.split.chordpro')} {t('songEdit.split.previewSuffix')}
                   </div>
                   <div
                     className="flex-1 min-h-0 flex"
@@ -1336,9 +1344,9 @@ export default function SongEditPage(): React.ReactElement {
               />
             )}
             <div className="px-4 py-2 text-xs border-t flex items-center gap-4 flex-wrap" style={{ color: 'var(--text-muted)', borderColor: 'var(--border)' }}>
-              <span>{stats.lineCount} line{stats.lineCount === 1 ? '' : 's'}</span>
-              <span>{stats.chars} char{stats.chars === 1 ? '' : 's'}</span>
-              <span>{stats.uniqueChords.length} unique chord{stats.uniqueChords.length === 1 ? '' : 's'}</span>
+              <span>{stats.lineCount === 1 ? t('songEdit.stats.linesOne', { count: stats.lineCount }) : t('songEdit.stats.linesMany', { count: stats.lineCount })}</span>
+              <span>{stats.chars === 1 ? t('songEdit.stats.charsOne', { count: stats.chars }) : t('songEdit.stats.charsMany', { count: stats.chars })}</span>
+              <span>{stats.uniqueChords.length === 1 ? t('songEdit.stats.uniqueChordsOne', { count: stats.uniqueChords.length }) : t('songEdit.stats.uniqueChordsMany', { count: stats.uniqueChords.length })}</span>
               {stats.uniqueChords.length > 0 && (
                 <span className="truncate" style={{ fontFamily: 'monospace' }} title={stats.uniqueChords.join(', ')}>
                   {stats.uniqueChords.join(' · ')}
@@ -1377,9 +1385,9 @@ export default function SongEditPage(): React.ReactElement {
 
       {showDelete && existing && (
         <ConfirmDialog
-          title="Delete song?"
-          message={<>This will permanently delete <strong>{toTitleCase(existing.title)}</strong>. This cannot be undone.</>}
-          confirmLabel="Delete"
+          title={t('songEdit.deleteDialog.title')}
+          message={<>{t('songEdit.deleteDialog.messagePrefix')}<strong>{toTitleCase(existing.title)}</strong>{t('songEdit.deleteDialog.messageSuffix')}</>}
+          confirmLabel={t('common.delete')}
           danger
           onCancel={() => setShowDelete(false)}
           onConfirm={async () => {
@@ -1424,6 +1432,7 @@ function UnsavedChangesDialog({
   onDiscard: () => void;
   onCancel: () => void;
 }): React.ReactElement {
+  const t = useT();
   useEffect(() => {
     // Capture + stopImmediatePropagation so page-level Escape handlers
     // don't also fire.
@@ -1455,9 +1464,9 @@ function UnsavedChangesDialog({
         role="dialog"
         aria-modal="true"
       >
-        <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Unsaved changes</h3>
+        <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>{t('songEdit.unsavedDialog.title')}</h3>
         <p className="text-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
-          You've made changes that haven't been saved. What would you like to do?
+          {t('songEdit.unsavedDialog.body')}
         </p>
         <div className="flex items-center justify-end gap-2">
           <button
@@ -1465,21 +1474,21 @@ function UnsavedChangesDialog({
             className="px-3 py-1.5 rounded-lg text-sm"
             style={{ color: 'var(--text-muted)' }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={onDiscard}
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
             style={{ color: 'var(--danger)', background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}
           >
-            Discard
+            {t('songEdit.unsavedDialog.discard')}
           </button>
           <button
             onClick={onSave}
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            Save
+            {t('common.save')}
           </button>
         </div>
       </div>
@@ -1502,6 +1511,7 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
   onPickFormat: (next: 'chordpro' | 'plaintext') => void;
   onSplit: () => void;
 }): React.ReactElement {
+  const t = useT();
   const btnStyle = (active: boolean): React.CSSProperties => ({
     background: active ? 'var(--accent)' : 'var(--surface)',
     color: active ? 'white' : 'var(--text-secondary)',
@@ -1513,7 +1523,7 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
       className="inline-flex rounded overflow-hidden"
       style={{ border: '1px solid var(--border)' }}
       role="group"
-      aria-label="Editor view"
+      aria-label={t('songEdit.format.aria')}
     >
       <button
         type="button"
@@ -1521,9 +1531,9 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
         className={seg}
         style={{ ...btnStyle(!splitView && format === 'plaintext'), borderRight: '1px solid var(--border)' }}
         aria-pressed={!splitView && format === 'plaintext'}
-        title="Chord names on one line, lyric directly below. Converted to ChordPro on save."
+        title={t('songEdit.format.chordsOverLyricsTitle')}
       >
-        Chords over lyrics
+        {t('songEdit.format.chordsOverLyrics')}
       </button>
       <button
         type="button"
@@ -1531,9 +1541,9 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
         className={seg}
         style={{ ...btnStyle(!splitView && format === 'chordpro'), borderRight: '1px solid var(--border)' }}
         aria-pressed={!splitView && format === 'chordpro'}
-        title="Inline ChordPro format: [G]Amazing [C]grace"
+        title={t('songEdit.format.chordproTitle')}
       >
-        ChordPro
+        {t('songEdit.format.chordpro')}
       </button>
       <button
         type="button"
@@ -1541,9 +1551,9 @@ function FormatToggle({ format, splitView, onPickFormat, onSplit }: {
         className={seg}
         style={btnStyle(splitView)}
         aria-pressed={splitView}
-        title="Show ChordPro and chords-over-lyrics side by side. The pane matching the selected format stays editable; the other is a live preview."
+        title={t('songEdit.format.splitViewTitle')}
       >
-        ⇆ Split view
+        {'⇆ '}{t('songEdit.format.splitView')}
       </button>
     </div>
   );
@@ -1563,6 +1573,23 @@ function SectionInsert({ onPick, onPickPause, onPickGrid }: {
   /** Picked the "Chord chart" entry — parent inserts a grid block. */
   onPickGrid: () => void;
 }): React.ReactElement {
+  const t = useT();
+  // Map the canonical directive name (kept in English so the inserted
+  // ChordPro `{c: ...}` stays portable) to its display label in the
+  // active UI language.
+  const sectionLabel = (s: string): string => {
+    switch (s) {
+      case 'Intro': return t('songEdit.sectionInsert.intro');
+      case 'Verse': return t('songEdit.sectionInsert.verse');
+      case 'Pre-Chorus': return t('songEdit.sectionInsert.preChorus');
+      case 'Chorus': return t('songEdit.sectionInsert.chorus');
+      case 'Bridge': return t('songEdit.sectionInsert.bridge');
+      case 'Solo': return t('songEdit.sectionInsert.solo');
+      case 'Instrumental': return t('songEdit.sectionInsert.instrumental');
+      case 'Outro': return t('songEdit.sectionInsert.outro');
+      default: return s;
+    }
+  };
   return (
     <select
       value=""
@@ -1576,14 +1603,14 @@ function SectionInsert({ onPick, onPickPause, onPickGrid }: {
       }}
       className="px-2 py-1 rounded text-xs"
       style={{ background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-      title="Insert a section directive, a chord chart, or an auto-scroll pause at the cursor"
+      title={t('songEdit.sectionInsert.title')}
     >
-      <option value="">+ Section</option>
+      <option value="">{t('songEdit.sectionInsert.placeholder')}</option>
       {SECTION_DIRECTIVES.map((s) => (
-        <option key={s} value={s}>{s}</option>
+        <option key={s} value={s}>{sectionLabel(s)}</option>
       ))}
-      <option value={GRID_OPTION}>Chord chart (grid)</option>
-      <option value={PAUSE_OPTION}>Pause (auto-scroll)…</option>
+      <option value={GRID_OPTION}>{t('songEdit.sectionInsert.chordChart')}</option>
+      <option value={PAUSE_OPTION}>{t('songEdit.sectionInsert.pause')}</option>
     </select>
   );
 }
@@ -1591,6 +1618,7 @@ function SectionInsert({ onPick, onPickPause, onPickGrid }: {
 function ChordPopover({ x, y, inSong, onPick, onClose }: {
   x: number; y: number; inSong: string[]; onPick: (chord: string) => void; onClose: () => void;
 }): React.ReactElement {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1628,7 +1656,7 @@ function ChordPopover({ x, y, inSong, onPick, onClose }: {
     >
       {inSong.length > 0 && (
         <>
-          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>In this song</div>
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>{t('songEdit.chordPopover.inSong')}</div>
           <div className="flex flex-wrap gap-1 mb-2">
             {inSong.map((c) => (
               <button key={c} type="button"
@@ -1641,7 +1669,7 @@ function ChordPopover({ x, y, inSong, onPick, onClose }: {
           </div>
         </>
       )}
-      <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>Common</div>
+      <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: 'var(--text-muted)' }}>{t('songEdit.chordPopover.common')}</div>
       <div className="flex flex-wrap gap-1">
         {COMMON_CHORDS.filter((c) => !inSong.includes(c)).map((c) => (
           <button key={c} type="button"
@@ -1670,6 +1698,7 @@ function PausePopover({ x, y, seconds, onSecondsChange, onConfirm, onClose }: {
   onConfirm: () => void;
   onClose: () => void;
 }): React.ReactElement {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
 
   // Position is local state so the popover can be dragged. Seeded once
@@ -1740,11 +1769,11 @@ function PausePopover({ x, y, seconds, onSecondsChange, onConfirm, onClose }: {
         onPointerCancel={onDragPointerUp}
         className="flex items-center self-stretch px-0.5 rounded hover:bg-[var(--surface-elevated)]"
         style={{ cursor: 'grab', touchAction: 'none', color: 'var(--text-muted)' }}
-        title="Drag to move"
+        title={t('songEdit.pausePopover.dragTitle')}
       >
         <GripVertical size={13} />
       </span>
-      <span style={{ color: 'var(--text-muted)' }}>Pause</span>
+      <span style={{ color: 'var(--text-muted)' }}>{t('songEdit.pausePopover.pauseLabel')}</span>
       <input
         autoFocus
         type="number"
@@ -1758,22 +1787,22 @@ function PausePopover({ x, y, seconds, onSecondsChange, onConfirm, onClose }: {
         className="input-field"
         style={{ width: 52, padding: '2px 6px' }}
       />
-      <span style={{ color: 'var(--text-muted)' }}>s</span>
+      <span style={{ color: 'var(--text-muted)' }}>{t('songEdit.pausePopover.secondsAbbrev')}</span>
       <button
         type="button"
         onClick={onConfirm}
         className="px-2 py-0.5 rounded font-semibold"
         style={{ background: 'var(--accent)', color: '#fff' }}
-        title="Insert {pause: N} at the cursor"
+        title={t('songEdit.pausePopover.insertTitle')}
       >
-        Insert
+        {t('songEdit.pausePopover.insert')}
       </button>
       <button
         type="button"
         onClick={onClose}
         className="p-0.5 rounded hover:bg-[var(--surface-elevated)]"
         style={{ color: 'var(--text-muted)' }}
-        title="Cancel"
+        title={t('common.cancel')}
       >
         <X size={13} />
       </button>
@@ -1866,6 +1895,7 @@ function TempoInput({
   value: string;
   onChange: (v: string) => void;
 }): React.ReactElement {
+  const t = useT();
   const tapsRef = useRef<number[]>([]);
   const [flash, setFlash] = useState(false);
 
@@ -1914,7 +1944,7 @@ function TempoInput({
         type="button"
         onClick={handleTap}
         onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); handleTap(); } }}
-        title="Tap to set tempo"
+        title={t('songEdit.tempo.tapTitle')}
         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors"
         style={{
           background: flash ? 'var(--accent)' : 'var(--surface-elevated)',
@@ -1922,12 +1952,12 @@ function TempoInput({
           border: '1px solid var(--border)',
         }}
       >
-        <Hand size={14} />Tap
+        <Hand size={14} />{t('songEdit.tempo.tap')}
       </button>
       <button
         type="button"
         onClick={reset}
-        title="Clear tempo"
+        title={t('songEdit.tempo.clearTitle')}
         className="p-2 rounded-lg transition-colors"
         style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
       >
@@ -1976,6 +2006,7 @@ function normaliseDurationOnBlur(raw: string): string {
 const DURATION_RE = /^\d+:[0-5]\d$/;
 
 function DurationInput({ value, onChange }: { value: string; onChange: (v: string) => void }): React.ReactElement {
+  const t = useT();
   const isInvalid = value.trim() !== '' && !DURATION_RE.test(value);
   return (
     <input
@@ -1986,7 +2017,7 @@ function DurationInput({ value, onChange }: { value: string; onChange: (v: strin
       placeholder="3:45"
       inputMode="numeric"
       style={isInvalid ? { borderColor: 'var(--danger)' } : undefined}
-      title="Format: mm:ss (e.g. 3:45)"
+      title={t('songEdit.duration.formatTitle')}
     />
   );
 }
@@ -1995,6 +2026,7 @@ function DurationInput({ value, onChange }: { value: string; onChange: (v: strin
  *  picker uses Electron's native file dialog with audio extension
  *  filters; the chosen absolute path is what we save on the song. */
 function AudioFilePicker({ value, onChange }: { value: string; onChange: (v: string) => void }): React.ReactElement {
+  const t = useT();
   const pick = async () => {
     const path = await window.electronAPI.files.pickAudio();
     if (path) onChange(path);
@@ -2005,12 +2037,12 @@ function AudioFilePicker({ value, onChange }: { value: string; onChange: (v: str
       <div
         className="input-field flex-1 min-w-0 flex items-center"
         style={{ cursor: 'default', overflow: 'hidden' }}
-        title={value || 'No file selected'}
+        title={value || t('songEdit.audioPicker.noFile')}
       >
         {value ? (
           <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{filename}</span>
         ) : (
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>No file selected</span>
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('songEdit.audioPicker.noFile')}</span>
         )}
       </div>
       <button
@@ -2019,7 +2051,7 @@ function AudioFilePicker({ value, onChange }: { value: string; onChange: (v: str
         className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
         style={{ background: 'var(--accent)', color: 'white' }}
       >
-        Browse…
+        {t('songEdit.audioPicker.browse')}
       </button>
       {value && (
         <button
@@ -2027,9 +2059,9 @@ function AudioFilePicker({ value, onChange }: { value: string; onChange: (v: str
           onClick={() => onChange('')}
           className="px-2.5 py-1.5 rounded-lg text-xs transition-colors"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
-          title="Remove file"
+          title={t('songEdit.audioPicker.removeTitle')}
         >
-          Clear
+          {t('songEdit.audioPicker.clear')}
         </button>
       )}
     </div>
@@ -2053,6 +2085,7 @@ function TagsInput({
   onChange: (tags: string[]) => void;
   suggestions?: string[];
 }): React.ReactElement {
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [focused, setFocused] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -2101,7 +2134,7 @@ function TagsInput({
               onClick={(e) => { e.stopPropagation(); removeTag(i); }}
               className="ml-0.5 rounded-full w-4 h-4 flex items-center justify-center leading-none hover:opacity-80"
               style={{ color: 'var(--text-muted)' }}
-              title={`Remove ${tag}`}
+              title={t('songEdit.tags.removeTitle', { tag })}
             >
               ×
             </button>
@@ -2135,7 +2168,7 @@ function TagsInput({
               removeTag(value.length - 1);
             }
           }}
-          placeholder={value.length === 0 ? 'Add a tag…' : ''}
+          placeholder={value.length === 0 ? t('songEdit.tags.placeholder') : ''}
           className="flex-1 min-w-[80px] bg-transparent outline-none text-sm"
           style={{ color: 'var(--text-primary)' }}
         />
@@ -2166,8 +2199,20 @@ function TagsInput({
 }
 
 const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
+// Maps each numeric level to its translation key so DifficultyStars can
+// render the localised label without altering the canonical constant.
+const DIFFICULTY_TKEYS = [
+  'songEdit.difficulty.unset',
+  'songEdit.difficulty.basic',
+  'songEdit.difficulty.easy',
+  'songEdit.difficulty.intermediate',
+  'songEdit.difficulty.advanced',
+  'songEdit.difficulty.professional',
+] as const;
 
 function DifficultyStars({ value, onChange }: { value: number; onChange: (v: number) => void }): React.ReactElement {
+  const t = useT();
+  const labelFor = (n: number): string => t(DIFFICULTY_TKEYS[n] ?? DIFFICULTY_TKEYS[0]);
   return (
     <div className="flex items-center gap-2">
       <div className="flex items-center gap-0.5">
@@ -2180,7 +2225,7 @@ function DifficultyStars({ value, onChange }: { value: number; onChange: (v: num
               onClick={() => onChange(value === n ? 0 : n)}
               className="text-lg leading-none px-0.5"
               style={{ color: filled ? 'var(--accent)' : 'var(--text-muted)', opacity: filled ? 1 : 0.5 }}
-              title={DIFFICULTY_LABELS[n]}
+              title={labelFor(n)}
             >
               {filled ? '★' : '☆'}
             </button>
@@ -2188,7 +2233,7 @@ function DifficultyStars({ value, onChange }: { value: number; onChange: (v: num
         })}
       </div>
       <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        {DIFFICULTY_LABELS[value] ?? 'Unset'}
+        {DIFFICULTY_LABELS[value] != null ? labelFor(value) : labelFor(0)}
       </span>
     </div>
   );

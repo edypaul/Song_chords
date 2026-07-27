@@ -4,6 +4,7 @@ import { ListTree, X } from 'lucide-react';
 import type { ParsedSong } from '@song-chords/shared';
 import { useSettingsStore } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
+import { useT } from '../../i18n';
 
 interface Props {
   song: ParsedSong;
@@ -31,6 +32,7 @@ export default function SectionNavigator({
   scrollRef,
   recomputeKey,
 }: Props): React.ReactElement | null {
+  const t = useT();
   const open = useSettingsStore((s) => s.settings.sectionPanelOpen ?? false);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -185,8 +187,8 @@ export default function SectionNavigator({
           color: 'white',
           zIndex: 55,
         }}
-        title={`Section navigator (${sections.length} sections)`}
-        aria-label="Open section navigator"
+        title={t('sectionNav.buttonTitle', { count: sections.length })}
+        aria-label={t('sectionNav.openAria')}
       >
         <ListTree size={16} />
       </button>
@@ -204,7 +206,7 @@ export default function SectionNavigator({
         zIndex: 55,
       }}
       role="navigation"
-      aria-label="Section navigator"
+      aria-label={t('sectionNav.navAria')}
     >
       <div
         className="flex items-center justify-between px-3 py-2 border-b shrink-0"
@@ -214,14 +216,14 @@ export default function SectionNavigator({
           className="text-xs font-semibold uppercase tracking-wider"
           style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}
         >
-          Sections
+          {t('sectionNav.heading')}
         </span>
         <button
           onClick={() => setOpen(false)}
           className="p-1 rounded hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          aria-label="Close section navigator"
-          title="Close"
+          aria-label={t('sectionNav.closeAria')}
+          title={t('common.close')}
         >
           <X size={13} />
         </button>
@@ -253,6 +255,7 @@ function SectionItemRow({
   active: boolean;
   onClick: (ordinal: number) => void;
 }): React.ReactElement {
+  const t = useT();
   const rowRef = useRef<HTMLButtonElement>(null);
 
   // When this row becomes active, scroll it into view inside the panel so
@@ -275,7 +278,7 @@ function SectionItemRow({
         fontWeight: active ? 600 : 400,
         borderLeft: `3px solid ${active ? 'var(--accent)' : 'transparent'}`,
       }}
-      title={`Scroll to "${item.label}"`}
+      title={t('sectionNav.scrollTo', { label: item.label })}
     >
       <span className="truncate">{item.label}</span>
     </button>

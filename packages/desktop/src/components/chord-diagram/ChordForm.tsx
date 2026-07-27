@@ -4,6 +4,7 @@ import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 import InteractiveFretboard from './InteractiveFretboard';
 import InteractivePiano from './InteractivePiano';
+import { useT } from '../../i18n';
 
 export default function ChordForm({ instrument, initialName, nameDisabled, hideNameInPreview, initialDiagram, onSave, onCancel }: {
   instrument: InstrumentType;
@@ -16,6 +17,7 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
   onSave: (d: ChordDiagram) => void;
   onCancel: () => void;
 }): React.ReactElement {
+  const t = useT();
   const isPiano = instrument === 'piano';
   const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
   const [name, setName] = useState(initialName ?? initialDiagram?.name ?? '');
@@ -64,42 +66,42 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
     // Root accidentals — only useful before a quality, but harmless
     // anywhere; placed first so users typing "C" then "#" get C#.
     { chips: [
-      { label: '#',  insert: '#',  title: 'Sharp — raises the previous note by a semitone (e.g. C → C#)' },
-      { label: '♭',  insert: 'b',  title: 'Flat — lowers the previous note by a semitone (e.g. B → Bb)' },
+      { label: '#',  insert: '#',  title: t('chordForm.palette.sharp') },
+      { label: '♭',  insert: 'b',  title: t('chordForm.palette.flat') },
     ]},
     // Quality
     { chips: [
-      { label: 'm',  insert: 'm',  title: 'Minor — lowers the 3rd a semitone (e.g. Am = A C E)' },
-      { label: '+',  insert: '+',  title: 'Augmented — raises the 5th a semitone (e.g. C+ = C E G#)' },
-      { label: '°',  insert: '°',  title: 'Diminished — minor 3rd and flat 5 (e.g. B° = B D F)' },
-      { label: '°7', insert: '°7', title: 'Diminished 7 — fully diminished, stacked minor 3rds' },
+      { label: 'm',  insert: 'm',  title: t('chordForm.palette.minor') },
+      { label: '+',  insert: '+',  title: t('chordForm.palette.augmented') },
+      { label: '°',  insert: '°',  title: t('chordForm.palette.diminished') },
+      { label: '°7', insert: '°7', title: t('chordForm.palette.diminished7') },
     ]},
     // Sus
     { chips: [
-      { label: 'sus2', insert: 'sus2', title: 'Suspended 2 — replaces the 3rd with the 2nd' },
-      { label: 'sus4', insert: 'sus4', title: 'Suspended 4 — replaces the 3rd with the 4th' },
+      { label: 'sus2', insert: 'sus2', title: t('chordForm.palette.sus2') },
+      { label: 'sus4', insert: 'sus4', title: t('chordForm.palette.sus4') },
     ]},
     // Sevenths & extensions
     { chips: [
-      { label: '6',    insert: '6',    title: 'Sixth — adds the 6th above the root (e.g. C6 = C E G A)' },
-      { label: '7',    insert: '7',    title: 'Dominant 7 — adds a flat 7th (e.g. G7 = G B D F)' },
-      { label: 'maj7', insert: 'maj7', title: 'Major 7 — adds the major 7th (e.g. Cmaj7 = C E G B)' },
-      { label: '9',    insert: '9',    title: 'Ninth — dominant 7 plus the 9th (e.g. C9 = C E G Bb D)' },
-      { label: '11',   insert: '11',   title: 'Eleventh — adds the 11th on top of a dominant 9' },
-      { label: '13',   insert: '13',   title: 'Thirteenth — adds the 13th on top of a dominant 9' },
-      { label: 'add9', insert: 'add9', title: 'Added 9th — major triad plus the 9th, no 7th' },
+      { label: '6',    insert: '6',    title: t('chordForm.palette.sixth') },
+      { label: '7',    insert: '7',    title: t('chordForm.palette.dom7') },
+      { label: 'maj7', insert: 'maj7', title: t('chordForm.palette.maj7') },
+      { label: '9',    insert: '9',    title: t('chordForm.palette.ninth') },
+      { label: '11',   insert: '11',   title: t('chordForm.palette.eleventh') },
+      { label: '13',   insert: '13',   title: t('chordForm.palette.thirteenth') },
+      { label: 'add9', insert: 'add9', title: t('chordForm.palette.add9') },
     ]},
     // Alterations (applied to an existing quality)
     { chips: [
-      { label: 'b5',  insert: 'b5',  title: 'Flat 5 — lowers the 5th (e.g. m7b5, half-diminished)' },
-      { label: '#5',  insert: '#5',  title: 'Sharp 5 — raises the 5th (same as augmented)' },
-      { label: 'b9',  insert: 'b9',  title: 'Flat 9 — lowers the 9th (e.g. 7b9)' },
-      { label: '#9',  insert: '#9',  title: 'Sharp 9 — raises the 9th (e.g. 7#9, "Hendrix chord")' },
-      { label: '#11', insert: '#11', title: 'Sharp 11 — raises the 11th (e.g. maj7#11)' },
+      { label: 'b5',  insert: 'b5',  title: t('chordForm.palette.flat5') },
+      { label: '#5',  insert: '#5',  title: t('chordForm.palette.sharp5') },
+      { label: 'b9',  insert: 'b9',  title: t('chordForm.palette.flat9') },
+      { label: '#9',  insert: '#9',  title: t('chordForm.palette.sharp9') },
+      { label: '#11', insert: '#11', title: t('chordForm.palette.sharp11') },
     ]},
     // Slash bass
     { chips: [
-      { label: '/', insert: '/', title: 'Slash bass — put a non-root note in the bass (e.g. C/G)' },
+      { label: '/', insert: '/', title: t('chordForm.palette.slashBass') },
     ]},
   ];
 
@@ -123,10 +125,10 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
         <span className="whitespace-nowrap relative inline-block">
           {/* Reserve the width of the longer "Chord Name" label so
               the right column starts at the same x as the input. */}
-          <span aria-hidden="true" style={{ visibility: 'hidden' }}>Chord Name</span>
+          <span aria-hidden="true" style={{ visibility: 'hidden' }}>{t('chordForm.chordName')}</span>
           {/* Visible "Symbols" label, absolutely positioned on the
               left so it sits exactly where "Chord Name" sits below. */}
-          <span style={{ position: 'absolute', left: 0, top: 0 }}>Symbols</span>
+          <span style={{ position: 'absolute', left: 0, top: 0 }}>{t('chordForm.symbols')}</span>
         </span>
         <div
           className="flex-1 min-w-0 flex items-center gap-1 flex-wrap"
@@ -166,8 +168,8 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
           spacing (mt-5 mb-6) gives clear visual separation from both
           the palette above and the fretboard/piano editor below. */}
       <label className="flex items-center gap-2 text-xs mt-5 mb-6" style={{ color: 'var(--text-secondary)' }}>
-        <span className="whitespace-nowrap">Chord Name</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} disabled={nameDisabled} placeholder="e.g. Cmaj9"
+        <span className="whitespace-nowrap">{t('chordForm.chordName')}</span>
+        <input value={name} onChange={(e) => setName(e.target.value)} disabled={nameDisabled} placeholder={t('chordForm.chordNamePlaceholder')}
           className="flex-1 min-w-0 text-sm rounded px-2 py-1" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', opacity: nameDisabled ? 0.6 : 1 }} />
       </label>
 
@@ -180,7 +182,7 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
           )}
         </div>
         <div className="flex flex-col items-center" style={{ flex: '0 0 auto' }}>
-          <p className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>Preview</p>
+          <p className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>{t('chordForm.preview')}</p>
           <ChordDiagramSVG diagram={preview} width={isPiano ? 200 : 140}
             lineColor={svs.lyrics.color || undefined} chordColor={svs.chords.color || undefined} hideName={hideNameInPreview} />
         </div>
@@ -189,12 +191,12 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
       {!isPiano && (
         <div className="flex items-center justify-center gap-3 mt-2">
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            Click to place dots · Above nut cycles x → o → none · Drag across strings for barre
+            {t('chordForm.fretboardHint')}
           </p>
           {barre && (
             <button onClick={() => handleFretboardChange(frets, baseFret, null)} className="text-[10px] px-2 py-0.5 rounded"
               style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>
-              Remove barre
+              {t('chordForm.removeBarre')}
             </button>
           )}
         </div>
@@ -203,9 +205,9 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
       <div className="flex gap-2 justify-center mt-3">
         <button onClick={() => { if (name.trim()) onSave({ ...preview, name: name.trim() }); }}
           className="px-4 py-1.5 rounded text-xs font-semibold" style={{ background: 'var(--accent)', color: 'white' }}>
-          {initialDiagram ? 'Update' : 'Save'}
+          {initialDiagram ? t('chordForm.update') : t('common.save')}
         </button>
-        <button onClick={onCancel} className="px-4 py-1.5 rounded text-xs" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+        <button onClick={onCancel} className="px-4 py-1.5 rounded text-xs" style={{ color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
       </div>
     </div>
   );

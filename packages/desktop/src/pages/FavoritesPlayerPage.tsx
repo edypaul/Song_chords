@@ -5,8 +5,10 @@ import { useSongStore } from '@song-chords/shared';
 import PerformPage, { type PerformItem } from '../components/song/PerformPage';
 import { db } from '../ipc/ipc-client';
 import { parseSortFromSearch, sortSongs } from '../utils/song-sort';
+import { useT } from '../i18n';
 
 export default function FavoritesPlayerPage(): React.ReactElement {
+  const t = useT();
   const songs = useSongStore((s) => s.songs);
   const favoriteEntries = useSongStore((s) => s.favoriteEntries);
   const updateFavoriteEntry = useSongStore((s) => s.updateFavoriteEntry);
@@ -36,7 +38,7 @@ export default function FavoritesPlayerPage(): React.ReactElement {
 
   return (
     <PerformPage
-      title="Favorites"
+      title={t('favoritesPlayer.title')}
       icon={<Star size={14} style={{ color: 'var(--accent)' }} fill="currentColor" />}
       items={items}
       exitTo="/favorites"
@@ -45,7 +47,7 @@ export default function FavoritesPlayerPage(): React.ReactElement {
       }}
       emptyState={<>
         <Star size={36} style={{ opacity: 0.4 }} />
-        <p>No favorite songs.</p>
+        <p>{t('favoritesPlayer.empty')}</p>
       </>}
     />
   );

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useT } from '../../i18n';
 
 interface Props {
   title: string;
@@ -11,9 +12,12 @@ interface Props {
 }
 
 export default function ConfirmDialog({
-  title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel',
+  title, message, confirmLabel, cancelLabel,
   danger = false, onConfirm, onCancel,
 }: Props): React.ReactElement {
+  const t = useT();
+  const resolvedConfirm = confirmLabel ?? t('common.confirm');
+  const resolvedCancel = cancelLabel ?? t('common.cancel');
   useEffect(() => {
     // Capture phase + stopImmediatePropagation so page-level handlers
     // (e.g. "navigate back" on Escape) don't also fire.
@@ -53,7 +57,7 @@ export default function ConfirmDialog({
             className="px-3 py-1.5 rounded text-sm"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
           >
-            {cancelLabel}
+            {resolvedCancel}
           </button>
           <button
             onClick={onConfirm}
@@ -61,7 +65,7 @@ export default function ConfirmDialog({
             style={{ background: danger ? 'var(--danger)' : 'var(--accent)', color: 'white' }}
             autoFocus
           >
-            {confirmLabel}
+            {resolvedConfirm}
           </button>
         </div>
       </div>

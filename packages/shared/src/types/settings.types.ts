@@ -3,6 +3,12 @@ import type { InstrumentType } from './chord.types';
 export type ThemeType = 'light' | 'dark' | 'system';
 export type ViewMode = 'chords' | 'lyrics-only' | 'chords-only';
 
+/** Supported UI languages. `en` is the source-of-truth dictionary
+ *  every other locale falls back to when a key is missing. Add a new
+ *  language by extending this union AND providing a dictionary in
+ *  `packages/desktop/src/i18n/dict/<code>.ts`. */
+export type UiLanguage = 'en' | 'es' | 'pt' | 'it' | 'fr' | 'de';
+
 /** Columns the user can show or hide in every song-list table (library,
  * categories drill-down, favorites). Title is always visible and not
  * included here. */
@@ -199,4 +205,9 @@ export interface AppSettings {
    * confirmation and must always show.
    */
   dismissedHints?: Record<string, boolean>;
+  /** UI language for menus, buttons, tooltips, and dialog text.
+   *  Song content itself (lyrics, chord names, notes) is user data
+   *  and never translated. Defaults to `'en'` for backwards compat;
+   *  older settings blobs simply fall through to English. */
+  uiLanguage?: UiLanguage;
 }

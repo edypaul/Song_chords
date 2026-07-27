@@ -16,8 +16,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { toTitleCase } from '../utils/text';
 import PlayLinkButton from '../components/song/PlayLinkButton';
 import NotesLinkButton from '../components/song/NotesLinkButton';
+import { useT } from '../i18n';
 
 export default function SetListDetailPage(): React.ReactElement {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { activeSetList, openSetList, addSongToSetList, addNoteToSetList, updateNoteEntry, removeSongFromSetList, reorderSetList } = useSetListStore();
@@ -53,7 +55,7 @@ export default function SetListDetailPage(): React.ReactElement {
   );
 
   if (!activeSetList) {
-    return <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+    return <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-muted)' }}>{t('common.loading')}</div>;
   }
 
   return (
@@ -63,20 +65,20 @@ export default function SetListDetailPage(): React.ReactElement {
           <ArrowLeft size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <h1 className="font-bold text-lg flex-1" style={{ color: 'var(--text-primary)' }}>{activeSetList.name}</h1>
-        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{activeSetList.entries.length} items</span>
+        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('setListDetail.itemCount', { count: activeSetList.entries.length })}</span>
         <button
           onClick={() => setShowAddSong(!showAddSong)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
         >
-          <Plus size={14} />Add Song
+          <Plus size={14} />{t('setListDetail.addSong')}
         </button>
         <button
           onClick={() => setEditingNote({ id: null, title: '', body: '' })}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
         >
-          <FileText size={14} />Add Note
+          <FileText size={14} />{t('setListDetail.addNote')}
         </button>
         {activeSetList.entries.length > 0 && (
           <button
@@ -84,7 +86,7 @@ export default function SetListDetailPage(): React.ReactElement {
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            <Play size={14} />Perform
+            <Play size={14} />{t('setListDetail.perform')}
           </button>
         )}
       </div>
@@ -94,9 +96,9 @@ export default function SetListDetailPage(): React.ReactElement {
         <div className="flex-1 overflow-y-auto p-4">
           {activeSetList.entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-3" style={{ color: 'var(--text-muted)' }}>
-              <p>No songs in this set list</p>
+              <p>{t('setListDetail.emptyList')}</p>
               <button onClick={() => setShowAddSong(true)} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
-                Add songs
+                {t('setListDetail.addSongs')}
               </button>
             </div>
           ) : (
@@ -134,7 +136,7 @@ export default function SetListDetailPage(): React.ReactElement {
                   autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search songs..."
+                  placeholder={t('setListDetail.searchSongs')}
                   className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg outline-none"
                   style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                 />
@@ -182,6 +184,7 @@ function NoteEditor({ initialTitle, initialBody, onClose, onSave }: {
   onClose: () => void;
   onSave: (title: string, body: string) => void;
 }): React.ReactElement {
+  const t = useT();
   const [title, setTitle] = useState(initialTitle);
   const [body, setBody] = useState(initialBody);
   return (
@@ -190,7 +193,7 @@ function NoteEditor({ initialTitle, initialBody, onClose, onSave }: {
         <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <FileText size={16} style={{ color: 'var(--accent)' }} />
           <p className="text-sm font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>
-            {initialTitle || initialBody ? 'Edit note' : 'New note'}
+            {initialTitle || initialBody ? t('setListDetail.note.editTitle') : t('setListDetail.note.newTitle')}
           </p>
           <button onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]">
             <X size={14} style={{ color: 'var(--text-muted)' }} />
@@ -201,28 +204,28 @@ function NoteEditor({ initialTitle, initialBody, onClose, onSave }: {
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Note title (e.g., Intro speech)"
+            placeholder={t('setListDetail.note.titlePlaceholder')}
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Write your poem, cue, or instructions here…"
+            placeholder={t('setListDetail.note.bodyPlaceholder')}
             rows={10}
             className="px-3 py-2 rounded-lg text-sm outline-none resize-y font-mono"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', lineHeight: 1.5 }}
           />
         </div>
         <div className="flex items-center justify-end gap-2 p-3 border-t" style={{ borderColor: 'var(--border)' }}>
-          <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+          <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg" style={{ color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
           <button
             onClick={() => onSave(title.trim(), body)}
             disabled={!title.trim() && !body.trim()}
             className="px-4 py-1.5 text-sm font-medium rounded-lg disabled:opacity-40"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            Save note
+            {t('setListDetail.note.save')}
           </button>
         </div>
       </div>
@@ -267,12 +270,13 @@ function SortableEntry({
   onRemove: () => void;
   onOpen: () => void;
 }): React.ReactElement {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: entry.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
 
   // ── Note entry — simpler row, distinctive accent-tinted background. ────
   if (entry.type === 'note') {
-    const title = entry.noteTitle?.trim() || 'Untitled note';
+    const title = entry.noteTitle?.trim() || t('setListDetail.note.untitled');
     const preview = entry.noteBody?.trim().split('\n')[0] ?? '';
     return (
       <NoteRow ref={setNodeRef} dndStyle={style}>
@@ -285,8 +289,8 @@ function SortableEntry({
           <p className="font-medium truncate text-sm italic" style={{ color: 'var(--text-primary)' }}>{title}</p>
           {preview && <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{preview}</p>}
         </button>
-        <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--accent)' }}>Note</span>
-        <button onClick={onOpen} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title="Edit note">
+        <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--accent)' }}>{t('setListDetail.note.badge')}</span>
+        <button onClick={onOpen} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title={t('setListDetail.note.editTitle')}>
           <Pencil size={14} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <button onClick={onRemove} className="p-1 rounded hover:bg-[var(--surface-elevated)]">
@@ -301,8 +305,8 @@ function SortableEntry({
   if (!song) {
     // Defensive fallback for a song entry whose source song was deleted.
     return (
-      <div ref={setNodeRef} style={style} className="flex items-center gap-3 p-3 rounded-xl border border-dashed" title="Source song no longer exists">
-        <span className="flex-1 text-sm italic" style={{ color: 'var(--text-muted)' }}>Missing song</span>
+      <div ref={setNodeRef} style={style} className="flex items-center gap-3 p-3 rounded-xl border border-dashed" title={t('setListDetail.entry.missingSongTitle')}>
+        <span className="flex-1 text-sm italic" style={{ color: 'var(--text-muted)' }}>{t('setListDetail.entry.missingSong')}</span>
         <button onClick={onRemove} className="p-1 rounded hover:bg-[var(--surface-elevated)]">
           <Trash2 size={14} style={{ color: 'var(--danger)' }} />
         </button>
@@ -337,7 +341,7 @@ function SortableEntry({
         <span
           className="text-xs font-mono"
           style={{ color: keyOverridden ? 'var(--accent)' : 'var(--chord-color)' }}
-          title={keyOverridden ? `Transposed from ${song.key ?? '—'}` : undefined}
+          title={keyOverridden ? t('setListDetail.entry.transposedFrom', { key: song.key ?? '—' }) : undefined}
         >
           {displayKey}
         </span>
@@ -349,25 +353,25 @@ function SortableEntry({
             background: 'var(--surface-elevated)',
             color: capoOverridden ? 'var(--accent)' : 'var(--text-muted)',
           }}
-          title={`Capo ${entry.capo}${capoOverridden ? ` (song: ${song.capo ?? 0})` : ''}`}
+          title={capoOverridden ? t('setListDetail.entry.capoTitleOverridden', { capo: entry.capo, songCapo: song.capo ?? 0 }) : t('setListDetail.entry.capoTitle', { capo: entry.capo })}
         >
-          Capo {entry.capo}
+          {t('setListDetail.entry.capoLabel', { capo: entry.capo })}
         </span>
       )}
       {displayTempo && (
         <span
           className="text-[10px] font-mono"
           style={{ color: tempoOverridden ? 'var(--accent)' : 'var(--text-muted)' }}
-          title={tempoOverridden ? `Overridden (song: ${song.tempo ?? '—'} BPM)` : undefined}
+          title={tempoOverridden ? t('setListDetail.entry.tempoOverridden', { tempo: song.tempo ?? '—' }) : undefined}
         >
-          {displayTempo} BPM
+          {t('setListDetail.entry.tempoBpm', { tempo: displayTempo })}
         </span>
       )}
       {song.duration && (
         <span
           className="text-[10px] font-mono"
           style={{ color: 'var(--text-muted)' }}
-          title="Duration"
+          title={t('setListDetail.entry.durationTitle')}
         >
           {song.duration}
         </span>

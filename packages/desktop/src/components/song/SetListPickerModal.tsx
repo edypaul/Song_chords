@@ -3,6 +3,7 @@ import { X, Check, Plus, ListMusic } from 'lucide-react';
 import { useSetListStore } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
 import { toTitleCase } from '../../utils/text';
+import { useT } from '../../i18n';
 
 interface Props {
   /** Setlist ids already selected — shown with a check. */
@@ -19,6 +20,7 @@ interface Props {
  * caller receives the final list of chosen ids via `onConfirm`.
  */
 export default function SetListPickerModal({ initialSelected, hint, onClose, onConfirm }: Props): React.ReactElement {
+  const t = useT();
   const setlists = useSetListStore((s) => s.setlists);
   const createSetList = useSetListStore((s) => s.createSetList);
   const [picked, setPicked] = useState<Set<string>>(() => new Set(initialSelected));
@@ -71,8 +73,8 @@ export default function SetListPickerModal({ initialSelected, hint, onClose, onC
       >
         <div className="flex items-start gap-3 p-5 pb-3 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex-1 min-w-0">
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Add to set list</p>
-            <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>Pick set lists</h3>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('setListPicker.addToSetList')}</p>
+            <h3 className="font-semibold text-base" style={{ color: 'var(--text-primary)' }}>{t('setListPicker.title')}</h3>
             {hint && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]">
@@ -82,7 +84,7 @@ export default function SetListPickerModal({ initialSelected, hint, onClose, onC
 
         <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-1">
           {setlists.length === 0 && !creating && (
-            <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>No set lists yet.</p>
+            <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>{t('setListPicker.empty')}</p>
           )}
           {setlists.map((sl) => {
             const on = picked.has(sl.id);
@@ -117,7 +119,7 @@ export default function SetListPickerModal({ initialSelected, hint, onClose, onC
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); if (e.key === 'Escape') setCreating(false); }}
-                placeholder="New set list name"
+                placeholder={t('setListPicker.newPlaceholder')}
                 className="flex-1 px-2 py-1.5 rounded text-sm outline-none"
                 style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
               />
@@ -127,7 +129,7 @@ export default function SetListPickerModal({ initialSelected, hint, onClose, onC
                 className="px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50"
                 style={{ background: 'var(--accent)', color: 'white' }}
               >
-                Create
+                {t('setListPicker.create')}
               </button>
             </div>
           ) : (
@@ -137,18 +139,18 @@ export default function SetListPickerModal({ initialSelected, hint, onClose, onC
               style={{ color: 'var(--text-secondary)' }}
             >
               <Plus size={14} />
-              New set list
+              {t('setListPicker.newSetList')}
             </button>
           )}
 
           <div className="flex items-center justify-end gap-2">
-            <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+            <button onClick={onClose} className="px-3 py-1.5 text-sm rounded-lg" style={{ color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
             <button
               onClick={() => onConfirm([...picked])}
               className="px-4 py-1.5 text-sm font-medium rounded-lg"
               style={{ background: 'var(--accent)', color: 'white' }}
             >
-              Done
+              {t('setListPicker.done')}
             </button>
           </div>
         </div>

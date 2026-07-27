@@ -6,6 +6,7 @@ import { useSongStore, useSetListStore, useSettingsStore, formatChord } from '@s
 import { matchShortcut } from '../../utils/shortcut';
 import { searchLibrary, matchFieldLabel, type SearchResult } from '../../utils/global-search';
 import { toTitleCase } from '../../utils/text';
+import { useT } from '../../i18n';
 
 /**
  * App-wide search overlay. Opens from anywhere via the configurable
@@ -18,6 +19,7 @@ import { toTitleCase } from '../../utils/text';
  * the user is typing in a field, so Ctrl+K always works.
  */
 export default function GlobalSearch(): React.ReactElement | null {
+  const t = useT();
   const navigate = useNavigate();
   const songs = useSongStore((s) => s.songs);
   const setlists = useSetListStore((s) => s.setlists);
@@ -129,7 +131,7 @@ export default function GlobalSearch(): React.ReactElement | null {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKey}
-            placeholder="Search songs, artists, lyrics, set lists…"
+            placeholder={t('search.placeholder')}
             className="flex-1 bg-transparent outline-none text-base"
             style={{ color: 'var(--text-primary)' }}
             spellCheck={false}
@@ -137,7 +139,7 @@ export default function GlobalSearch(): React.ReactElement | null {
           <button
             onClick={close}
             className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-            title="Close (Esc)"
+            title={t('search.closeTitle')}
           >
             <X size={16} style={{ color: 'var(--text-muted)' }} />
           </button>
@@ -151,7 +153,7 @@ export default function GlobalSearch(): React.ReactElement | null {
             className="px-4 py-3 text-sm shrink-0"
             style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}
           >
-            No results for “{query.trim()}”.
+            {t('search.noResults', { query: query.trim() })}
           </div>
         )}
 
@@ -202,10 +204,10 @@ export default function GlobalSearch(): React.ReactElement | null {
           className="flex items-center gap-4 px-4 py-2 text-[11px] shrink-0"
           style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
         >
-          <span><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
-          <span><Kbd>↵</Kbd> open</span>
-          <span><Kbd>Esc</Kbd> close</span>
-          <span className="ml-auto">{results.length} result{results.length === 1 ? '' : 's'}</span>
+          <span><Kbd>↑</Kbd><Kbd>↓</Kbd> {t('search.hint.navigate')}</span>
+          <span><Kbd>↵</Kbd> {t('search.hint.open')}</span>
+          <span><Kbd>Esc</Kbd> {t('search.hint.close')}</span>
+          <span className="ml-auto">{t(results.length === 1 ? 'search.resultsOne' : 'search.resultsMany', { count: results.length })}</span>
         </div>
         )}
       </div>

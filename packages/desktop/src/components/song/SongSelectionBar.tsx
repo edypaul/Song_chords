@@ -7,6 +7,7 @@ import ConfirmDialog from '../common/ConfirmDialog';
 import SetListPickerModal from './SetListPickerModal';
 import SongExportModal from './SongExportModal';
 import SongListColumnsPopover from './SongListColumnsPopover';
+import { useT } from '../../i18n';
 
 interface Props {
   /** Songs currently selected. */
@@ -22,6 +23,7 @@ interface Props {
  * count and a clear (×) button sit on the left of the cluster.
  */
 export default function SongSelectionBar({ selected, onClear }: Props): React.ReactElement | null {
+  const t = useT();
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const deleteSong = useSongStore((s) => s.deleteSong);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
@@ -82,13 +84,13 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
           onClick={onClear}
           disabled={isEmpty}
           className="p-1.5 rounded hover:bg-[var(--surface)] disabled:hover:bg-transparent disabled:cursor-not-allowed"
-          title="Clear selection"
-          aria-label="Clear selection"
+          title={t('songSelection.clear')}
+          aria-label={t('songSelection.clear')}
         >
           <X size={14} style={{ color: 'var(--text-muted)' }} />
         </button>
         <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
-          {selected.length} selected
+          {t('songSelection.selected', { count: selected.length })}
         </span>
 
         <div className="ml-1 flex items-center gap-1">
@@ -96,8 +98,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
             onClick={() => void handleFavoriteToggle()}
             disabled={isEmpty}
             className={iconBtn}
-            title={isEmpty ? 'Select songs to favorite' : (allFavorite ? 'Remove from favorites' : 'Add to favorites')}
-            aria-label={allFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            title={isEmpty ? t('songSelection.favorite.disabled') : (allFavorite ? t('songSelection.favorite.remove') : t('songSelection.favorite.add'))}
+            aria-label={allFavorite ? t('songSelection.favorite.remove') : t('songSelection.favorite.add')}
           >
             <Star
               size={16}
@@ -110,8 +112,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
             onClick={() => setShowPicker(true)}
             disabled={isEmpty}
             className={iconBtn}
-            title={isEmpty ? 'Select songs to add to a set list' : 'Add to set list'}
-            aria-label="Add to set list"
+            title={isEmpty ? t('songSelection.addToSetList.disabled') : t('songSelection.addToSetList')}
+            aria-label={t('songSelection.addToSetList')}
           >
             <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -120,8 +122,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
             onClick={() => setShowExport(true)}
             disabled={isEmpty}
             className={iconBtn}
-            title={isEmpty ? 'Select songs to export' : 'Export selected songs'}
-            aria-label="Export selected songs"
+            title={isEmpty ? t('songSelection.export.disabled') : t('songSelection.export')}
+            aria-label={t('songSelection.export')}
           >
             <Download size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -130,8 +132,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
             onClick={() => setShowDelete(true)}
             disabled={isEmpty}
             className={iconBtn}
-            title={isEmpty ? 'Select songs to delete' : 'Delete selected songs'}
-            aria-label="Delete selected songs"
+            title={isEmpty ? t('songSelection.delete.disabled') : t('songSelection.delete')}
+            aria-label={t('songSelection.delete')}
           >
             <Trash2 size={16} style={{ color: 'var(--danger)' }} />
           </button>
@@ -144,8 +146,8 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
         ref={columnsBtnRef}
         onClick={() => setShowColumns((v) => !v)}
         className={iconBtn}
-        title="Show / hide and reorder columns"
-        aria-label="Columns"
+        title={t('songSelection.columns.toggle')}
+        aria-label={t('songSelection.columns.aria')}
         aria-expanded={showColumns}
         style={{ background: showColumns ? 'var(--surface-elevated)' : undefined }}
       >
@@ -163,7 +165,7 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
       {showExport && (
         <SongExportModal
           songs={selected}
-          bookTitle={`${selected.length} selected songs`}
+          bookTitle={t('songSelection.exportHeading', { count: selected.length })}
           onClose={() => setShowExport(false)}
         />
       )}
@@ -171,7 +173,9 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
       {showPicker && (
         <SetListPickerModal
           initialSelected={[]}
-          hint={`Will add ${selected.length} song${selected.length === 1 ? '' : 's'} to the chosen set list${selected.length === 1 ? '' : 's'}.`}
+          hint={selected.length === 1
+            ? t('songSelection.pickerHintOne', { count: selected.length })
+            : t('songSelection.pickerHintMany', { count: selected.length })}
           onClose={() => setShowPicker(false)}
           onConfirm={(ids) => void handleAddToSetLists(ids)}
         />
@@ -179,13 +183,15 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
 
       {showDelete && (
         <ConfirmDialog
-          title={`Delete ${selected.length} song${selected.length === 1 ? '' : 's'}?`}
+          title={selected.length === 1
+            ? t('songSelection.deleteTitleOne', { count: selected.length })
+            : t('songSelection.deleteTitleMany', { count: selected.length })}
           message={
-            <>
-              This permanently removes {selected.length === 1 ? <><strong>{selected[0]!.title}</strong></> : <>these songs</>} from the library. Set list and favorite references will be cleaned up automatically.
-            </>
+            selected.length === 1
+              ? <>{t('songSelection.deleteMessageOne', { title: selected[0]!.title })}</>
+              : <>{t('songSelection.deleteMessageMany')}</>
           }
-          confirmLabel="Delete"
+          confirmLabel={t('common.delete')}
           danger
           onCancel={() => setShowDelete(false)}
           onConfirm={() => void handleDelete()}

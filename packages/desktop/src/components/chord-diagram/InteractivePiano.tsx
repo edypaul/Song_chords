@@ -1,4 +1,5 @@
 import React from 'react';
+import { useT } from '../../i18n';
 
 interface Props {
   /** Currently-selected semitone offsets (0..23). The first entry is the
@@ -28,6 +29,7 @@ const WHITE_TO_SEMITONE: number[] = [0, 2, 4, 5, 7, 9, 11];
  * read as the same instrument.
  */
 export default function InteractivePiano({ notes, onChange, width = 300 }: Props): React.ReactElement {
+  const t = useT();
   const selected = new Set(notes);
   const root = notes[0];
 
@@ -162,7 +164,7 @@ export default function InteractivePiano({ notes, onChange, width = 300 }: Props
         })}
       </svg>
       <p className="text-[10px] mt-1" style={{ color: 'var(--text-muted)' }}>
-        Click a key to add/remove · Shift-click to set as root
+        {t('piano.hint')}
       </p>
     </div>
   );

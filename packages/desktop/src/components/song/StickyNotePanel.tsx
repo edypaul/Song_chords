@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { StickyNote, X, Edit2 } from 'lucide-react';
+import { useT } from '../../i18n';
 
 interface Props {
   title: string;
@@ -43,6 +44,7 @@ const positionCache = new Map<string, {
  * - When `onSave` is provided the header exposes an inline edit mode.
  */
 export default function StickyNotePanel({ title, notes, onClose, onSave, positionKey }: Props): React.ReactElement {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(notes);
   useEffect(() => { if (!editing) setDraft(notes); }, [notes, editing]);
@@ -245,7 +247,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
       >
         <div className="flex items-center gap-2 min-w-0">
           <StickyNote size={14} style={{ color: 'var(--accent)' }} />
-          <h3 className="font-semibold text-xs truncate" style={{ color: 'var(--text-primary)' }} title={title}>Song Notes</h3>
+          <h3 className="font-semibold text-xs truncate" style={{ color: 'var(--text-primary)' }} title={title}>{t('notes.title')}</h3>
         </div>
         <div className="flex items-center gap-1">
           {onSave && !editing && (
@@ -253,7 +255,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
               data-close
               onClick={() => { setDraft(notes); setEditing(true); }}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-              title="Edit note"
+              title={t('notes.edit')}
             >
               <Edit2 size={13} style={{ color: 'var(--text-secondary)' }} />
             </button>
@@ -265,22 +267,22 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
                 onClick={async () => { await onSave(draft); setEditing(false); }}
                 className="px-1.5 py-0.5 rounded text-[11px] font-medium hover:bg-[var(--surface-elevated)]"
                 style={{ color: 'var(--accent)' }}
-                title="Save"
+                title={t('common.save')}
               >
-                Save
+                {t('common.save')}
               </button>
               <button
                 data-close
                 onClick={() => { setDraft(notes); setEditing(false); }}
                 className="px-1.5 py-0.5 rounded text-[11px] hover:bg-[var(--surface-elevated)]"
                 style={{ color: 'var(--text-muted)' }}
-                title="Cancel"
+                title={t('common.cancel')}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </>
           )}
-          <button data-close onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title="Close">
+          <button data-close onClick={onClose} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title={t('common.close')}>
             <X size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
         </div>
@@ -292,14 +294,14 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
           onChange={(e) => setDraft(e.target.value)}
           className="flex-1 p-3 text-sm leading-relaxed outline-none resize-none"
           style={{ background: 'transparent', color: 'var(--text-primary)', border: 'none' }}
-          placeholder="Write your notes here…"
+          placeholder={t('notes.placeholder')}
         />
       ) : (
         <div
           className="flex-1 p-3 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"
           style={{ color: notes ? 'var(--text-primary)' : 'var(--text-muted)' }}
         >
-          {notes || 'No notes yet — click the pencil to add some.'}
+          {notes || t('notes.emptyHint')}
         </div>
       )}
     </div>

@@ -29,6 +29,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useShortcutHint } from '../../hooks/useShortcutHint';
 import { db } from '../../ipc/ipc-client';
 import { toTitleCase } from '../../utils/text';
+import { useT } from '../../i18n';
 
 /**
  * One item in a perform queue. Songs carry an optional `overrides` patch that's
@@ -92,6 +93,7 @@ interface PerformPageProps {
 }
 
 export default function PerformPage({ title, icon, items, onOverridesChange, emptyState, exitTo }: PerformPageProps): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -449,8 +451,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   if (total === 0) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center gap-4" style={{ background: 'var(--bg)', color: 'var(--text-muted)', zIndex: 100 }}>
-        {emptyState ?? <p>Nothing to perform.</p>}
-        <button onClick={exitPerform} className="px-4 py-2 rounded-lg" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)' }}>Back</button>
+        {emptyState ?? <p>{t('perform.nothingToPerform')}</p>}
+        <button onClick={exitPerform} className="px-4 py-2 rounded-lg" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)' }}>{t('perform.back')}</button>
       </div>
     );
   }
@@ -477,11 +479,11 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             onClick={() => setToolbarHidden(false)}
             className="flex items-center justify-center gap-1.5 text-xs rounded-md px-3 py-0.5 hover:bg-[var(--surface-elevated)] transition-colors"
             style={{ color: 'var(--text-muted)', cursor: 'pointer' }}
-            title={`Show toolbar${hint('toggleToolbar')}`}
-            aria-label="Show toolbar"
+            title={`${t('perform.showToolbar')}${hint('toggleToolbar')}`}
+            aria-label={t('perform.showToolbar')}
           >
             <ChevronDown size={14} />
-            <span>Show toolbar</span>
+            <span>{t('perform.showToolbar')}</span>
           </button>
         </div>
       )}
@@ -506,7 +508,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <span>{svs.titleUppercase ? title : toTitleCase(title)}</span>
         </div>
         <span className="px-2 py-0.5 rounded text-xs" style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)' }}>
-          {activeIndex + 1} / {total}
+          {t('perform.positionCounter', { index: activeIndex + 1, total })}
         </span>
 
         {/* Compact three-dot navigator: ‹ o O o › — previous / current /
@@ -534,8 +536,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               background: 'transparent',
               color: 'var(--text-secondary)',
             }}
-            title={`Previous${hint('prevSong')}`}
-            aria-label="Previous item"
+            title={`${t('perform.previous')}${hint('prevSong')}`}
+            aria-label={t('perform.previousItem')}
           >
             <ChevronLeft size={14} />
           </button>
@@ -557,8 +559,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               // rule so the label matches how song titles appear
               // everywhere else in the app.
               const rawTip = isNote
-                ? (it.noteTitle?.trim() || 'Note')
-                : (it.song?.title ?? 'Song');
+                ? (it.noteTitle?.trim() || t('perform.defaultNoteTitle'))
+                : (it.song?.title ?? t('perform.defaultSongTitle'));
               const tip = svs.titleUppercase ? rawTip.toUpperCase() : toTitleCase(rawTip);
               const activeColor = isNote ? '#f59e0b' : 'var(--accent)';
               const dim = isCurrent ? 12 : 8;
@@ -580,7 +582,10 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   style={commonStyle}
                   title={tip}
                   aria-current={isCurrent ? 'true' : undefined}
-                  aria-label={`${role === 'prev' ? 'Previous' : role === 'next' ? 'Next' : 'Current'}: ${tip}`}
+                  aria-label={t('perform.currentItemAria', {
+                    position: role === 'prev' ? t('perform.positionPrevious') : role === 'next' ? t('perform.positionNext') : t('perform.positionCurrent'),
+                    title: tip,
+                  })}
                 />
               );
             })}
@@ -596,8 +601,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               background: 'transparent',
               color: 'var(--text-secondary)',
             }}
-            title={`Next${hint('nextSong')}`}
-            aria-label="Next item"
+            title={`${t('perform.next')}${hint('nextSong')}`}
+            aria-label={t('perform.nextItem')}
           >
             <ChevronRight size={14} />
           </button>
@@ -607,7 +612,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           {(() => {
             const nextItem = items[activeIndex + 1];
             if (!nextItem) {
-              const raw = 'Last song — end of set list';
+              const raw = t('perform.lastSong');
               return (
                 <span
                   className="text-xs italic"
@@ -618,14 +623,14 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               );
             }
             const label = nextItem.type === 'note'
-              ? (nextItem.noteTitle?.trim() || 'Note')
+              ? (nextItem.noteTitle?.trim() || t('perform.defaultNoteTitle'))
               : (nextItem.song ? (svs.titleUppercase ? nextItem.song.title : toTitleCase(nextItem.song.title)) : '');
             return (
               <span
                 className="text-xs truncate max-w-xs"
                 style={{ color: 'var(--text-muted)', textTransform: svs.titleUppercase ? 'uppercase' : undefined }}
               >
-                Next: <strong style={{ color: 'var(--text-secondary)' }}>{label}</strong>
+                {t('perform.nextLabel')} <strong style={{ color: 'var(--text-secondary)' }}>{label}</strong>
               </span>
             );
           })()}
@@ -639,7 +644,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             pointerEvents: isNoteActive ? 'none' : undefined,
           }}
           aria-disabled={isNoteActive}
-          title={isNoteActive ? 'Not available on a note entry' : undefined}
+          title={isNoteActive ? t('perform.notAvailableOnNote') : undefined}
         >
           <TransposeControl />
           <div className="ml-2"><AutoScrollControl /></div>
@@ -700,7 +705,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   onClick={activateLyricsOnly}
                   className="p-1.5 rounded-md"
                   style={btnStyle(lyricsOnly, false)}
-                  title={`${lyricsOnly ? 'Show chord names' : 'Show lyrics only'}${hint('toggleLyricsOnly')}`}
+                  title={`${lyricsOnly ? t('perform.showChordNames') : t('perform.showLyricsOnly')}${hint('toggleLyricsOnly')}`}
                 >
                   <FileText size={14} />
                 </button>
@@ -708,7 +713,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   onClick={activateChordBar}
                   className="p-1.5 rounded-md"
                   style={btnStyle(chordBarOn, false)}
-                  title={`${chordBarOn ? 'Hide chord diagrams bar' : 'Show chord diagrams bar'}${hint('toggleChordBar')}`}
+                  title={`${chordBarOn ? t('perform.hideChordBar') : t('perform.showChordBar')}${hint('toggleChordBar')}`}
                 >
                   <Guitar size={14} />
                 </button>
@@ -718,8 +723,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
                   className="p-1.5 rounded-md"
                   style={btnStyle(inlineOn, isPiano)}
                   title={isPiano
-                    ? 'Inline diagrams are unavailable for piano'
-                    : `${inlineOn ? 'Hide inline chord diagrams' : 'Show inline chord diagrams'}${hint('toggleInlineDiagrams')}`}
+                    ? t('perform.inlinePianoUnavailable')
+                    : `${inlineOn ? t('perform.hideInlineDiagrams') : t('perform.showInlineDiagrams')}${hint('toggleInlineDiagrams')}`}
                 >
                   <LayoutGrid size={14} />
                 </button>
@@ -740,8 +745,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => void toggleFavorite(db, activeSong.id)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`${activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}${hint('toggleFavorite')}`}
-            aria-label={activeSong.favorite ? 'Remove from favorites' : 'Add to favorites'}
+            title={`${activeSong.favorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}${hint('toggleFavorite')}`}
+            aria-label={activeSong.favorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}
           >
             <Star
               size={16}
@@ -763,8 +768,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => setShowSetListPicker(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Add to set list${hint('addToSetList')}`}
-            aria-label="Add to set list"
+            title={`${t('perform.addToSetList')}${hint('addToSetList')}`}
+            aria-label={t('perform.addToSetList')}
           >
             <ListMusic size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -775,8 +780,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => setShowExport(true)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Export song${hint('exportSong')}`}
-            aria-label="Export song"
+            title={`${t('perform.exportSong')}${hint('exportSong')}`}
+            aria-label={t('perform.exportSong')}
           >
             <Download size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -793,8 +798,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               disabled={!hasNotes}
               className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
               style={{ opacity: hasNotes ? 1 : 0.4, cursor: hasNotes ? 'pointer' : 'not-allowed' }}
-              title={hasNotes ? `${showSongNotes ? 'Hide song notes' : 'Show song notes'}${hint('toggleSongNotes')}` : 'This song has no notes'}
-              aria-label="Toggle song notes"
+              title={hasNotes ? `${showSongNotes ? t('perform.hideNotes') : t('perform.showNotes')}${hint('toggleSongNotes')}` : t('perform.noNotes')}
+              aria-label={t('perform.toggleNotes')}
             >
               <StickyNote size={16} style={{ color: hasNotes && showSongNotes ? 'var(--accent)' : 'var(--text-secondary)' }} />
             </button>
@@ -829,8 +834,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
               navigate(`/song/${activeSong.id}/edit?return=${back}`);
             }}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title="Edit song"
-            aria-label="Edit song"
+            title={t('perform.editSong')}
+            aria-label={t('perform.editSong')}
           >
             <Edit2 size={16} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -850,22 +855,22 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             }}
             className="text-xs rounded px-1.5 py-1 max-w-[9rem]"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-            title="Style preset"
-            aria-label="Style preset"
+            title={t('perform.stylePreset')}
+            aria-label={t('perform.stylePreset')}
           >
-            <optgroup label={effectiveTheme === 'dark' ? 'Dark' : 'Light'}>
+            <optgroup label={effectiveTheme === 'dark' ? t('perform.stylePresetDark') : t('perform.stylePresetLight')}>
               {Object.entries(SONG_STYLE_PRESETS).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
                 <option key={k} value={k}>{p.name}</option>
               ))}
             </optgroup>
             {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).length > 0 && (
-              <optgroup label="My Presets">
+              <optgroup label={t('perform.stylePresetMyPresets')}>
                 {Object.entries(customPresets).filter(([, p]) => p.mode === effectiveTheme).map(([k, p]) => (
                   <option key={k} value={k}>{p.name}</option>
                 ))}
               </optgroup>
             )}
-            {svs.preset === 'custom' && <option value="custom">Custom</option>}
+            {svs.preset === 'custom' && <option value="custom">{t('perform.stylePresetCustom')}</option>}
           </select>
         )}
 
@@ -876,8 +881,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
         <button
           onClick={() => setToolbarHidden(true)}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-          title={`Hide toolbar${hint('toggleToolbar')}`}
-          aria-label="Hide toolbar"
+          title={`${t('perform.hideToolbar')}${hint('toggleToolbar')}`}
+          aria-label={t('perform.hideToolbar')}
         >
           <ChevronUp size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
@@ -1068,8 +1073,8 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
           style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
-          title="Back to top"
-          aria-label="Back to top"
+          title={t('perform.backToTop')}
+          aria-label={t('perform.backToTop')}
         >
           <ArrowUp size={18} />
         </button>

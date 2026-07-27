@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useT } from '../../i18n';
 
 /**
  * Reusable notice shown on every surface where the user is bringing
@@ -41,6 +42,7 @@ export default function ChordSpellingWarning({
    *  neither (e.g. the confirmation dialog provides neither). */
   onDontShowAgain?: () => void;
 }): React.ReactElement {
+  const t = useT();
   const isBanner = variant === 'banner';
   return (
     <div
@@ -66,21 +68,22 @@ export default function ChordSpellingWarning({
       />
       <div className="min-w-0">
         <p style={{ fontWeight: 600, marginBottom: 2 }}>
-          Chord-name spelling matters
+          {t('chordSpelling.title')}
         </p>
         <p style={{ color: 'var(--text-secondary)' }}>
-          When you import or paste a song library, every chord name in
-          the song body must use one of the app's supported spellings
-          — otherwise <strong>no chord chart will appear</strong> for
-          that chord. The supported set is{' '}
+          {t('chordSpelling.body.prefix')}
+          <strong>{t('chordSpelling.body.emphasis')}</strong>
+          {t('chordSpelling.body.middle')}
           <code>Cmaj7</code>, <code>Cm7b5</code>, <code>C°</code>,{' '}
-          <code>C+</code>, <code>Csus4</code>, etc., plus the common
-          aliases <code>aug</code>, <code>dim</code>, <code>sus</code>,{' '}
-          <code>ø</code>, and parenthesised <code>(add9)</code>/
-          <code>(sus2)</code>/<code>(sus4)</code>. Chords written
-          differently (e.g. <code>Cma7</code>, <code>Cm7-5</code>,{' '}
-          <code>C△</code>) won't match a diagram — rename those chords
-          to the supported form to see their charts.
+          <code>C+</code>, <code>Csus4</code>
+          {t('chordSpelling.body.aliases')}
+          <code>aug</code>, <code>dim</code>, <code>sus</code>,{' '}
+          <code>ø</code>
+          {t('chordSpelling.body.and')}
+          <code>(add9)</code>/<code>(sus2)</code>/<code>(sus4)</code>
+          {t('chordSpelling.body.differentPrefix')}
+          <code>Cma7</code>, <code>Cm7-5</code>, <code>C△</code>
+          {t('chordSpelling.body.differentSuffix')}
         </p>
         {onDontShowAgain && (
           <button
@@ -97,9 +100,9 @@ export default function ChordSpellingWarning({
               cursor: 'pointer',
               textAlign: 'left',
             }}
-            title="Hide this warning permanently. You can re-enable it from Settings."
+            title={t('chordSpelling.dontShowAgainTitle')}
           >
-            Don't show again
+            {t('chordSpelling.dontShowAgain')}
           </button>
         )}
       </div>
@@ -107,8 +110,8 @@ export default function ChordSpellingWarning({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Dismiss warning"
-          title="Dismiss"
+          aria-label={t('chordSpelling.dismissAria')}
+          title={t('chordSpelling.dismissTitle')}
           className="rounded transition-colors hover:bg-[var(--surface-elevated)]"
           style={{
             position: 'absolute',

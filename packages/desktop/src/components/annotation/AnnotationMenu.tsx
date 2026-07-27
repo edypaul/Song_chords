@@ -11,6 +11,7 @@ import {
 import type { AnnotationViewMode } from '@song-chords/shared';
 import { useAnnotationEditStore } from './annotation-store';
 import { useAnnotationDoc } from './useAnnotationDoc';
+import { useT } from '../../i18n';
 
 interface Props {
   songId: string;
@@ -39,6 +40,7 @@ interface Props {
  * knows what to do on its first render.
  */
 export default function AnnotationMenu({ songId, annotationsJson, viewMode, preset }: Props): React.ReactElement {
+  const t = useT();
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
   const selectedSetId = selectedSetIds[songId] ?? null;
@@ -190,7 +192,7 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
         {isOff
           ? <Check size={11} style={{ color: 'var(--danger)' }} />
           : <EyeOff size={11} style={{ color: 'var(--text-muted)' }} />}
-        <span className="truncate flex-1">Off</span>
+        <span className="truncate flex-1">{t('annotationMenu.off')}</span>
       </button>
 
       {/* Set rows */}
@@ -239,12 +241,12 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
                   {isActive
                     ? <Check size={11} style={{ color: 'var(--accent)' }} />
                     : <span style={{ width: 11 }} />}
-                  <span className="truncate">{s.name || '(unnamed)'}</span>
+                  <span className="truncate">{s.name || t('annotationMenu.unnamed')}</span>
                 </button>
                 <button
                   onClick={() => setDefault(s.id)}
                   className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                  title={s.isDefault ? 'Default for this view configuration' : 'Set as default'}
+                  title={s.isDefault ? t('annotationMenu.default') : t('annotationMenu.setAsDefault')}
                   disabled={s.isDefault}
                 >
                   <Star
@@ -256,14 +258,14 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
                 <button
                   onClick={() => openPanelForEdit(s.id)}
                   className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                  title="Edit — open the drawing panel with this set loaded"
+                  title={t('annotationMenu.editSetTitle')}
                 >
                   <Edit3 size={11} style={{ color: 'var(--text-muted)' }} />
                 </button>
                 <button
                   onClick={() => remove(s.id)}
                   className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                  title="Delete this set"
+                  title={t('annotationMenu.deleteSet')}
                 >
                   <Trash2 size={11} style={{ color: 'var(--danger)' }} />
                 </button>
@@ -282,10 +284,10 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
           background: 'var(--accent)',
           color: 'white',
         }}
-        title="Start a new blank annotation"
+        title={t('annotationMenu.newAnnotationTitle')}
       >
         <Plus size={13} />
-        <span className="truncate">New annotation</span>
+        <span className="truncate">{t('annotationMenu.newAnnotation')}</span>
       </button>
     </div>,
     document.body,
@@ -299,12 +301,12 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
         className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
         title={
           annotationEditing
-            ? 'Close annotation tools'
+            ? t('annotationMenu.closeTools')
             : noSavedSets
-              ? 'Annotate this song'
-              : 'Annotations'
+              ? t('annotationMenu.annotateSong')
+              : t('annotationMenu.annotations')
         }
-        aria-label="Annotations"
+        aria-label={t('annotationMenu.annotationsAria')}
         aria-pressed={annotationEditing || open}
       >
         <Highlighter size={16} style={{ color: iconColor }} />

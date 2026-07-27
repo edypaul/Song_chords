@@ -4,7 +4,24 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, RotateCcw } from 'lucide-react';
 import { SONG_LIST_COLUMNS, type SongListColumn } from '@song-chords/shared';
-import { COLUMN_LABEL } from './songListColumnLabels';
+import { useT } from '../../i18n';
+import type { TKey } from '../../i18n';
+
+/** Dictionary key for each column's human label. Duplicates the mapping in
+ *  SongListTable, but the two files render different surfaces so keeping
+ *  each local avoids a shared file the i18n keys can't live in. */
+const COLUMN_LABEL_KEY: Record<SongListColumn, TKey> = {
+  artist:      'songList.columns.artist',
+  genre:       'songList.columns.genre',
+  key:         'songList.columns.key',
+  difficulty:  'songList.columns.difficulty',
+  tempo:       'songList.columns.tempo',
+  duration:    'songList.columns.duration',
+  year:        'songList.columns.year',
+  language:    'songList.columns.language',
+  chordsCount: 'songList.columns.chordsCount',
+  createdAt:   'songList.columns.createdAt',
+};
 
 interface Props {
   /** Current on/off state per column. */
@@ -31,6 +48,7 @@ interface Props {
  * dragging changes ONLY the position, checking changes ONLY visibility.
  */
 export default function SongListColumnsEditor({ visible, order, onToggle, onReorder, onReset }: Props): React.ReactElement {
+  const t = useT();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -49,16 +67,16 @@ export default function SongListColumnsEditor({ visible, order, onToggle, onReor
     <div>
       <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'var(--border)' }}>
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-          Drag to reorder · Check to show
+          {t('columns.header')}
         </span>
         <button
           onClick={onReset}
           className="flex items-center gap-1 px-2 py-1 rounded text-[10px] hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          title="Restore defaults (all columns, canonical order)"
+          title={t('columns.resetTitle')}
         >
           <RotateCcw size={11} />
-          Reset
+          {t('columns.reset')}
         </button>
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -88,6 +106,7 @@ function ColumnRow({ columnKey, checked, onToggle }: {
   checked: boolean;
   onToggle: (on: boolean) => void;
 }): React.ReactElement {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: columnKey });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -106,8 +125,8 @@ function ColumnRow({ columnKey, checked, onToggle }: {
         {...listeners}
         className="p-1 rounded hover:bg-[var(--surface-elevated)]"
         style={{ cursor: 'grab', color: 'var(--text-muted)', touchAction: 'none' }}
-        title="Drag to reorder"
-        aria-label="Drag to reorder column"
+        title={t('columns.dragTitle')}
+        aria-label={t('columns.dragAria')}
       >
         <GripVertical size={14} />
       </span>
@@ -118,7 +137,7 @@ function ColumnRow({ columnKey, checked, onToggle }: {
           onChange={(e) => onToggle(e.target.checked)}
           style={{ accentColor: 'var(--accent)' }}
         />
-        <span className="truncate">{COLUMN_LABEL[columnKey]}</span>
+        <span className="truncate">{t(COLUMN_LABEL_KEY[columnKey])}</span>
       </label>
     </li>
   );

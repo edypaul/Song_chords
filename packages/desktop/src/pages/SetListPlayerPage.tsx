@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom';
 import { useSetListStore } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import PerformPage, { type PerformItem } from '../components/song/PerformPage';
+import { useT } from '../i18n';
 
 export default function SetListPlayerPage(): React.ReactElement {
+  const t = useT();
   const { id } = useParams<{ id: string }>();
   const { activeSetList, openSetList, updateEntry } = useSetListStore();
 
@@ -47,7 +49,7 @@ export default function SetListPlayerPage(): React.ReactElement {
   if (!activeSetList) {
     return (
       <div className="flex items-center justify-center h-full fixed inset-0" style={{ background: 'var(--bg)', color: 'var(--text-muted)' }}>
-        Loading...
+        {t('common.loading')}
       </div>
     );
   }

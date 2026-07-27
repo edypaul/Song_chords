@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useSettingsStore, DEFAULT_SETTINGS, type SongListColumn } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
 import SongListColumnsEditor from './SongListColumnsEditor';
+import { useT } from '../../i18n';
 
 interface Props {
   /** Ref to the button that opened the popover — used to anchor it and to
@@ -20,6 +21,7 @@ interface Props {
  * there instantly and vice-versa.
  */
 export default function SongListColumnsPopover({ anchorRef, onClose }: Props): React.ReactElement | null {
+  const t = useT();
   const settings = useSettingsStore((s) => s.settings);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const visible = settings.songListColumns ?? DEFAULT_SETTINGS.songListColumns;
@@ -88,15 +90,15 @@ export default function SongListColumnsPopover({ anchorRef, onClose }: Props): R
         zIndex: 1000,
       }}
       role="dialog"
-      aria-label="Song list columns"
+      aria-label={t('columns.popoverAria')}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: 'var(--border)' }}>
-        <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Columns</span>
+        <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t('columns.title')}</span>
         <button
           onClick={onClose}
           className="p-0.5 rounded hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          title="Close (Esc)"
+          title={t('columns.close')}
         >
           <X size={14} />
         </button>

@@ -2,20 +2,22 @@ import React from 'react';
 import { ChevronUp, ChevronDown, RotateCcw } from 'lucide-react';
 import { usePlayerStore } from '@song-chords/shared';
 import { useShortcutHint, useCapoHint } from '../../hooks/useShortcutHint';
+import { useT } from '../../i18n';
 
 export default function TransposeControl(): React.ReactElement {
   const { transposeSteps, transposeUp, transposeDown, resetTranspose, capo, setCapo } = usePlayerStore();
   const hint = useShortcutHint();
   const capoHint = useCapoHint();
+  const t = useT();
 
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span style={{ color: 'var(--text-muted)' }}>Transpose</span>
+      <span style={{ color: 'var(--text-muted)' }}>{t('transpose.label')}</span>
       <div className="flex items-center gap-1">
         <button
           onClick={transposeDown}
           className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-          title={`Transpose down${hint('transposeDown')}`}
+          title={`${t('transpose.down')}${hint('transposeDown')}`}
         >
           <ChevronDown size={16} />
         </button>
@@ -28,7 +30,7 @@ export default function TransposeControl(): React.ReactElement {
         <button
           onClick={transposeUp}
           className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-          title={`Transpose up${hint('transposeUp')}`}
+          title={`${t('transpose.up')}${hint('transposeUp')}`}
         >
           <ChevronUp size={16} />
         </button>
@@ -36,23 +38,23 @@ export default function TransposeControl(): React.ReactElement {
           <button
             onClick={resetTranspose}
             className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`Reset transpose${hint('resetTranspose')}`}
+            title={`${t('transpose.reset')}${hint('resetTranspose')}`}
           >
             <RotateCcw size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
         )}
       </div>
 
-      <span style={{ color: 'var(--text-muted)' }}>Capo</span>
+      <span style={{ color: 'var(--text-muted)' }}>{t('transpose.capo')}</span>
       <select
         value={capo}
         onChange={(e) => setCapo(Number(e.target.value))}
         className="text-xs rounded px-2 py-1"
         style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-        title={`Capo${capoHint}`}
+        title={`${t('transpose.capo')}${capoHint}`}
       >
         {Array.from({ length: 12 }, (_, i) => (
-          <option key={i} value={i}>{i === 0 ? 'None' : `Capo ${i}`}</option>
+          <option key={i} value={i}>{i === 0 ? t('transpose.capoNone') : t('transpose.capoFret', { fret: i })}</option>
         ))}
       </select>
     </div>

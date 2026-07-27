@@ -7,6 +7,8 @@ import {
 import { useSettingsStore } from '@song-chords/shared';
 import type { ShortcutAction } from '@song-chords/shared';
 import { formatShortcut } from '../../utils/shortcut';
+import { useT } from '../../i18n';
+import type { TKey } from '../../i18n';
 
 interface Shortcut {
   keys: string[];
@@ -19,43 +21,50 @@ interface Group {
   shortcuts: Shortcut[];
 }
 
-const ACTION_LABELS: Record<ShortcutAction, string> = {
-  toggleInlineDiagrams: 'Toggle inline chord diagrams',
-  toggleChordBar:       'Toggle chord diagrams bar',
-  toggleLyricsOnly:     'Toggle lyrics-only mode',
-  toggleMetronome:      'Start / stop metronome',
-  toggleSongNotes:      'Show / hide song notes',
-  toggleAutoScroll:     'Start / pause auto-scroll',
-  transposeUp:          'Transpose up',
-  transposeDown:        'Transpose down',
-  resetTranspose:       'Reset transpose to 0',
-  exportSong:           'Open export modal',
-  editSong:             'Enter edit page',
-  toggleFavorite:       'Toggle favorite',
-  cast:                 'Open cast popover',
-  addToSetList:         'Add song to set list',
-  toggleFullscreen:     'Toggle fullscreen / performance mode',
-  nextSong:             'Next song in a set list',
-  prevSong:             'Previous song in a set list',
-  zoomIn:               'Zoom in',
-  zoomOut:              'Zoom out',
-  zoomReset:            'Reset zoom',
-  openSearch:           'Open global search',
-  toggleToolbar:        'Show / hide the toolbar',
-  toggleSongTrainer:    'Song trainer (hide chord names to guess)',
+/** Per-action i18n descriptions. Bound at render time via the `useT` hook. */
+const ACTION_LABEL_KEYS: Record<ShortcutAction, TKey> = {
+  toggleInlineDiagrams: 'shortcuts.actions.toggleInlineDiagrams',
+  toggleChordBar:       'shortcuts.actions.toggleChordBar',
+  toggleLyricsOnly:     'shortcuts.actions.toggleLyricsOnly',
+  toggleMetronome:      'shortcuts.actions.toggleMetronome',
+  toggleSongNotes:      'shortcuts.actions.toggleSongNotes',
+  toggleAutoScroll:     'shortcuts.actions.toggleAutoScroll',
+  transposeUp:          'shortcuts.actions.transposeUp',
+  transposeDown:        'shortcuts.actions.transposeDown',
+  resetTranspose:       'shortcuts.actions.resetTranspose',
+  exportSong:           'shortcuts.actions.exportSong',
+  editSong:             'shortcuts.actions.editSong',
+  toggleFavorite:       'shortcuts.actions.toggleFavorite',
+  cast:                 'shortcuts.actions.cast',
+  addToSetList:         'shortcuts.actions.addToSetList',
+  toggleFullscreen:     'shortcuts.actions.toggleFullscreen',
+  nextSong:             'shortcuts.actions.nextSong',
+  prevSong:             'shortcuts.actions.prevSong',
+  zoomIn:               'shortcuts.actions.zoomIn',
+  zoomOut:              'shortcuts.actions.zoomOut',
+  zoomReset:            'shortcuts.actions.zoomReset',
+  openSearch:           'shortcuts.actions.openSearch',
+  toggleToolbar:        'shortcuts.actions.toggleToolbar',
+  toggleSongTrainer:    'shortcuts.actions.toggleSongTrainer',
 };
 
-const STATIC_GROUPS: Group[] = [
+/** Static groups whose contents don't depend on user settings. Titles
+ *  and descriptions are dictionary KEYS resolved at render time so the
+ *  modal re-renders in the active language. */
+interface StaticShortcut { keys: string[]; descKey: TKey; }
+interface StaticGroup { titleKey: TKey; icon: React.ReactNode; shortcuts: StaticShortcut[]; }
+
+const STATIC_GROUPS: StaticGroup[] = [
   {
-    title: 'Global',
+    titleKey: 'shortcuts.groups.global',
     icon: <Command size={14} />,
     shortcuts: [
-      { keys: ['?'],   desc: 'Toggle this shortcuts list' },
-      { keys: ['Esc'], desc: 'Close modals / exit fullscreen' },
+      { keys: ['?'],   descKey: 'shortcuts.desc.toggleThisList' },
+      { keys: ['Esc'], descKey: 'shortcuts.desc.closeModals' },
     ],
   },
   {
-    title: 'Perform mode',
+    titleKey: 'shortcuts.groups.performMode',
     icon: <Play size={14} />,
     shortcuts: [
       // Set-list navigation is configurable in Settings (default
@@ -63,49 +72,49 @@ const STATIC_GROUPS: Group[] = [
       // above. The hardcoded fallbacks listed here always work as
       // a safety net even if the user clears the configurable
       // bindings.
-      { keys: ['PgDn'], desc: 'Next song (always available)' },
-      { keys: ['PgUp'], desc: 'Previous song (always available)' },
-      { keys: ['Esc'],  desc: 'Leave perform mode' },
-      { keys: ['Swipe'], desc: 'Navigate with touch displays' },
+      { keys: ['PgDn'],  descKey: 'shortcuts.desc.nextSongAlways' },
+      { keys: ['PgUp'],  descKey: 'shortcuts.desc.prevSongAlways' },
+      { keys: ['Esc'],   descKey: 'shortcuts.desc.leavePerformMode' },
+      { keys: ['Swipe'], descKey: 'shortcuts.desc.swipeTouch' },
     ],
   },
   {
-    title: 'Song content editor',
+    titleKey: 'shortcuts.groups.songContentEditor',
     icon: <Undo2 size={14} />,
     shortcuts: [
-      { keys: ['Ctrl+Z'],                 desc: 'Undo' },
-      { keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], desc: 'Redo' },
+      { keys: ['Ctrl+Z'],                 descKey: 'shortcuts.desc.undo' },
+      { keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], descKey: 'shortcuts.desc.redo' },
     ],
   },
   {
-    title: 'Tempo input (song edit)',
+    titleKey: 'shortcuts.groups.tempoInput',
     icon: <Timer size={14} />,
     shortcuts: [
-      { keys: ['Space', '↵'], desc: 'Tap to set tempo (button focused)' },
+      { keys: ['Space', '↵'], descKey: 'shortcuts.desc.tapTempo' },
     ],
   },
   {
-    title: 'Artist field (song edit)',
+    titleKey: 'shortcuts.groups.artistField',
     icon: <UserIcon size={14} />,
     shortcuts: [
-      { keys: ['↓', '↑'], desc: 'Move through suggestions' },
-      { keys: ['↵'],       desc: 'Accept highlighted suggestion' },
+      { keys: ['↓', '↑'], descKey: 'shortcuts.desc.moveSuggestions' },
+      { keys: ['↵'],       descKey: 'shortcuts.desc.acceptSuggestion' },
     ],
   },
   {
-    title: 'Tags field (song edit)',
+    titleKey: 'shortcuts.groups.tagsField',
     icon: <Tag size={14} />,
     shortcuts: [
-      { keys: ['↵'],         desc: 'Add the typed tag' },
-      { keys: ['Backspace'], desc: 'Remove the last tag (when input is empty)' },
+      { keys: ['↵'],         descKey: 'shortcuts.desc.addTag' },
+      { keys: ['Backspace'], descKey: 'shortcuts.desc.removeLastTag' },
     ],
   },
   {
-    title: 'Confirm dialogs',
+    titleKey: 'shortcuts.groups.confirmDialogs',
     icon: <AlertCircle size={14} />,
     shortcuts: [
-      { keys: ['↵'],   desc: 'Confirm the action' },
-      { keys: ['Esc'], desc: 'Cancel' },
+      { keys: ['↵'],   descKey: 'shortcuts.desc.confirmAction' },
+      { keys: ['Esc'], descKey: 'shortcuts.desc.cancel' },
     ],
   },
   {
@@ -113,22 +122,22 @@ const STATIC_GROUPS: Group[] = [
     // zoom (Ctrl+= / Ctrl+- / Ctrl+0) IS rebindable and lives in the
     // dynamic groups below via the ShortcutAction routing; this
     // group is just for the mouse-wheel + touch equivalents.
-    title: 'Zoom (Song view)',
+    titleKey: 'shortcuts.groups.zoomSongView',
     icon: <ZoomIn size={14} />,
     shortcuts: [
-      { keys: ['Ctrl+Wheel'], desc: 'Zoom song content in / out' },
-      { keys: ['Pinch'],      desc: 'Zoom song content on touch displays' },
+      { keys: ['Ctrl+Wheel'], descKey: 'shortcuts.desc.zoomWheel' },
+      { keys: ['Pinch'],      descKey: 'shortcuts.desc.zoomPinch' },
     ],
   },
   {
     // GlobalSearch overlay has its own in-overlay navigation keys —
     // Escape closes the overlay (covered in the Global group above);
     // Arrow keys and Enter move through and open results.
-    title: 'Global search overlay',
+    titleKey: 'shortcuts.groups.globalSearchOverlay',
     icon: <Search size={14} />,
     shortcuts: [
-      { keys: ['↓', '↑'], desc: 'Move through results' },
-      { keys: ['↵'],       desc: 'Open the highlighted result' },
+      { keys: ['↓', '↑'], descKey: 'shortcuts.desc.moveResults' },
+      { keys: ['↵'],       descKey: 'shortcuts.desc.openHighlighted' },
     ],
   },
 ];
@@ -136,6 +145,21 @@ const STATIC_GROUPS: Group[] = [
 function splitCombo(combo: string): string[] {
   if (combo.includes(' ')) return [combo];
   return combo.split('+').map((t) => t.trim()).filter(Boolean);
+}
+
+/** Splits a translated template around the literal `{key}` token and
+ *  renders a <KeyBadge> in place of the token so the surrounding copy
+ *  translates while the physical key name stays a literal badge. */
+function renderWithKey(template: string, keyLabel: string): React.ReactNode {
+  const parts = template.split('{key}');
+  return parts.flatMap((part, i) => (
+    i === parts.length - 1
+      ? [<React.Fragment key={`t-${i}`}>{part}</React.Fragment>]
+      : [
+          <React.Fragment key={`t-${i}`}>{part}</React.Fragment>,
+          <KeyBadge key={`k-${i}`} label={keyLabel} />,
+        ]
+  ));
 }
 
 function KeyBadge({ label }: { label: string }): React.ReactElement {
@@ -155,13 +179,14 @@ function KeyBadge({ label }: { label: string }): React.ReactElement {
 }
 
 function ShortcutRow({ shortcut }: { shortcut: Shortcut }): React.ReactElement {
+  const t = useT();
   return (
     <div className="flex items-center gap-4 py-2">
       <span className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{shortcut.desc}</span>
       <span className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
         {shortcut.keys.map((combo, ci) => (
           <React.Fragment key={ci}>
-            {ci > 0 && <span className="text-[11px] px-0.5" style={{ color: 'var(--text-muted)' }}>or</span>}
+            {ci > 0 && <span className="text-[11px] px-0.5" style={{ color: 'var(--text-muted)' }}>{t('shortcuts.separator.or')}</span>}
             <span className="flex items-center gap-1">
               {splitCombo(combo).map((part, pi) => (
                 <React.Fragment key={pi}>
@@ -180,6 +205,7 @@ function ShortcutRow({ shortcut }: { shortcut: Shortcut }): React.ReactElement {
 /** Listens for `?` anywhere (unless the user is typing) and opens a modal
  * listing every keyboard shortcut available in the app. */
 export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const shortcuts = useSettingsStore((s) => s.settings.shortcuts);
 
@@ -218,20 +244,28 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
     for (const { action, target } of routing) {
       const binding = shortcuts[action];
       if (!binding) continue;
-      target.push({ keys: [formatShortcut(binding)], desc: ACTION_LABELS[action] });
+      target.push({ keys: [formatShortcut(binding)], desc: t(ACTION_LABEL_KEYS[action]) });
     }
-    songPerform.push({ keys: [`${shortcuts.capoModifier} + 0…9`], desc: 'Set capo to that fret' });
+    songPerform.push({ keys: [`${shortcuts.capoModifier} + 0…9`], desc: t('shortcuts.desc.setCapo') });
 
     const out: Group[] = [];
-    if (global.length)      out.push({ title: 'Search', icon: <Search size={14} />, shortcuts: global });
-    if (songPerform.length) out.push({ title: 'Song view & Perform', icon: <Music size={14} />, shortcuts: songPerform });
-    if (songOnly.length)    out.push({ title: 'Song actions',        icon: <FileText size={14} />, shortcuts: songOnly });
-    if (setlistNav.length)  out.push({ title: 'Set list navigation', icon: <Play size={14} />, shortcuts: setlistNav });
-    if (zoom.length)        out.push({ title: 'Zoom',                icon: <ZoomIn size={14} />, shortcuts: zoom });
+    if (global.length)      out.push({ title: t('shortcuts.groups.search'),             icon: <Search size={14} />,   shortcuts: global });
+    if (songPerform.length) out.push({ title: t('shortcuts.groups.songViewPerform'),    icon: <Music size={14} />,    shortcuts: songPerform });
+    if (songOnly.length)    out.push({ title: t('shortcuts.groups.songActions'),        icon: <FileText size={14} />, shortcuts: songOnly });
+    if (setlistNav.length)  out.push({ title: t('shortcuts.groups.setListNavigation'),  icon: <Play size={14} />,     shortcuts: setlistNav });
+    if (zoom.length)        out.push({ title: t('shortcuts.groups.zoom'),               icon: <ZoomIn size={14} />,   shortcuts: zoom });
     return out;
-  }, [shortcuts]);
+  }, [shortcuts, t]);
 
-  const groups = useMemo(() => [...dynamicGroups, ...STATIC_GROUPS], [dynamicGroups]);
+  const groups = useMemo<Group[]>(() => {
+    // Resolve STATIC_GROUPS' TKey placeholders through `t` at render time.
+    const resolvedStatic = STATIC_GROUPS.map((g) => ({
+      title: t(g.titleKey),
+      icon: g.icon,
+      shortcuts: g.shortcuts.map((s) => ({ keys: s.keys, desc: t(s.descKey) })),
+    }));
+    return [...dynamicGroups, ...resolvedStatic];
+  }, [dynamicGroups, t]);
 
   useEffect(() => {
     // Listen in the capture phase so closing the modal on Escape can halt
@@ -290,15 +324,15 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
             <Keyboard size={18} />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Keyboard shortcuts</h2>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{t('shortcuts.title')}</h2>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Rebind any of these in Settings → Keyboard Shortcuts.
+              {t('shortcuts.subtitle')}
             </p>
           </div>
           <button
             onClick={() => setOpen(false)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <X size={16} style={{ color: 'var(--text-muted)' }} />
           </button>
@@ -332,8 +366,8 @@ export default function KeyboardShortcutsOverlay(): React.ReactElement | null {
           className="px-6 py-3 flex items-center justify-between text-xs shrink-0"
           style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}
         >
-          <span className="flex items-center gap-1.5">Press <KeyBadge label="?" /> anywhere to reopen.</span>
-          <span className="flex items-center gap-1.5">Press <KeyBadge label="Esc" /> to close.</span>
+          <span className="flex items-center gap-1.5">{renderWithKey(t('shortcuts.footerReopen'), '?')}</span>
+          <span className="flex items-center gap-1.5">{renderWithKey(t('shortcuts.footerClose'), 'Esc')}</span>
         </div>
       </div>
     </div>

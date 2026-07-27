@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Mic, MicOff, Volume2, Star, Pencil, Trash2, Activity } from 'lucide-react';
 import TuningForkIcon from '../components/common/TuningForkIcon';
 import { useSettingsStore, toLatin } from '@song-chords/shared';
+import { useT } from '../i18n';
+import type { TKey } from '../i18n';
 
 import { TunerAudioEngine, type AudioInputDevice } from '../tuner/audio/engine';
 import { ReferenceTonePlayer } from '../tuner/audio/reference-tone';
@@ -91,6 +93,7 @@ const SILENT_READING: LiveReading = {
 };
 
 export default function TunerPage(): React.ReactElement {
+  const t = useT();
   const a4Hz = useTunerStore((s) => s.a4Hz);
   const setA4Hz = useTunerStore((s) => s.setA4Hz);
   const instrument = useTunerStore((s) => s.instrument);
@@ -261,8 +264,8 @@ export default function TunerPage(): React.ReactElement {
       // Common case: user denied permission in the browser dialog.
       setPermissionError(
         /denied|not allowed|permission/i.test(msg)
-          ? 'Microphone access was denied. Allow microphone access in your browser settings and try again.'
-          : `Could not start microphone: ${msg}`,
+          ? t('tuner.error.permissionDenied')
+          : t('tuner.error.startFailed', { error: msg }),
       );
       setRunning(false);
     }
@@ -301,7 +304,7 @@ export default function TunerPage(): React.ReactElement {
       try {
         await engineRef.current.switchDevice(id);
       } catch (e) {
-        setPermissionError(`Could not switch microphone: ${e instanceof Error ? e.message : String(e)}`);
+        setPermissionError(t('tuner.error.switchFailed', { error: e instanceof Error ? e.message : String(e) }));
       }
     }
   };
@@ -506,14 +509,14 @@ export default function TunerPage(): React.ReactElement {
   const active = reading.note !== null;
   const locked = reading.stable && absC <= 5;
   const statusText = !running
-    ? 'Awaiting signal'
+    ? t('tuner.status.awaiting')
     : !active
-      ? 'Listening…'
+      ? t('tuner.status.listening')
       : locked
-        ? 'Perfect calibration'
+        ? t('tuner.status.perfect')
         : absC <= 15
-          ? (reading.targetCents! > 0 ? 'Slightly sharp' : 'Slightly flat')
-          : (reading.targetCents! > 0 ? 'Tune down' : 'Tune up');
+          ? (reading.targetCents! > 0 ? t('tuner.status.slightlySharp') : t('tuner.status.slightlyFlat'))
+          : (reading.targetCents! > 0 ? t('tuner.status.tuneDown') : t('tuner.status.tuneUp'));
   const statusColor = !active
     ? undefined
     : locked
@@ -537,9 +540,9 @@ export default function TunerPage(): React.ReactElement {
     if (!reading.targetNoteName) return '';
     const n = dn(reading.targetNoteName);
     switch (reading.targetLabelKind) {
-      case 'closest-string': return `Closest string: ${n}`;
-      case 'target':         return `Target: ${n}`;
-      case 'nearest':        return `Nearest: ${n}`;
+      case 'closest-string': return t('tuner.subLabel.closestString', { note: n });
+      case 'target':         return t('tuner.subLabel.target', { note: n });
+      case 'nearest':        return t('tuner.subLabel.nearest', { note: n });
       default:               return '';
     }
   })();
@@ -571,10 +574,10 @@ export default function TunerPage(): React.ReactElement {
                 letterSpacing: '0.08em',
               }}
             >
-              TUNER
+              {t('tuner.title')}
             </h1>
             <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.12em' }}>
-              Real-time pitch detection
+              {t('tuner.subtitle')}
             </span>
           </div>
         </div>
@@ -583,9 +586,9 @@ export default function TunerPage(): React.ReactElement {
 
         {/* Mini-cards: live reference + analysis latency. Latency
             is the REAL one-frame analysis latency, not fabricated. */}
-        <MiniStat label="Reference" value={`${a4Hz} Hz`} accent />
+        <MiniStat label={t('tuner.reference')} value={`${a4Hz} Hz`} accent />
         <MiniStat
-          label="Latency"
+          label={t('tuner.latency')}
           value={engineInfo ? `${engineInfo.latencyMs.toFixed(0)} ms` : '—'}
           accent
         />
@@ -595,18 +598,18 @@ export default function TunerPage(): React.ReactElement {
             onClick={() => void start()}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap"
             style={{ background: 'var(--accent)', color: 'white' }}
-            title="Open the microphone and start detecting pitch."
+            title={t('tuner.startTitle')}
           >
-            <Mic size={14} /> Start
+            <Mic size={14} /> {t('tuner.start')}
           </button>
         ) : (
           <button
             onClick={() => void stop()}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 whitespace-nowrap"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-            title="Release the microphone."
+            title={t('tuner.stopTitle')}
           >
-            <MicOff size={14} /> Stop
+            <MicOff size={14} /> {t('tuner.stop')}
           </button>
         )}
       </div>
@@ -635,37 +638,40 @@ export default function TunerPage(): React.ReactElement {
           {/* ────────── LEFT COLUMN ────────── */}
           <div className="flex flex-col gap-4">
             <Card
-              title="Instrument"
+              title={t('tuner.instrument.label')}
               dotColor={running ? '#22c55e' : 'var(--text-muted)'}
             >
               <div className="flex flex-col gap-1.5">
-                {INSTRUMENT_PRESETS.map((p) => (
-                  <PillButton
-                    key={p.id}
-                    active={instrument === p.id}
-                    onClick={() => {
-                      setInstrument(p.id);
-                      if (p.id === 'chromatic' || p.id === 'voice') setMode('auto');
-                      else setMode('instrument');
-                    }}
-                  >
-                    {p.label.toUpperCase()}
-                  </PillButton>
-                ))}
+                {INSTRUMENT_PRESETS.map((p) => {
+                  const key = `tuner.instrument.${p.id}` as TKey;
+                  return (
+                    <PillButton
+                      key={p.id}
+                      active={instrument === p.id}
+                      onClick={() => {
+                        setInstrument(p.id);
+                        if (p.id === 'chromatic' || p.id === 'voice') setMode('auto');
+                        else setMode('instrument');
+                      }}
+                    >
+                      {t(key).toUpperCase()}
+                    </PillButton>
+                  );
+                })}
               </div>
             </Card>
 
             {instrumentPreset.id !== 'chromatic' && instrumentPreset.id !== 'voice' && (
               <Card
-                title="Custom tunings"
+                title={t('tuner.customTunings.title')}
                 right={
                   <button
                     onClick={openCreate}
                     className="text-[10px] uppercase tracking-wider hover:underline"
                     style={{ color: 'var(--accent)', letterSpacing: '0.08em', background: 'transparent', border: 0, cursor: 'pointer' }}
-                    title="Create a new custom tuning"
+                    title={t('tuner.customTunings.createTitle')}
                   >
-                    + Add
+                    {t('tuner.customTunings.add')}
                   </button>
                 }
               >
@@ -756,10 +762,10 @@ export default function TunerPage(): React.ReactElement {
                   gap: 0,
                 }}
               >
-                <BottomMetric label="Input level">
+                <BottomMetric label={t('tuner.metrics.inputLevel')}>
                   <LevelBar level={reading.level} active={running} />
                 </BottomMetric>
-                <BottomMetric label="Stability" divider>
+                <BottomMetric label={t('tuner.metrics.stability')} divider>
                   <span
                     className="font-bold"
                     style={{
@@ -775,7 +781,7 @@ export default function TunerPage(): React.ReactElement {
                     {running ? `${Math.round(reading.stability * 100)}%` : '—'}
                   </span>
                 </BottomMetric>
-                <BottomMetric label="Sensitivity" divider>
+                <BottomMetric label={t('tuner.metrics.sensitivity')} divider>
                   <span
                     className="font-bold uppercase tracking-wider"
                     style={{
@@ -788,7 +794,7 @@ export default function TunerPage(): React.ReactElement {
                       letterSpacing: '0.08em',
                     }}
                   >
-                    {sensitivity}
+                    {t(`tuner.sensitivity.${sensitivity}` as TKey)}
                   </span>
                 </BottomMetric>
               </div>
@@ -799,7 +805,7 @@ export default function TunerPage(): React.ReactElement {
                 click directly without crossing the page. */}
             {instrumentPreset.id !== 'chromatic' && instrumentPreset.id !== 'voice'
               && activeTuning.notes.length > 0 && (
-              <Card title="Strings" right={<ModePicker mode={mode} onChange={setMode} />}>
+              <Card title={t('tuner.strings.title')} right={<ModePicker mode={mode} onChange={setMode} />}>
                 <div className="flex flex-wrap gap-2">
                   {activeTuning.notes.map((noteName, idx) => {
                     const isActive = reading.activeStringIdx === idx;
@@ -829,7 +835,7 @@ export default function TunerPage(): React.ReactElement {
                             color: isActive ? 'var(--accent)' : 'var(--text-primary)',
                             background: 'transparent', border: 0, cursor: 'pointer',
                           }}
-                          title={`Tune ${dn(noteName)} only`}
+                          title={t('tuner.tuneNoteOnly', { note: dn(noteName) })}
                         >
                           {dn(noteName)}
                         </button>
@@ -842,10 +848,10 @@ export default function TunerPage(): React.ReactElement {
                             borderTop: '1px solid var(--border)',
                             cursor: 'pointer',
                           }}
-                          title="Play reference tone"
+                          title={t('tuner.playReferenceTone')}
                         >
                           <Volume2 size={11} style={{ display: 'inline', marginRight: 4 }} />
-                          {playing ? 'Stop' : 'Play'}
+                          {playing ? t('tuner.stopShort') : t('tuner.playShort')}
                         </button>
                       </div>
                     );
@@ -856,13 +862,13 @@ export default function TunerPage(): React.ReactElement {
 
             {/* Single-string note picker for chromatic / voice instruments. */}
             {(instrumentPreset.id === 'chromatic' || instrumentPreset.id === 'voice') && (
-              <Card title="Target note" right={<ModePicker mode={mode} onChange={setMode} />}>
+              <Card title={t('tuner.targetNote')} right={<ModePicker mode={mode} onChange={setMode} />}>
                 {mode === 'single-string' ? (
                   <div className="flex items-center gap-2">
                     <input
                       value={singleString}
                       onChange={(e) => setSingleString(e.target.value)}
-                      placeholder="e.g. A4"
+                      placeholder={t('tuner.notePlaceholder')}
                       className="rounded px-2 py-1.5 text-sm font-mono"
                       style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', width: 110 }}
                     />
@@ -871,12 +877,12 @@ export default function TunerPage(): React.ReactElement {
                       className="flex items-center gap-1 px-2 py-1.5 rounded text-xs"
                       style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
                     >
-                      <Volume2 size={11} /> {tonePlayingNote === singleString ? 'Stop' : 'Play'}
+                      <Volume2 size={11} /> {tonePlayingNote === singleString ? t('tuner.stopShort') : t('tuner.playShort')}
                     </button>
                   </div>
                 ) : (
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Auto-detect the nearest chromatic note as you play or sing.
+                    {t('tuner.autoDetectHint')}
                   </p>
                 )}
               </Card>
@@ -885,7 +891,7 @@ export default function TunerPage(): React.ReactElement {
 
           {/* ────────── RIGHT COLUMN ────────── */}
           <div className="flex flex-col gap-4">
-            <Card title="Calibration">
+            <Card title={t('tuner.calibration.title')}>
               <div className="grid grid-cols-2 gap-1.5 mb-2">
                 {A4_PRESETS.map((hz) => (
                   <PillButton
@@ -907,7 +913,7 @@ export default function TunerPage(): React.ReactElement {
                   max={500}
                   className="rounded text-xs font-mono px-2 py-1.5 flex-1"
                   style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-                  title="Custom A4 frequency (Hz)"
+                  title={t('tuner.calibration.customA4')}
                 />
                 <span className="text-[10px] uppercase" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>Hz</span>
               </div>
@@ -917,11 +923,11 @@ export default function TunerPage(): React.ReactElement {
                   checked={preferFlats}
                   onChange={(e) => setPreferFlats(e.target.checked)}
                 />
-                Show flats (Db, Eb, …)
+                {t('tuner.calibration.showFlats')}
               </label>
             </Card>
 
-            <Card title="System controls">
+            <Card title={t('tuner.systemControls.title')}>
               <div className="flex flex-col gap-1.5">
                 {/* Reference tone — plays the current single-string
                     target so the user can match it by ear. */}
@@ -935,7 +941,7 @@ export default function TunerPage(): React.ReactElement {
                   }}
                 >
                   <Volume2 size={12} className="inline-block mr-1.5" />
-                  {tonePlayingNote ? 'Stop tone' : 'Reference tone'}
+                  {tonePlayingNote ? t('tuner.stopTone') : t('tuner.referenceTone')}
                 </PillButton>
 
                 {/* Audio device picker. Replaces the "AUDIO SETTINGS"
@@ -947,7 +953,7 @@ export default function TunerPage(): React.ReactElement {
                   style={{ border: '1px solid var(--border)', background: 'var(--surface-elevated)' }}
                 >
                   <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
-                    Microphone
+                    {t('tuner.microphone')}
                   </div>
                   {/* Native <select> opens a browser-drawn list whose
                       items inherit `color` / `background` from the
@@ -977,7 +983,7 @@ export default function TunerPage(): React.ReactElement {
                         value=""
                         style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)' }}
                       >
-                        (Start once to enumerate)
+                        {t('tuner.startToEnumerate')}
                       </option>
                     )}
                     {devices.map((d) => (
@@ -998,25 +1004,28 @@ export default function TunerPage(): React.ReactElement {
                   style={{ border: '1px solid var(--border)', background: 'var(--surface-elevated)' }}
                 >
                   <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
-                    Sensitivity
+                    {t('tuner.sensitivity.label')}
                   </div>
                   <div className="flex gap-1 px-2 pb-2">
-                    {(['low', 'medium', 'high'] as const).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setSensitivity(s)}
-                        className="flex-1 py-1 rounded text-[10px] uppercase font-semibold"
-                        style={{
-                          background: sensitivity === s ? 'var(--accent)' : 'transparent',
-                          color: sensitivity === s ? 'white' : 'var(--text-secondary)',
-                          border: '1px solid var(--border)',
-                          letterSpacing: '0.08em',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                    {(['low', 'medium', 'high'] as const).map((s) => {
+                      const key = `tuner.sensitivity.${s}` as TKey;
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => setSensitivity(s)}
+                          className="flex-1 py-1 rounded text-[10px] uppercase font-semibold"
+                          style={{
+                            background: sensitivity === s ? 'var(--accent)' : 'transparent',
+                            color: sensitivity === s ? 'white' : 'var(--text-secondary)',
+                            border: '1px solid var(--border)',
+                            letterSpacing: '0.08em',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t(key)}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1028,7 +1037,7 @@ export default function TunerPage(): React.ReactElement {
                   style={{ border: '1px solid var(--border)', background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
                 >
                   <div className="uppercase tracking-wider text-[10px] mb-1" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
-                    Engine
+                    {t('tuner.engine')}
                   </div>
                   <div className="flex items-center justify-between font-mono">
                     <span><Activity size={10} className="inline-block mr-1" />YIN · 4096</span>
@@ -1197,6 +1206,7 @@ function TuningRow({
   onEdit?: () => void;
   onDelete?: () => void;
 }): React.ReactElement {
+  const t = useT();
   return (
     <div
       className="rounded-lg"
@@ -1226,7 +1236,7 @@ function TuningRow({
             className="text-[9px] font-bold uppercase tracking-wider"
             style={{ color: 'var(--accent)', letterSpacing: '0.1em' }}
           >
-            Active
+            {t('tuner.tuningRow.active')}
           </span>
         ) : (
           <button
@@ -1234,7 +1244,7 @@ function TuningRow({
             className="text-[9px] font-bold uppercase tracking-wider hover:underline"
             style={{ color: 'var(--text-muted)', background: 'transparent', border: 0, cursor: 'pointer', letterSpacing: '0.1em' }}
           >
-            Load
+            {t('tuner.tuningRow.load')}
           </button>
         )}
       </div>
@@ -1254,7 +1264,7 @@ function TuningRow({
               color: favorite ? '#f59e0b' : 'var(--text-muted)',
               background: 'transparent', border: 0, cursor: 'pointer',
             }}
-            title={favorite ? 'Remove favorite' : 'Favorite'}
+            title={favorite ? t('tuner.tuningRow.removeFavorite') : t('tuner.tuningRow.favorite')}
           >
             <Star size={10} fill={favorite ? '#f59e0b' : 'none'} />
           </button>
@@ -1262,7 +1272,7 @@ function TuningRow({
             onClick={onEdit}
             className="p-1 rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-muted)', background: 'transparent', border: 0, cursor: 'pointer' }}
-            title="Edit"
+            title={t('common.edit')}
           >
             <Pencil size={10} />
           </button>
@@ -1270,7 +1280,7 @@ function TuningRow({
             onClick={onDelete}
             className="p-1 rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--danger, #ef4444)', background: 'transparent', border: 0, cursor: 'pointer' }}
-            title="Delete"
+            title={t('common.delete')}
           >
             <Trash2 size={10} />
           </button>
@@ -1335,10 +1345,11 @@ function ModePicker({ mode, onChange }: {
   mode: ReturnType<typeof useTunerStore.getState>['mode'];
   onChange: (m: ReturnType<typeof useTunerStore.getState>['mode']) => void;
 }): React.ReactElement {
+  const t = useT();
   const opts: Array<[typeof mode, string]> = [
-    ['auto',          'Auto'],
-    ['instrument',    'Instrument'],
-    ['single-string', 'Single'],
+    ['auto',          t('tuner.mode.auto')],
+    ['instrument',    t('tuner.mode.instrument')],
+    ['single-string', t('tuner.mode.single')],
   ];
   return (
     <div className="inline-flex rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>

@@ -6,6 +6,7 @@ import { db } from '../ipc/ipc-client';
 import type { SetList, Song } from '@song-chords/shared';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import SongExportModal from '../components/song/SongExportModal';
+import { useT } from '../i18n';
 // Drag-and-drop via @dnd-kit — same library + sensors / strategy as
 // the inner SetListDetailPage uses for entry reordering, so the two
 // surfaces share consistent drag behavior (pointer + keyboard, animated
@@ -21,6 +22,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 export default function SetListsPage(): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const { setlists, createSetList, updateSetList, deleteSetList, duplicateSetList, reorderSetLists, isLoading } = useSetListStore();
   // Track the entries length of whatever setlist was last opened. When it
@@ -129,35 +131,35 @@ export default function SetListsPage(): React.ReactElement {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-        <h1 className="text-xl font-bold flex-1" style={{ color: 'var(--text-primary)' }}>Set Lists</h1>
+        <h1 className="text-xl font-bold flex-1" style={{ color: 'var(--text-primary)' }}>{t('setLists.title')}</h1>
         <button
           onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium"
           style={{ background: 'var(--accent)', color: 'white' }}
         >
-          <Plus size={16} />New Set List
+          <Plus size={16} />{t('setLists.newSetList')}
         </button>
       </div>
 
       {showCreate && (
         <div className="grid gap-x-2 gap-y-1 px-6 py-3 border-b" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)', gridTemplateColumns: '2fr 2fr 1fr auto' }}>
-          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Name</label>
-          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Description</label>
-          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Performance date (optional)</label>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('setLists.form.name')}</label>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('setLists.form.description')}</label>
+          <label className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{t('setLists.form.performanceDate')}</label>
           <span />
           <input
             autoFocus
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') resetCreateForm(); }}
-            placeholder="Set list name..."
+            placeholder={t('setLists.form.namePlaceholder')}
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }}
           />
           <input
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
-            placeholder="Short note, event, etc."
+            placeholder={t('setLists.form.descriptionPlaceholder')}
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           />
@@ -165,28 +167,28 @@ export default function SetListsPage(): React.ReactElement {
             type="date"
             value={newDate}
             onChange={(e) => setNewDate(e.target.value)}
-            title="Date you'll perform this set list (optional)"
+            title={t('setLists.form.dateTitle')}
             className="px-3 py-2 rounded-lg text-sm outline-none"
             style={{ background: 'var(--surface)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
           />
           <div className="flex items-center gap-2">
             <button onClick={handleCreate} disabled={creating} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
-              Create
+              {t('setLists.form.create')}
             </button>
-            <button onClick={resetCreateForm} className="px-3 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+            <button onClick={resetCreateForm} className="px-3 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>{t('common.cancel')}</button>
           </div>
         </div>
       )}
 
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
+          <p style={{ color: 'var(--text-muted)' }}>{t('common.loading')}</p>
         ) : setlists.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4" style={{ color: 'var(--text-muted)' }}>
             <ListMusic size={48} opacity={0.3} />
-            <p>No set lists yet</p>
+            <p>{t('setLists.emptyTitle')}</p>
             <button onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--accent)', color: 'white' }}>
-              Create your first set list
+              {t('setLists.emptyCreate')}
             </button>
           </div>
         ) : (
@@ -247,6 +249,7 @@ function formatDuration(seconds: number): string {
 }
 
 function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, onPerform, onUpdate, onDelete, onDuplicate, onExport }: SetListCardProps): React.ReactElement {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [name, setName] = useState(setlist.name);
@@ -291,14 +294,14 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Name"
+          placeholder={t('setLists.form.name')}
           className="px-3 py-2 rounded-lg text-sm outline-none"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
         />
         <input
           value={desc}
           onChange={(e) => setDesc(e.target.value)}
-          placeholder="Description"
+          placeholder={t('setLists.form.description')}
           className="px-3 py-2 rounded-lg text-sm outline-none"
           style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
         />
@@ -315,14 +318,14 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            <Check size={14} />Save
+            <Check size={14} />{t('common.save')}
           </button>
           <button
             onClick={handleCancel}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm"
             style={{ color: 'var(--text-muted)' }}
           >
-            <X size={14} />Cancel
+            <X size={14} />{t('common.cancel')}
           </button>
         </div>
       </div>
@@ -347,8 +350,8 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
         onClick={(e) => e.stopPropagation()}
         className="flex items-center justify-center p-1 rounded cursor-grab active:cursor-grabbing"
         style={{ color: 'var(--text-muted)' }}
-        title="Drag to reorder"
-        aria-label="Drag to reorder"
+        title={t('setLists.dragToReorder')}
+        aria-label={t('setLists.dragToReorder')}
       >
         <GripVertical size={16} />
       </div>
@@ -359,14 +362,14 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
         <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{setlist.name}</p>
         {setlist.description && <p className="text-sm truncate" style={{ color: 'var(--text-muted)' }}>{setlist.description}</p>}
         <div className="flex items-center gap-3 text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-          <span className="flex items-center gap-1" title={`${songCount} song${songCount === 1 ? '' : 's'}`}>
-            <Music size={11} />{songCount} song{songCount === 1 ? '' : 's'}
+          <span className="flex items-center gap-1" title={songCount === 1 ? t('setLists.songCountOne', { count: songCount }) : t('setLists.songCountMany', { count: songCount })}>
+            <Music size={11} />{songCount === 1 ? t('setLists.songCountOne', { count: songCount }) : t('setLists.songCountMany', { count: songCount })}
           </span>
-          <span className="flex items-center gap-1" title={`${noteCount} note${noteCount === 1 ? '' : 's'}`}>
-            <FileText size={11} />{noteCount} note{noteCount === 1 ? '' : 's'}
+          <span className="flex items-center gap-1" title={noteCount === 1 ? t('setLists.noteCountOne', { count: noteCount }) : t('setLists.noteCountMany', { count: noteCount })}>
+            <FileText size={11} />{noteCount === 1 ? t('setLists.noteCountOne', { count: noteCount }) : t('setLists.noteCountMany', { count: noteCount })}
           </span>
           {durationSeconds > 0 && (
-            <span className="flex items-center gap-1" title="Approximate total runtime based on song durations">
+            <span className="flex items-center gap-1" title={t('setLists.durationTitle')}>
               <Clock size={11} />~{formatDuration(durationSeconds)}
             </span>
           )}
@@ -381,28 +384,28 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
         <button
           onClick={(e) => { e.stopPropagation(); onPerform(); }}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title="Perform this set list"
+          title={t('setLists.card.perform')}
         >
           <Play size={16} style={{ color: 'var(--accent)' }} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); setEditing(true); }}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title="Edit set list"
+          title={t('setLists.card.edit')}
         >
           <Pencil size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); void onDuplicate(); }}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title="Duplicate this set list"
+          title={t('setLists.card.duplicate')}
         >
           <Copy size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); void onExport(); }}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title="Export set list"
+          title={t('setLists.card.export')}
           disabled={songCount === 0}
           style={{ opacity: songCount === 0 ? 0.4 : 1 }}
         >
@@ -411,7 +414,7 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
         <button
           onClick={(e) => { e.stopPropagation(); setShowDelete(true); }}
           className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]"
-          title="Delete set list"
+          title={t('setLists.card.delete')}
         >
           <Trash2 size={16} style={{ color: 'var(--danger)' }} />
         </button>
@@ -419,9 +422,9 @@ function SetListCard({ setlist, songCount, noteCount, durationSeconds, onOpen, o
 
       {showDelete && (
         <ConfirmDialog
-          title="Delete set list?"
-          message={<>This will permanently delete <strong>{setlist.name}</strong>. The songs in it will not be deleted.</>}
-          confirmLabel="Delete"
+          title={t('setLists.deleteConfirm.title')}
+          message={<>{t('setLists.deleteConfirm.messagePrefix')}<strong>{setlist.name}</strong>{t('setLists.deleteConfirm.messageSuffix')}</>}
+          confirmLabel={t('common.delete')}
           danger
           onCancel={() => setShowDelete(false)}
           onConfirm={() => {

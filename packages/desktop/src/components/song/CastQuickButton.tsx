@@ -6,6 +6,7 @@ import { usePlayerStore } from '@song-chords/shared';
 import { buildCastHtml, type CastMode as HtmlCastMode } from '../../utils/cast-html';
 import { useCastSyncStore } from '../../store/cast-sync-store';
 import { useShortcutHint } from '../../hooks/useShortcutHint';
+import { useT } from '../../i18n';
 
 type Mode = HtmlCastMode; // 'lyrics' | 'lyrics-chords'
 
@@ -24,6 +25,7 @@ type Mode = HtmlCastMode; // 'lyrics' | 'lyrics-chords'
  */
 export default function CastQuickButton(): React.ReactElement {
   const hint = useShortcutHint();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode | null>(null);
   const [serverInfo, setServerInfo] = useState<{ host: string; port: number } | null>(null);
@@ -272,13 +274,13 @@ export default function CastQuickButton(): React.ReactElement {
         >
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Cast this song
+              {t('cast.title')}
             </span>
             <button
               onClick={() => setOpen(false)}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
               style={{ color: 'var(--text-muted)' }}
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               <X size={13} />
             </button>
@@ -289,9 +291,7 @@ export default function CastQuickButton(): React.ReactElement {
               they scan / open the URL. Kept brief — the UI itself
               shows the QR + URL below. */}
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)', lineHeight: 1.4 }}>
-            Share this song with any device on the same Wi-Fi. Scan the QR or
-            open the URL — viewers can toggle <strong>Lyrics only</strong> vs
-            <strong> Lyrics + chords</strong> and start auto-scroll on their end.
+            {t('cast.description')}
           </p>
 
           {error && (
@@ -313,7 +313,7 @@ export default function CastQuickButton(): React.ReactElement {
               style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)' }}
             >
               <span className="inline-block animate-pulse">●</span>
-              <span>Starting cast server…</span>
+              <span>{t('cast.starting')}</span>
             </div>
           )}
 
@@ -321,12 +321,12 @@ export default function CastQuickButton(): React.ReactElement {
           {serverInfo && url && (
             <div className="flex flex-col gap-2 pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
               <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-                Open on the receiving device
+                {t('cast.openOnDevice')}
               </span>
               <div className="flex items-start gap-3">
                 {qrDataUrl && (
                   <div className="rounded-lg p-2 shrink-0" style={{ background: '#fff', border: '1px solid var(--border)' }}>
-                    <img src={qrDataUrl} alt="QR code" width={120} height={120} />
+                    <img src={qrDataUrl} alt={t('cast.qrAlt')} width={120} height={120} />
                   </div>
                 )}
                 <div className="flex flex-col gap-1 min-w-0 flex-1">
@@ -342,7 +342,7 @@ export default function CastQuickButton(): React.ReactElement {
                       }}
                       className="font-mono text-xs break-all min-w-0 flex-1 text-left hover:underline transition-colors"
                       style={{ color: 'var(--accent)', background: 'transparent', border: 0, padding: 0, cursor: 'pointer' }}
-                      title="Open in default browser"
+                      title={t('cast.openInBrowser')}
                     >
                       {url}
                     </button>
@@ -356,14 +356,16 @@ export default function CastQuickButton(): React.ReactElement {
                       }}
                       className="p-1.5 rounded shrink-0 hover:bg-[var(--surface-elevated)] transition-colors"
                       style={{ color: copied ? 'var(--accent)' : 'var(--text-muted)' }}
-                      title={copied ? 'Copied!' : 'Copy URL'}
-                      aria-label={copied ? 'Copied' : 'Copy URL'}
+                      title={copied ? t('cast.copied') : t('cast.copyUrl')}
+                      aria-label={copied ? t('cast.copiedAria') : t('cast.copyUrl')}
                     >
                       {copied ? <Check size={14} /> : <Copy size={14} />}
                     </button>
                   </div>
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    {clients > 0 ? `${clients} viewer${clients === 1 ? '' : 's'} connected` : 'Waiting for viewers…'}
+                    {clients > 0
+                      ? (clients === 1 ? t('cast.viewersConnectedOne', { count: clients }) : t('cast.viewersConnectedMany', { count: clients }))
+                      : t('cast.waitingForViewers')}
                   </span>
                 </div>
               </div>
@@ -378,7 +380,7 @@ export default function CastQuickButton(): React.ReactElement {
                   cursor: busy ? 'wait' : 'pointer',
                 }}
               >
-                <Power size={12} /> Stop casting
+                <Power size={12} /> {t('cast.stopCasting')}
               </button>
             </div>
           )}
@@ -393,7 +395,7 @@ export default function CastQuickButton(): React.ReactElement {
         ref={buttonRef}
         onClick={() => setOpen((v) => !v)}
         className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-        title={`Cast${hint('cast')}`}
+        title={`${t('cast.button')}${hint('cast')}`}
         style={{ color: serverInfo ? 'var(--accent)' : 'var(--text-secondary)' }}
       >
         <Cast size={16} fill={serverInfo ? 'currentColor' : 'none'} />

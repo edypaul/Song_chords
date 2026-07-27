@@ -1,6 +1,7 @@
 import React from 'react';
 import { PlayCircle } from 'lucide-react';
 import { useAudioPlayer } from '../../context/AudioPlayer';
+import { useT } from '../../i18n';
 
 interface Props {
   title: string;
@@ -25,6 +26,7 @@ interface Props {
  * link" so users can see at a glance which path is configured.
  */
 export default function PlayLinkButton({ title, link, audioFile, size = 'sm', disabledTitle }: Props): React.ReactElement {
+  const t = useT();
   const { open } = useAudioPlayer();
   const file = audioFile?.trim();
   const url = link?.trim();
@@ -33,10 +35,10 @@ export default function PlayLinkButton({ title, link, audioFile, size = 'sm', di
   const padding = size === 'md' ? 'p-2' : 'p-1';
 
   const tooltip = !has
-    ? (disabledTitle ?? 'No audio source for this song')
+    ? (disabledTitle ?? t('songRow.play.disabled'))
     : file
-      ? `Play "${title}" (local file)`
-      : `Listen to "${title}"`;
+      ? t('songRow.play.localFile', { title })
+      : t('songRow.play.link', { title });
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -56,7 +58,7 @@ export default function PlayLinkButton({ title, link, audioFile, size = 'sm', di
         background: 'transparent',
       }}
       title={tooltip}
-      aria-label={has ? 'Play audio source' : 'No audio source'}
+      aria-label={has ? t('songRow.play.aria') : t('songRow.play.ariaDisabled')}
     >
       <PlayCircle size={iconSize} fill={has ? 'currentColor' : 'none'} stroke={has ? 'var(--bg-secondary)' : 'currentColor'} strokeWidth={1.5} />
     </button>

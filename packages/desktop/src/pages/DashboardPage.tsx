@@ -6,27 +6,40 @@ import type { Song, DashboardCardKey } from '@song-chords/shared';
 import { useSongStore, useSetListStore, useSettingsStore, SetListRepository, DASHBOARD_CARDS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import { toTitleCase } from '../utils/text';
+import { useT } from '../i18n';
+import type { TKey } from '../i18n';
 
-/** Human label for each card key, used by the Customize popover. */
-const CARD_LABELS: Record<DashboardCardKey, string> = {
-  stats: 'Top stats (count tiles)',
-  favorites: 'Favorite songs',
-  setlists: 'Your set lists',
-  recentlyViewed: 'Recently viewed',
-  recentlyEdited: 'Recently edited',
-  difficulty: 'Difficulty',
-  topKeys: 'Top keys',
-  topGenres: 'Top genres',
-  topArtists: 'Top artists',
-  languages: 'Languages',
-  decades: 'Songs by decade',
-  topTags: 'Popular tags',
-  recentlyAdded: 'Recently added',
+/** Dictionary key for each card's label in the Customize popover. */
+const CARD_LABEL_KEYS: Record<DashboardCardKey, TKey> = {
+  stats: 'dashboard.cards.stats',
+  favorites: 'dashboard.cards.favorites',
+  setlists: 'dashboard.cards.setlists',
+  recentlyViewed: 'dashboard.cards.recentlyViewed',
+  recentlyEdited: 'dashboard.cards.recentlyEdited',
+  difficulty: 'dashboard.cards.difficulty',
+  topKeys: 'dashboard.cards.topKeys',
+  topGenres: 'dashboard.cards.topGenres',
+  topArtists: 'dashboard.cards.topArtists',
+  languages: 'dashboard.cards.languages',
+  decades: 'dashboard.cards.decades',
+  topTags: 'dashboard.cards.topTags',
+  recentlyAdded: 'dashboard.cards.recentlyAdded',
 };
 
-const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
+/** Dictionary keys for the five difficulty tiers (indexed 1..5 as the
+ *  song's `difficulty` field is stored). Index 0 is a placeholder that
+ *  keeps the array aligned with the numeric level. */
+const DIFFICULTY_KEYS: TKey[] = [
+  'dashboard.difficulty.unset',
+  'dashboard.difficulty.basic',
+  'dashboard.difficulty.easy',
+  'dashboard.difficulty.intermediate',
+  'dashboard.difficulty.advanced',
+  'dashboard.difficulty.professional',
+];
 
 export default function DashboardPage(): React.ReactElement {
+  const t = useT();
   const songs = useSongStore((s) => s.songs);
   const setlists = useSetListStore((s) => s.setlists);
   const dashboardCards = useSettingsStore((s) => s.settings.dashboardCards);
@@ -56,7 +69,7 @@ export default function DashboardPage(): React.ReactElement {
     void repo.getEntryCounts().then(setSetlistCounts);
   }, [setlists.length]);
 
-  const stats = useMemo(() => computeStats(songs), [songs]);
+  const stats = useMemo(() => computeStats(songs, t), [songs, t]);
   const favorites = useMemo(() => songs.filter((s) => s.favorite), [songs]);
   const recentFavorites = useMemo(
     () => [...favorites].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 8),
@@ -89,9 +102,9 @@ export default function DashboardPage(): React.ReactElement {
         style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
       >
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Dashboard</h1>
+          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('dashboard.title')}</h1>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-            An at-a-glance look at your song library.
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <button
@@ -100,11 +113,11 @@ export default function DashboardPage(): React.ReactElement {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: customizeOpen ? 'var(--surface-elevated)' : 'transparent' }}
           aria-expanded={customizeOpen}
-          aria-label="Customize dashboard"
-          title="Customize which cards appear on this dashboard"
+          aria-label={t('dashboard.customizeAria')}
+          title={t('dashboard.customizeTitle')}
         >
           <SlidersHorizontal size={14} />
-          Customize
+          {t('dashboard.customize')}
         </button>
         {customizeOpen && (
           <CustomizePopover
@@ -119,17 +132,17 @@ export default function DashboardPage(): React.ReactElement {
 
       {songs.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-10 text-sm" style={{ color: 'var(--text-muted)' }}>
-          Add some songs to see statistics.
+          {t('dashboard.emptyLibrary')}
         </div>
       ) : visibleCount === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-10 gap-3 text-sm" style={{ color: 'var(--text-muted)' }}>
-          <p>All Dashboard cards are hidden.</p>
+          <p>{t('dashboard.allHidden')}</p>
           <button
             onClick={resetCards}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
           >
-            <RotateCcw size={13} /> Show all cards
+            <RotateCcw size={13} /> {t('dashboard.showAllCards')}
           </button>
         </div>
       ) : (
@@ -137,25 +150,25 @@ export default function DashboardPage(): React.ReactElement {
           {/* Top stat cards */}
           {show('stats') && (
           <div className="col-span-full grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <StatCard icon={<Music size={18} />}     label="Total Songs"  value={stats.total.toString()}          onClick={() => navigate('/library')} />
-            <StatCard icon={<Star size={18} />}      label="Favorites"    value={favorites.length.toString()}     onClick={() => navigate('/favorites')} />
-            <StatCard icon={<User size={18} />}      label="Artists"      value={stats.uniqueArtists.toString()}  onClick={() => navigate('/categories/artist')} />
-            <StatCard icon={<Music size={18} />}     label="Genres"       value={stats.uniqueGenres.toString()}   onClick={() => navigate('/categories/genre')} />
-            <StatCard icon={<Tag size={18} />}       label="Tags"         value={stats.uniqueTags.toString()}     onClick={() => navigate('/categories/tags')} />
-            <StatCard icon={<ListMusic size={18} />} label="Set Lists"    value={setlists.length.toString()}      onClick={() => navigate('/setlists')} />
+            <StatCard icon={<Music size={18} />}     label={t('dashboard.stats.totalSongs')} value={stats.total.toString()}          onClick={() => navigate('/library')} />
+            <StatCard icon={<Star size={18} />}      label={t('dashboard.stats.favorites')}  value={favorites.length.toString()}     onClick={() => navigate('/favorites')} />
+            <StatCard icon={<User size={18} />}      label={t('dashboard.stats.artists')}    value={stats.uniqueArtists.toString()}  onClick={() => navigate('/categories/artist')} />
+            <StatCard icon={<Music size={18} />}     label={t('dashboard.stats.genres')}     value={stats.uniqueGenres.toString()}   onClick={() => navigate('/categories/genre')} />
+            <StatCard icon={<Tag size={18} />}       label={t('dashboard.stats.tags')}       value={stats.uniqueTags.toString()}     onClick={() => navigate('/categories/tags')} />
+            <StatCard icon={<ListMusic size={18} />} label={t('dashboard.stats.setLists')}   value={setlists.length.toString()}      onClick={() => navigate('/setlists')} />
           </div>
           )}
 
           {/* Favorites and set lists — prominent side-by-side cards */}
           {show('favorites') && (
           <Card
-            title="Favorite Songs"
+            title={t('dashboard.favorites.title')}
             icon={<Star size={16} />}
-            action={favorites.length > 0 ? { label: 'Perform', icon: <Play size={12} />, onClick: () => navigate('/favorites/perform') } : undefined}
+            action={favorites.length > 0 ? { label: t('dashboard.favorites.perform'), icon: <Play size={12} />, onClick: () => navigate('/favorites/perform') } : undefined}
           >
             {favorites.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                No favorites yet. Right-click a song and choose &ldquo;Add to favorites&rdquo;.
+                {t('dashboard.favorites.empty')}
               </p>
             ) : (
               <ul className="flex flex-col">
@@ -169,7 +182,7 @@ export default function DashboardPage(): React.ReactElement {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                          {s.artist ? toTitleCase(s.artist) : 'Unknown artist'}
+                          {s.artist ? toTitleCase(s.artist) : t('dashboard.unknownArtist')}
                           {s.key ? ` · ${s.key}` : ''}
                         </div>
                       </div>
@@ -183,7 +196,7 @@ export default function DashboardPage(): React.ReactElement {
                       className="w-full text-xs py-1.5 mt-1 hover:underline"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      View all {favorites.length} favorites →
+                      {t('dashboard.favorites.viewAll', { count: favorites.length })}
                     </button>
                   </li>
                 )}
@@ -193,15 +206,15 @@ export default function DashboardPage(): React.ReactElement {
           )}
 
           {show('setlists') && (
-          <Card title="Your Set Lists" icon={<ListMusic size={16} />}>
+          <Card title={t('dashboard.setlists.title')} icon={<ListMusic size={16} />}>
             {setlists.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                No set lists yet. Create one from the Set Lists page.
+                {t('dashboard.setlists.empty')}
               </p>
             ) : (
               <>
                 <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-                  {setlists.length} set list{setlists.length === 1 ? '' : 's'} · {totalSetlistEntries} total song{totalSetlistEntries === 1 ? '' : 's'}
+                  {t(setlists.length === 1 ? 'dashboard.setlists.summaryOne' : 'dashboard.setlists.summaryMany', { count: setlists.length, total: totalSetlistEntries })}
                 </p>
                 <ul className="flex flex-col">
                   {recentSetlists.slice(0, 8).map((sl) => {
@@ -222,14 +235,14 @@ export default function DashboardPage(): React.ReactElement {
                             )}
                           </div>
                           <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-                            {count} song{count === 1 ? '' : 's'}
+                            {t(count === 1 ? 'dashboard.setlists.songsOne' : 'dashboard.setlists.songsMany', { count })}
                           </span>
                         </button>
                         {count > 0 && (
                           <button
                             onClick={(e) => { e.stopPropagation(); navigate(`/setlists/${sl.id}/player`); }}
                             className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-                            title="Perform this set list"
+                            title={t('dashboard.setlists.perform')}
                           >
                             <Play size={12} style={{ color: 'var(--accent)' }} />
                           </button>
@@ -244,7 +257,7 @@ export default function DashboardPage(): React.ReactElement {
                         className="w-full text-xs py-1.5 mt-1 hover:underline"
                         style={{ color: 'var(--text-muted)' }}
                       >
-                        View all {setlists.length} set lists →
+                        {t('dashboard.setlists.viewAll', { count: setlists.length })}
                       </button>
                     </li>
                   )}
@@ -255,10 +268,10 @@ export default function DashboardPage(): React.ReactElement {
           )}
 
           {show('recentlyViewed') && (
-          <Card title="Recently Viewed" icon={<Eye size={16} />}>
+          <Card title={t('dashboard.recentlyViewed.title')} icon={<Eye size={16} />}>
             {recentlyViewed.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                Open a song to see it here.
+                {t('dashboard.recentlyViewed.empty')}
               </p>
             ) : (
               <ul className="flex flex-col">
@@ -272,7 +285,7 @@ export default function DashboardPage(): React.ReactElement {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                          {s.artist ? toTitleCase(s.artist) : 'Unknown artist'} · {relativeTime(s.lastViewedAt)}
+                          {s.artist ? toTitleCase(s.artist) : t('dashboard.unknownArtist')} · {relativeTime(s.lastViewedAt, t)}
                         </div>
                       </div>
                     </button>
@@ -284,10 +297,10 @@ export default function DashboardPage(): React.ReactElement {
           )}
 
           {show('recentlyEdited') && (
-          <Card title="Recently Edited" icon={<Pencil size={16} />}>
+          <Card title={t('dashboard.recentlyEdited.title')} icon={<Pencil size={16} />}>
             {recentlyEdited.length === 0 ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                Edit a song to see it here.
+                {t('dashboard.recentlyEdited.empty')}
               </p>
             ) : (
               <ul className="flex flex-col">
@@ -301,7 +314,7 @@ export default function DashboardPage(): React.ReactElement {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
                         <div className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                          {s.artist ? toTitleCase(s.artist) : 'Unknown artist'} · {relativeTime(s.updatedAt)}
+                          {s.artist ? toTitleCase(s.artist) : t('dashboard.unknownArtist')} · {relativeTime(s.updatedAt, t)}
                         </div>
                       </div>
                     </button>
@@ -314,7 +327,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('difficulty') && (
           <BarCard
-            title="Difficulty"
+            title={t('dashboard.difficulty.title')}
             icon={<Star size={16} />}
             items={stats.difficulty}
             onItemClick={(v) => navigate(`/categories/difficulty/${encodeURIComponent(v)}`)}
@@ -324,7 +337,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('topKeys') && (
           <BarCard
-            title="Top Keys"
+            title={t('dashboard.topKeys.title')}
             icon={<Hash size={16} />}
             items={stats.topKeys}
             onItemClick={(v) => navigate(`/categories/key/${encodeURIComponent(v)}`)}
@@ -334,7 +347,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('topGenres') && (
           <BarCard
-            title="Top Genres"
+            title={t('dashboard.topGenres.title')}
             icon={<Music size={16} />}
             items={stats.topGenres}
             onItemClick={(v) => navigate(`/categories/genre/${encodeURIComponent(v)}`)}
@@ -344,7 +357,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('topArtists') && (
           <BarCard
-            title="Top Artists"
+            title={t('dashboard.topArtists.title')}
             icon={<User size={16} />}
             items={stats.topArtists}
             onItemClick={(v) => navigate(`/categories/artist/${encodeURIComponent(v)}`)}
@@ -354,7 +367,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('languages') && (
           <BarCard
-            title="Languages"
+            title={t('dashboard.languages.title')}
             icon={<Globe2 size={16} />}
             items={stats.languages}
             onItemClick={(v) => navigate(`/categories/language/${encodeURIComponent(v)}`)}
@@ -364,7 +377,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('decades') && (
           <BarCard
-            title="Songs by Decade"
+            title={t('dashboard.decades.title')}
             icon={<Calendar size={16} />}
             items={stats.decades}
             onItemClick={(v) => navigate(`/categories/decade/${encodeURIComponent(v)}`)}
@@ -374,7 +387,7 @@ export default function DashboardPage(): React.ReactElement {
 
           {show('topTags') && (
           <BarCard
-            title="Popular Tags"
+            title={t('dashboard.topTags.title')}
             icon={<Tag size={16} />}
             items={stats.topTags}
             onItemClick={(v) => navigate(`/categories/tags/${encodeURIComponent(v)}`)}
@@ -383,9 +396,9 @@ export default function DashboardPage(): React.ReactElement {
           )}
 
           {show('recentlyAdded') && (
-          <Card title="Recently Added" icon={<Calendar size={16} />}>
+          <Card title={t('dashboard.recentlyAdded.title')} icon={<Calendar size={16} />}>
             {stats.recent.length === 0 ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No recent songs.</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('dashboard.recentlyAdded.empty')}</p>
             ) : (
               <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {stats.recent.map((s) => (
@@ -396,7 +409,7 @@ export default function DashboardPage(): React.ReactElement {
                     >
                       <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{toTitleCase(s.title)}</div>
                       <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {s.artist ? toTitleCase(s.artist) : 'Unknown artist'}
+                        {s.artist ? toTitleCase(s.artist) : t('dashboard.unknownArtist')}
                         {s.key ? ` · ${s.key}` : ''}
                       </div>
                     </button>
@@ -429,6 +442,7 @@ function CustomizePopover({
   onReset: () => void;
   onClose: () => void;
 }): React.ReactElement | null {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
@@ -483,11 +497,11 @@ function CustomizePopover({
         zIndex: 1000,
       }}
       role="dialog"
-      aria-label="Customize dashboard cards"
+      aria-label={t('dashboard.customizePopoverAria')}
     >
       <div className="px-3 pb-1.5 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-          Dashboard cards
+          {t('dashboard.customizeHeader')}
         </span>
         <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
           {enabledCount} / {DASHBOARD_CARDS.length}
@@ -508,7 +522,7 @@ function CustomizePopover({
                 onChange={(e) => onToggle(k, e.target.checked)}
                 style={{ accentColor: 'var(--accent)' }}
               />
-              <span className="text-xs flex-1 truncate">{CARD_LABELS[k]}</span>
+              <span className="text-xs flex-1 truncate">{t(CARD_LABEL_KEYS[k])}</span>
             </label>
           );
         })}
@@ -520,7 +534,7 @@ function CustomizePopover({
           style={{ color: 'var(--text-secondary)' }}
         >
           <RotateCcw size={12} />
-          Show all cards
+          {t('dashboard.showAllCards')}
         </button>
       </div>
     </div>,
@@ -547,7 +561,7 @@ interface Stats {
   recent: Song[];
 }
 
-function computeStats(songs: Song[]): Stats {
+function computeStats(songs: Song[], t: (key: TKey) => string): Stats {
   const tallyInto = (m: Map<string, number>, key: string | undefined | null) => {
     if (!key) return;
     m.set(key, (m.get(key) ?? 0) + 1);
@@ -582,7 +596,7 @@ function computeStats(songs: Song[]): Stats {
 
   const difficulty: BarItem[] = [];
   for (let i = 1; i <= 5; i++) {
-    difficulty.push({ label: DIFFICULTY_LABELS[i], count: difficultyCounts[i], value: String(i) });
+    difficulty.push({ label: t(DIFFICULTY_KEYS[i]), count: difficultyCounts[i], value: String(i) });
   }
 
   const recent = [...songs]
@@ -640,17 +654,17 @@ function StatCard({
   );
 }
 
-function relativeTime(ts: number): string {
+function relativeTime(ts: number, t: (key: TKey, vars?: Record<string, string | number>) => string): string {
   const diff = Date.now() - ts;
-  if (diff < 0) return 'just now';
+  if (diff < 0) return t('dashboard.time.justNow');
   const s = Math.floor(diff / 1000);
-  if (s < 60) return 'just now';
+  if (s < 60) return t('dashboard.time.justNow');
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('dashboard.time.minutesAgo', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t('dashboard.time.hoursAgo', { count: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
+  if (d < 7) return t('dashboard.time.daysAgo', { count: d });
   return new Date(ts).toLocaleDateString();
 }
 
@@ -695,11 +709,12 @@ function BarCard({
   onItemClick?: (value: string) => void;
   onItemPerform?: (value: string) => void;
 }): React.ReactElement {
+  const t = useT();
   const max = items.reduce((m, i) => Math.max(m, i.count), 0) || 1;
   return (
     <Card title={title} icon={icon}>
       {items.length === 0 ? (
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No data yet.</p>
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('dashboard.noDataYet')}</p>
       ) : (
         <ul className="flex flex-col gap-1.5">
           {items.map((it) => {
@@ -735,7 +750,7 @@ function BarCard({
                   <button
                     onClick={(e) => { e.stopPropagation(); onItemPerform(value); }}
                     className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                    title={`Perform all ${it.count} song${it.count === 1 ? '' : 's'}`}
+                    title={t(it.count === 1 ? 'dashboard.performAllOne' : 'dashboard.performAllMany', { count: it.count })}
                   >
                     <Play size={12} style={{ color: 'var(--accent)' }} />
                   </button>

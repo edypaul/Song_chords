@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import type { TunerInstrument } from '../tunings/presets';
 import { parseNoteName } from '../dsp/note';
+import { useT } from '../../i18n';
 
 /**
  * Modal for creating / editing a custom tuning. Validates each note
@@ -27,6 +28,7 @@ export default function CustomTuningEditor({
   onCancel: () => void;
   onSave: (d: CustomTuningDraft) => void;
 }): React.ReactElement {
+  const t = useT();
   const [name, setName] = useState(draft.name);
   const [notes, setNotes] = useState<string[]>(draft.notes.length ? [...draft.notes] : ['E2']);
 
@@ -64,25 +66,25 @@ export default function CustomTuningEditor({
       >
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {draft.id ? 'Edit tuning' : 'New custom tuning'}
+            {draft.id ? t('tuner.customTuning.editTitle') : t('tuner.customTuning.newTitle')}
           </h3>
           <button
             onClick={onCancel}
             className="p-1 rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-muted)' }}
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <X size={14} />
           </button>
         </div>
 
         <label className="flex flex-col gap-1 mb-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Name
+          {t('tuner.customTuning.nameLabel')}
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="rounded px-2 py-1 text-sm"
-            placeholder="e.g. Drop C with high E"
+            placeholder={t('tuner.customTuning.namePlaceholder')}
             style={{
               background: 'var(--surface-elevated)',
               color: 'var(--text-primary)',
@@ -93,7 +95,7 @@ export default function CustomTuningEditor({
 
         <div className="text-xs font-semibold uppercase tracking-wider mb-2"
           style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-          Strings (low → high)
+          {t('tuner.customTuning.stringsHeading')}
         </div>
         <div className="flex flex-col gap-1.5 mb-3">
           {notes.map((n, i) => {
@@ -107,7 +109,7 @@ export default function CustomTuningEditor({
                   value={n}
                   onChange={(e) => setNoteAt(i, e.target.value)}
                   className="flex-1 rounded px-2 py-1 text-sm font-mono"
-                  placeholder="e.g. E2"
+                  placeholder={t('tuner.customTuning.notePlaceholder')}
                   style={{
                     background: 'var(--surface-elevated)',
                     color: ok ? 'var(--text-primary)' : 'var(--danger, #ef4444)',
@@ -119,7 +121,7 @@ export default function CustomTuningEditor({
                   disabled={notes.length <= 1}
                   className="p-1 rounded hover:bg-[var(--surface-elevated)] disabled:opacity-30 disabled:cursor-not-allowed"
                   style={{ color: 'var(--text-muted)' }}
-                  title="Remove string"
+                  title={t('tuner.customTuning.removeString')}
                 >
                   <Trash2 size={13} />
                 </button>
@@ -133,12 +135,12 @@ export default function CustomTuningEditor({
           className="flex items-center gap-1.5 text-xs px-2 py-1 rounded hover:bg-[var(--surface-elevated)] mb-4"
           style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
         >
-          <Plus size={12} /> Add string
+          <Plus size={12} /> {t('tuner.customTuning.addString')}
         </button>
 
         <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
-          Use scientific pitch notation: <code>E2</code>, <code>A2</code>, <code>D3</code>,{' '}
-          <code>G#3</code>, <code>Bb3</code>. The number is the octave (A4 = 440 Hz by default).
+          {t('tuner.customTuning.notationHintPrefix')} <code>E2</code>, <code>A2</code>, <code>D3</code>,{' '}
+          <code>G#3</code>, <code>Bb3</code>. {t('tuner.customTuning.notationHintSuffix')}
         </p>
 
         <div className="flex justify-end gap-2">
@@ -147,7 +149,7 @@ export default function CustomTuningEditor({
             className="px-3 py-1.5 rounded text-xs"
             style={{ color: 'var(--text-muted)' }}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             disabled={!canSave}
@@ -155,7 +157,7 @@ export default function CustomTuningEditor({
             className="px-3 py-1.5 rounded text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            {draft.id ? 'Save changes' : 'Create tuning'}
+            {draft.id ? t('tuner.customTuning.saveChanges') : t('tuner.customTuning.create')}
           </button>
         </div>
       </div>

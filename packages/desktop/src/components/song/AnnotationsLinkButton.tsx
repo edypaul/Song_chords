@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import { Highlighter, X, Star } from 'lucide-react';
 import { parseSongAnnotations, viewModeLabel, SONG_STYLE_PRESETS, useSettingsStore } from '@song-chords/shared';
+import { useT } from '../../i18n';
 
 interface Props {
   title: string;
@@ -27,6 +28,7 @@ interface Props {
  * outside-click / Escape.
  */
 export default function AnnotationsLinkButton({ title, annotationsJson, size = 'sm' }: Props): React.ReactElement {
+  const t = useT();
   const doc = useMemo(() => parseSongAnnotations(annotationsJson), [annotationsJson]);
   const customPresets = useSettingsStore((s) => s.settings.customPresets ?? {});
   // Human-readable preset name from its key. Falls back to the key
@@ -34,7 +36,7 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
   // user has since deleted) so the row still shows something
   // meaningful instead of a blank column.
   const presetName = (key: string): string => {
-    if (!key) return 'Any preset';
+    if (!key) return t('songRow.annotations.anyPreset');
     const builtin = SONG_STYLE_PRESETS[key];
     if (builtin) return builtin.name;
     const custom = customPresets[key];
@@ -106,8 +108,10 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
   };
 
   const tooltip = has
-    ? `${sets.length} annotation${sets.length === 1 ? '' : 's'} for "${title}"`
-    : 'No annotations for this song';
+    ? (sets.length === 1
+        ? t('songRow.annotations.tooltipOne', { count: sets.length, title })
+        : t('songRow.annotations.tooltipMany', { count: sets.length, title }))
+    : t('songRow.annotations.disabled');
 
   return (
     <>
@@ -156,7 +160,7 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
             <button
               onClick={(e) => { e.stopPropagation(); setOpen(false); }}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-              title="Close"
+              title={t('songRow.annotations.close')}
             >
               <X size={14} style={{ color: 'var(--text-muted)' }} />
             </button>
@@ -174,7 +178,7 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
                   {s.isDefault
                     ? <Star size={11} style={{ color: 'var(--accent)' }} fill="currentColor" />
                     : <span style={{ width: 11 }} />}
-                  <span className="truncate flex-1 text-xs">{s.name || '(unnamed)'}</span>
+                  <span className="truncate flex-1 text-xs">{s.name || t('songRow.annotations.unnamed')}</span>
                   <span
                     className="text-[10px] whitespace-nowrap inline-flex items-center gap-1.5"
                     style={{ color: 'var(--text-muted)' }}

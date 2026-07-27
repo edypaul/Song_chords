@@ -6,6 +6,7 @@ import type { Song } from '@song-chords/shared';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
 import SongListTable, { type SortableField } from '../components/song/SongListTable';
+import { useT } from '../i18n';
 
 function durationToSeconds(d: string | undefined): number {
   if (!d) return -1;
@@ -17,6 +18,7 @@ function durationToSeconds(d: string | undefined): number {
 }
 
 export default function FavoritesPage(): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const songs = useSongStore((s) => s.songs);
   const [sortField, setSortField] = useState<SortableField>('title');
@@ -70,9 +72,9 @@ export default function FavoritesPage(): React.ReactElement {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-6 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
         <Star size={18} style={{ color: 'var(--accent)' }} fill="currentColor" />
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Favorites</h1>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('favoritesPage.title')}</h1>
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {sorted.length} song{sorted.length === 1 ? '' : 's'}
+          {sorted.length === 1 ? t('favoritesPage.songCountOne', { count: sorted.length }) : t('favoritesPage.songCountMany', { count: sorted.length })}
         </span>
         <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
@@ -85,7 +87,7 @@ export default function FavoritesPage(): React.ReactElement {
             cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
           }}
         >
-          <Play size={16} /> Perform
+          <Play size={16} /> {t('favoritesPage.perform')}
         </button>
       </div>
 
@@ -93,8 +95,8 @@ export default function FavoritesPage(): React.ReactElement {
         {sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-2 py-20" style={{ color: 'var(--text-muted)' }}>
             <Star size={36} style={{ opacity: 0.4 }} />
-            <p className="text-sm">No favorite songs yet.</p>
-            <p className="text-xs">Right-click a song and choose &ldquo;Add to favorites&rdquo;.</p>
+            <p className="text-sm">{t('favoritesPage.emptyTitle')}</p>
+            <p className="text-xs">{t('favoritesPage.emptyHint')}</p>
           </div>
         ) : (
           <SongListTable

@@ -23,6 +23,8 @@ import {
   type AnnotationTool,
 } from './annotation-store';
 import type { useAnnotationDoc } from './useAnnotationDoc';
+import { useT } from '../../i18n';
+import type { TKey } from '../../i18n';
 
 interface Props {
   onClose: () => void;
@@ -31,15 +33,15 @@ interface Props {
   controller: ReturnType<typeof useAnnotationDoc>;
 }
 
-const TOOLS: Array<{ id: AnnotationTool; label: string; Icon: typeof Pencil }> = [
-  { id: 'select',      label: 'Erase',            Icon: Eraser },
-  { id: 'pen',         label: 'Pen',              Icon: Pencil },
-  { id: 'highlighter', label: 'Highlighter',      Icon: Highlighter },
-  { id: 'line',        label: 'Line',             Icon: Minus },
-  { id: 'arrow',       label: 'Arrow',            Icon: ArrowRight },
-  { id: 'rect',        label: 'Rectangle',        Icon: Square },
-  { id: 'ellipse',     label: 'Ellipse',          Icon: Circle },
-  { id: 'text',        label: 'Text',             Icon: Type },
+const TOOLS: Array<{ id: AnnotationTool; labelKey: TKey; Icon: typeof Pencil }> = [
+  { id: 'select',      labelKey: 'annotationToolbar.tools.erase',       Icon: Eraser },
+  { id: 'pen',         labelKey: 'annotationToolbar.tools.pen',         Icon: Pencil },
+  { id: 'highlighter', labelKey: 'annotationToolbar.tools.highlighter', Icon: Highlighter },
+  { id: 'line',        labelKey: 'annotationToolbar.tools.line',        Icon: Minus },
+  { id: 'arrow',       labelKey: 'annotationToolbar.tools.arrow',       Icon: ArrowRight },
+  { id: 'rect',        labelKey: 'annotationToolbar.tools.rect',        Icon: Square },
+  { id: 'ellipse',     labelKey: 'annotationToolbar.tools.ellipse',     Icon: Circle },
+  { id: 'text',        labelKey: 'annotationToolbar.tools.text',        Icon: Type },
 ];
 
 /**
@@ -61,6 +63,7 @@ const TOOLS: Array<{ id: AnnotationTool; label: string; Icon: typeof Pencil }> =
  *      (creates a new set beside it) + Cancel (discards edits).
  */
 export default function AnnotationToolbar({ onClose, viewMode, controller }: Props): React.ReactElement {
+  const t = useT();
   const tool = useAnnotationEditStore((s) => s.tool);
   const color = useAnnotationEditStore((s) => s.color);
   const strokeWidth = useAnnotationEditStore((s) => s.strokeWidth);
@@ -224,13 +227,13 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Annotate</span>
+        <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>{t('annotationToolbar.title')}</span>
         <button
           data-no-drag
           onClick={onClose}
           className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-          title="Close (annotations stay saved)"
-          aria-label="Close"
+          title={t('annotationToolbar.closeTitle')}
+          aria-label={t('annotationToolbar.closeAria')}
         >
           <X size={14} style={{ color: 'var(--text-muted)' }} />
         </button>
@@ -243,7 +246,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         </div>
         {editingFromSet && (
           <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Editing: <span style={{ color: 'var(--text-primary)' }}>{editingFromSet.name}</span>
+            {t('annotationToolbar.editingLabel')} <span style={{ color: 'var(--text-primary)' }}>{editingFromSet.name}</span>
           </div>
         )}
       </div>
@@ -258,10 +261,11 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
           opacity: isEditing ? 1 : 0.4,
           pointerEvents: isEditing ? 'auto' : 'none',
         }}
-        title={isEditing ? undefined : 'Click "New annotation" (or "Edit") to start drawing'}
+        title={isEditing ? undefined : t('annotationToolbar.startDrawingHint')}
       >
-        {TOOLS.map(({ id, label, Icon }) => {
+        {TOOLS.map(({ id, labelKey, Icon }) => {
           const active = tool === id;
+          const label = t(labelKey);
           return (
             <button
               key={id}
@@ -292,7 +296,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
           pointerEvents: isEditing ? 'auto' : 'none',
         }}
       >
-        <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Color</div>
+        <div className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>{t('annotationToolbar.color')}</div>
         <div className="flex flex-wrap gap-1.5">
           {ANNOTATION_COLORS.map((c) => {
             const active = c === color;
@@ -311,7 +315,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                   transform: active ? 'scale(1.15)' : 'scale(1)',
                 }}
                 title={c}
-                aria-label={`Color ${c}`}
+                aria-label={t('annotationToolbar.colorAria', { color: c })}
                 aria-pressed={active}
               />
             );
@@ -330,7 +334,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
         }}
       >
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Stroke</span>
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{t('annotationToolbar.stroke')}</span>
           <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{strokeWidth}px</span>
         </div>
         <input
@@ -347,7 +351,7 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
       {isEditing && tool === 'text' && (
         <div data-no-drag className="p-2 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Font size</span>
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{t('annotationToolbar.fontSize')}</span>
             <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{fontSize}px</span>
           </div>
           <input
@@ -375,10 +379,10 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                   color: 'var(--text-primary)',
                   border: '1px solid var(--border)',
                 }}
-                title={`Edit "${currentSetToEdit.name}" — draw more strokes then Save`}
+                title={t('annotationToolbar.editSetTitle', { name: currentSetToEdit.name })}
               >
                 <Edit3 size={13} />
-                Edit &ldquo;{currentSetToEdit.name}&rdquo;
+                {t('annotationToolbar.editSetLabel', { name: currentSetToEdit.name })}
               </button>
             )}
             <button
@@ -389,21 +393,21 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                 color: 'white',
                 border: '1px solid var(--accent)',
               }}
-              title="Start a new blank annotation"
+              title={t('annotationToolbar.newAnnotationTitle')}
             >
               <Plus size={13} />
-              New annotation
+              {t('annotationToolbar.newAnnotation')}
             </button>
           </>
         )}
 
         {isEditing && !editingFromSet && (
           <>
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Save as</div>
+            <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{t('annotationToolbar.saveAs')}</div>
             <input
               value={saveAsName}
               onChange={(e) => { setSaveAsName(e.target.value); setNameDirty(true); }}
-              placeholder="Name…"
+              placeholder={t('annotationToolbar.namePlaceholder')}
               className="w-full text-xs px-1.5 py-1 rounded"
               style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
               onKeyDown={(e) => { if (e.key === 'Enter') doSaveAsNew(); }}
@@ -421,14 +425,14 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
               }}
               title={
                 !hasShapesInDraft
-                  ? 'Draw something first'
+                  ? t('annotationToolbar.saveDrawFirst')
                   : !saveAsName.trim()
-                    ? 'Give it a name'
-                    : 'Save as a new annotation set'
+                    ? t('annotationToolbar.saveNeedsName')
+                    : t('annotationToolbar.saveNewSetTitle')
               }
             >
               <Save size={13} />
-              Save
+              {t('annotationToolbar.save')}
             </button>
           </>
         )}
@@ -445,16 +449,16 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                 border: '1px solid var(--border)',
                 cursor: hasShapesInDraft ? 'pointer' : 'not-allowed',
               }}
-              title={`Overwrite “${editingFromSet.name}” with the current drawing`}
+              title={t('annotationToolbar.overwriteTitle', { name: editingFromSet.name })}
             >
               <Save size={13} />
-              Save
+              {t('annotationToolbar.save')}
             </button>
             <div className="flex gap-1">
               <input
                 value={saveAsName}
                 onChange={(e) => { setSaveAsName(e.target.value); setNameDirty(true); }}
-                placeholder="Save as new name…"
+                placeholder={t('annotationToolbar.saveAsNewPlaceholder')}
                 className="flex-1 text-xs px-1.5 py-1 rounded"
                 style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                 onKeyDown={(e) => { if (e.key === 'Enter') doSaveAsNew(); }}
@@ -470,9 +474,9 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                   cursor: (hasShapesInDraft && saveAsName.trim()) ? 'pointer' : 'not-allowed',
                   opacity: (hasShapesInDraft && saveAsName.trim()) ? 1 : 0.5,
                 }}
-                title="Save as a new set instead of overwriting"
+                title={t('annotationToolbar.saveAsNewTitle')}
               >
-                Save as…
+                {t('annotationToolbar.saveAsNew')}
               </button>
             </div>
           </>
@@ -491,10 +495,10 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                 opacity: hasShapesInDraft ? 1 : 0.4,
                 cursor: hasShapesInDraft ? 'pointer' : 'not-allowed',
               }}
-              title="Erase everything in the current drawing"
+              title={t('annotationToolbar.clearTitle')}
             >
               <Trash2 size={13} />
-              Clear
+              {t('annotationToolbar.clear')}
             </button>
             <button
               onClick={doCancel}
@@ -504,16 +508,16 @@ export default function AnnotationToolbar({ onClose, viewMode, controller }: Pro
                 color: 'var(--text-secondary)',
                 border: '1px solid var(--border)',
               }}
-              title="Discard the current drawing"
+              title={t('annotationToolbar.cancelTitle')}
             >
               <X size={13} />
-              Cancel
+              {t('annotationToolbar.cancel')}
             </button>
           </>
         )}
 
         <div className="text-[10px] text-center" style={{ color: 'var(--text-muted)' }}>
-          Ctrl+Z undo · Ctrl+Shift+Z redo
+          {t('annotationToolbar.undoRedoHint')}
         </div>
       </div>
     </div>,

@@ -7,18 +7,20 @@ import { toTitleCase } from '../utils/text';
 import SongContextMenu from '../components/song/SongContextMenu';
 import SongSelectionBar from '../components/song/SongSelectionBar';
 import SongListTable, { type SortableField } from '../components/song/SongListTable';
+import { useT } from '../i18n';
+import type { TKey } from '../i18n';
 
 type CategoryKey = 'artist' | 'genre' | 'key' | 'difficulty' | 'tags' | 'year' | 'decade' | 'language';
 
-const CATEGORIES: { key: CategoryKey; label: string }[] = [
-  { key: 'artist',     label: 'Artist' },
-  { key: 'genre',      label: 'Genre' },
-  { key: 'key',        label: 'Key' },
-  { key: 'difficulty', label: 'Difficulty' },
-  { key: 'language',   label: 'Language' },
-  { key: 'year',       label: 'Year' },
-  { key: 'decade',     label: 'Decade' },
-  { key: 'tags',       label: 'Tags' },
+const CATEGORIES: { key: CategoryKey; labelKey: TKey }[] = [
+  { key: 'artist',     labelKey: 'categories.tabs.artist' },
+  { key: 'genre',      labelKey: 'categories.tabs.genre' },
+  { key: 'key',        labelKey: 'categories.tabs.key' },
+  { key: 'difficulty', labelKey: 'categories.tabs.difficulty' },
+  { key: 'language',   labelKey: 'categories.tabs.language' },
+  { key: 'year',       labelKey: 'categories.tabs.year' },
+  { key: 'decade',     labelKey: 'categories.tabs.decade' },
+  { key: 'tags',       labelKey: 'categories.tabs.tags' },
 ];
 
 export default function CategoriesPage(): React.ReactElement {
@@ -33,11 +35,12 @@ export default function CategoriesPage(): React.ReactElement {
 // ─── Tab bar (shared header across all category levels) ───────────────────
 
 function CategoryTabs({ active }: { active?: CategoryKey }): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   return (
     <header className="px-6 py-3 border-b flex items-center gap-2 flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
-      <h1 className="text-xl font-bold mr-3" style={{ color: 'var(--text-primary)' }}>Categories</h1>
-      {CATEGORIES.map(({ key, label }) => {
+      <h1 className="text-xl font-bold mr-3" style={{ color: 'var(--text-primary)' }}>{t('categories.title')}</h1>
+      {CATEGORIES.map(({ key, labelKey }) => {
         const on = active === key;
         return (
           <button
@@ -49,7 +52,7 @@ function CategoryTabs({ active }: { active?: CategoryKey }): React.ReactElement 
               color: on ? 'white' : 'var(--text-secondary)',
             }}
           >
-            {label}
+            {t(labelKey)}
           </button>
         );
       })}
@@ -61,6 +64,7 @@ function CategoryTabs({ active }: { active?: CategoryKey }): React.ReactElement 
 // ─── Level 2: list distinct values for a category ──────────────────────────
 
 function CategoryValueList({ category, songs }: { category: CategoryKey; songs: Song[] }): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const values = useMemo(() => {
     const counts = new Map<string, number>();
@@ -76,7 +80,7 @@ function CategoryValueList({ category, songs }: { category: CategoryKey; songs: 
       <CategoryTabs active={category} />
       <div className="flex-1 overflow-y-auto">
         {values.length === 0 ? (
-          <EmptyHint message="No values in this category yet." />
+          <EmptyHint message={t('categories.emptyValues')} />
         ) : (
           <ul>
             {values.map(([v, count]) => (
@@ -86,8 +90,8 @@ function CategoryValueList({ category, songs }: { category: CategoryKey; songs: 
                   className="w-full flex items-center gap-3 px-6 py-3 border-b text-left hover:bg-[var(--surface-elevated)] transition-colors"
                   style={{ borderColor: 'var(--border)', color: 'var(--text-primary)' }}
                 >
-                  <span className="flex-1">{formatValue(category, v)}</span>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{count} song{count === 1 ? '' : 's'}</span>
+                  <span className="flex-1">{formatValue(category, v, t)}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{count === 1 ? t('categories.songCountOne', { count }) : t('categories.songCountMany', { count })}</span>
                   <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
                 </button>
               </li>
@@ -111,6 +115,7 @@ function durationToSeconds(d: string | undefined): number {
 }
 
 function SongsForValue({ category, value, songs }: { category: CategoryKey; value: string; songs: Song[] }): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const [sortField, setSortField] = React.useState<SortableField>('title');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('asc');
@@ -183,11 +188,11 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
           onClick={() => navigate(`/categories/${category}`)}
           className="p-1 rounded hover:bg-[var(--surface-elevated)]"
           style={{ color: 'var(--text-muted)' }}
-          title="Back"
+          title={t('common.back')}
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{formatValue(category, value)}</span>
+        <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{formatValue(category, value, t)}</span>
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({sorted.length})</span>
         <SongSelectionBar selected={selectedSongs} onClear={() => setSelected(new Set())} />
         <button
@@ -199,14 +204,14 @@ function SongsForValue({ category, value, songs }: { category: CategoryKey; valu
             color: sorted.length === 0 ? 'var(--text-muted)' : 'white',
             cursor: sorted.length === 0 ? 'not-allowed' : 'pointer',
           }}
-          title="Perform these songs"
+          title={t('categories.performTooltip')}
         >
-          <Play size={13} /> Perform
+          <Play size={13} /> {t('categories.perform')}
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
         {sorted.length === 0 ? (
-          <EmptyHint message="No songs match." />
+          <EmptyHint message={t('categories.emptyNoMatch')} />
         ) : (
           <SongListTable
             songs={sorted}
@@ -256,10 +261,20 @@ function extractValues(category: CategoryKey, song: Song): string[] {
   }
 }
 
-function formatValue(category: CategoryKey, value: string): string {
+const DIFFICULTY_TKEYS: TKey[] = [
+  'dashboard.difficulty.unset',
+  'dashboard.difficulty.basic',
+  'dashboard.difficulty.easy',
+  'dashboard.difficulty.intermediate',
+  'dashboard.difficulty.advanced',
+  'dashboard.difficulty.professional',
+];
+
+function formatValue(category: CategoryKey, value: string, t: (key: TKey) => string): string {
   if (category === 'difficulty') {
     const n = parseInt(value);
-    return DIFFICULTY_LABELS[n] ?? value;
+    const key = DIFFICULTY_TKEYS[n];
+    return key ? t(key) : value;
   }
   if (category === 'tags' || category === 'artist' || category === 'language') return toTitleCase(value);
   return value;

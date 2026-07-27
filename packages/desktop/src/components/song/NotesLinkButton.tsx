@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { StickyNote, X } from 'lucide-react';
+import { useT } from '../../i18n';
 
 interface Props {
   title: string;
@@ -25,6 +26,7 @@ interface Props {
  * Escape.
  */
 export default function NotesLinkButton({ title, notes, size = 'sm' }: Props): React.ReactElement {
+  const t = useT();
   const text = notes?.trim() ?? '';
   const has = text.length > 0;
   const iconSize = size === 'md' ? 18 : 15;
@@ -91,7 +93,7 @@ export default function NotesLinkButton({ title, notes, size = 'sm' }: Props): R
     setOpen((v) => !v);
   };
 
-  const tooltip = has ? `Notes for "${title}"` : 'No notes for this song';
+  const tooltip = has ? t('songRow.notes.tooltip', { title }) : t('songRow.notes.disabled');
 
   return (
     <>
@@ -140,7 +142,7 @@ export default function NotesLinkButton({ title, notes, size = 'sm' }: Props): R
             <button
               onClick={(e) => { e.stopPropagation(); setOpen(false); }}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-              title="Close"
+              title={t('songRow.notes.close')}
             >
               <X size={14} style={{ color: 'var(--text-muted)' }} />
             </button>

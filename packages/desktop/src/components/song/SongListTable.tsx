@@ -7,7 +7,8 @@ import { toTitleCase } from '../../utils/text';
 import PlayLinkButton from './PlayLinkButton';
 import NotesLinkButton from './NotesLinkButton';
 import AnnotationsLinkButton from './AnnotationsLinkButton';
-import { COLUMN_LABEL } from './songListColumnLabels';
+import { useT } from '../../i18n';
+import type { TKey } from '../../i18n';
 import {
   DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -15,6 +16,31 @@ import {
   SortableContext, sortableKeyboardCoordinates, useSortable, horizontalListSortingStrategy, arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+/** Dictionary key for each optional column header label. Kept local so the
+ *  header re-renders in the active language via `useT`. */
+const COLUMN_LABEL_KEY: Record<SongListColumn, TKey> = {
+  artist:      'songList.columns.artist',
+  genre:       'songList.columns.genre',
+  key:         'songList.columns.key',
+  difficulty:  'songList.columns.difficulty',
+  tempo:       'songList.columns.tempo',
+  duration:    'songList.columns.duration',
+  year:        'songList.columns.year',
+  language:    'songList.columns.language',
+  chordsCount: 'songList.columns.chordsCount',
+  createdAt:   'songList.columns.createdAt',
+};
+
+/** Dictionary keys for each difficulty level (index matches value 0..5). */
+const DIFFICULTY_KEYS: TKey[] = [
+  'songList.difficulty.unset',
+  'songList.difficulty.basic',
+  'songList.difficulty.easy',
+  'songList.difficulty.intermediate',
+  'songList.difficulty.advanced',
+  'songList.difficulty.professional',
+];
 
 /** Every field the user can sort by — the union of Title + every optional
  *  column. Callers only sort by the ones their store supports; the type
@@ -37,8 +63,6 @@ const COLUMN_META: Record<SongListColumn, { align: 'left' | 'right'; width?: str
   chordsCount: { align: 'right', width: 'w-20' },
   createdAt:   { align: 'left',  width: 'w-28' },
 };
-
-const DIFFICULTY_LABELS = ['Unset', 'Basic', 'Easy', 'Intermediate', 'Advanced', 'Professional'];
 
 export interface SongListTableProps {
   songs: Song[];
@@ -75,6 +99,7 @@ export interface SongListTableProps {
  * are fixed and never move / hide.
  */
 export default function SongListTable(props: SongListTableProps): React.ReactElement {
+  const t = useT();
   const settings = useSettingsStore((s) => s.settings);
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const visible = settings.songListColumns ?? DEFAULT_SETTINGS.songListColumns;
@@ -115,19 +140,19 @@ export default function SongListTable(props: SongListTableProps): React.ReactEle
               type="checkbox"
               checked={allChecked}
               onChange={props.onToggleAll}
-              aria-label="Select all songs"
+              aria-label={t('songList.selectAll')}
             />
           </th>
           <SortTh
             field="title"
-            label="Title"
+            label={t('songList.columns.title')}
             align="left"
             extra="px-6"
             active={props.sortField}
             dir={props.sortDirection}
             onClick={props.onSort}
           />
-          <th className="w-10 px-2 py-2" aria-label="Play audio source" />
+          <th className="w-10 px-2 py-2" aria-label={t('songList.playAudioSource')} />
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={visibleOrdered} strategy={horizontalListSortingStrategy}>
               {visibleOrdered.map((col) => (
@@ -173,6 +198,7 @@ function SortableHeaderCell({ column, active, dir, onClick }: {
   dir: 'asc' | 'desc';
   onClick: (field: SortableField) => void;
 }): React.ReactElement {
+  const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: column });
   const meta = COLUMN_META[column];
   const isActive = active === column;
@@ -194,7 +220,7 @@ function SortableHeaderCell({ column, active, dir, onClick }: {
       {...listeners}
       onClick={() => onClick(column)}
       className={`group px-4 py-2 font-medium select-none ${meta.align === 'right' ? 'text-right' : 'text-left'} ${meta.width ?? ''} ${meta.extra ?? ''}`}
-      title="Click to sort · Drag to reorder"
+      title={t('songList.headerTitle')}
     >
       {/* Inline row so the grip sits BEFORE the label on left-aligned
           columns and AFTER it on right-aligned ones, keeping the label
@@ -215,7 +241,7 @@ function SortableHeaderCell({ column, active, dir, onClick }: {
           }}
           aria-hidden="true"
         />
-        <span>{COLUMN_LABEL[column]}</span>
+        <span>{t(COLUMN_LABEL_KEY[column])}</span>
         {arrow && <span className="text-[10px]" style={{ color: 'var(--accent)' }}>{arrow}</span>}
       </span>
     </th>
@@ -266,6 +292,7 @@ function SongRow({
   onClick: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
 }): React.ReactElement {
+  const t = useT();
   return (
     <tr
       onClick={onClick}
@@ -274,7 +301,7 @@ function SongRow({
       style={{ borderColor: 'var(--border)', background: selected ? 'var(--surface-elevated)' : undefined }}
     >
       <td className="w-10 px-3 py-3" onClick={(e) => e.stopPropagation()}>
-        <input type="checkbox" checked={selected} onChange={onToggle} aria-label={`Select ${song.title}`} />
+        <input type="checkbox" checked={selected} onChange={onToggle} aria-label={t('songList.selectRow', { title: song.title })} />
       </td>
       <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>
         <span className="inline-flex items-center gap-2">
@@ -322,12 +349,14 @@ function Cell({ column, song }: { column: SongListColumn; song: Song }): React.R
 }
 
 function DifficultyCell({ value }: { value?: number }): React.ReactElement {
+  const t = useT();
   const level = value ?? 0;
   if (level <= 0) return <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>;
+  const dKey = DIFFICULTY_KEYS[level];
   return (
     <span
       className="inline-flex items-center gap-1 text-xs font-mono"
-      title={DIFFICULTY_LABELS[level] ?? ''}
+      title={dKey ? t(dKey) : ''}
       style={{ color: 'var(--accent)' }}
     >
       {[1, 2, 3, 4, 5].map((n) => (

@@ -11,6 +11,7 @@ import {
 import type { AnnotationViewMode } from '@song-chords/shared';
 import { useAnnotationEditStore } from './annotation-store';
 import { useAnnotationDoc } from './useAnnotationDoc';
+import { useT } from '../../i18n';
 
 interface Props {
   songId: string;
@@ -36,6 +37,7 @@ interface Props {
  * the update on the next render and updates its local `doc` state.
  */
 export default function AnnotationSetPicker({ songId, annotationsJson, viewMode, preset }: Props): React.ReactElement {
+  const t = useT();
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
   const selectedSetId = selectedSetIds[songId] ?? null;
@@ -159,7 +161,7 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode,
         {isOff
           ? <Check size={11} style={{ color: 'var(--danger)' }} />
           : <EyeOff size={11} style={{ color: 'var(--text-muted)' }} />}
-        <span className="truncate flex-1">Off</span>
+        <span className="truncate flex-1">{t('annotationMenu.off')}</span>
       </button>
       {setsInMode.map((s) => {
         const isActive = !isOff && active?.id === s.id;
@@ -207,7 +209,7 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode,
                     ? <Check size={11} style={{ color: 'var(--accent)' }} />
                     : <span style={{ width: 11 }} />}
                   <span className="truncate">
-                    {s.id === 'draft' ? 'Unsaved draft' : (s.name || '(unnamed)')}
+                    {s.id === 'draft' ? t('annotationMenu.unsavedDraft') : (s.name || t('annotationMenu.unnamed'))}
                   </span>
                 </button>
                 {s.id !== 'draft' && (
@@ -218,7 +220,7 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode,
                     <button
                       onClick={() => setDefault(s.id)}
                       className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                      title={s.isDefault ? 'Default for this view configuration' : 'Set as default'}
+                      title={s.isDefault ? t('annotationMenu.default') : t('annotationMenu.setAsDefault')}
                       disabled={s.isDefault}
                     >
                       <Star
@@ -230,14 +232,14 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode,
                     <button
                       onClick={() => { setRenamingId(s.id); setRenameValue(s.name); }}
                       className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                      title="Rename"
+                      title={t('annotationMenu.rename')}
                     >
                       <Edit2 size={11} style={{ color: 'var(--text-muted)' }} />
                     </button>
                     <button
                       onClick={() => remove(s.id)}
                       className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                      title="Delete this set"
+                      title={t('annotationMenu.deleteSet')}
                     >
                       <Trash2 size={11} style={{ color: 'var(--danger)' }} />
                     </button>
@@ -263,8 +265,8 @@ export default function AnnotationSetPicker({ songId, annotationsJson, viewMode,
           opacity: nothingToPick ? 0.4 : 1,
           cursor: nothingToPick ? 'not-allowed' : 'pointer',
         }}
-        title="Annotations list"
-        aria-label="Annotations list"
+        title={t('annotationMenu.listTitle')}
+        aria-label={t('annotationMenu.listAria')}
         aria-pressed={open}
         aria-disabled={nothingToPick}
       >

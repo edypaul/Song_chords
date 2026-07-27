@@ -10,6 +10,7 @@ import AddToPlaylistModal from './AddToPlaylistModal';
 import SongExportModal from './SongExportModal';
 import { db } from '../../ipc/ipc-client';
 import { toTitleCase } from '../../utils/text';
+import { useT } from '../../i18n';
 
 interface Props {
   song: Song;
@@ -25,6 +26,7 @@ interface Props {
  * so callers only need to mount one component.
  */
 export default function SongContextMenu({ song, x, y, onClose }: Props): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
@@ -37,27 +39,27 @@ export default function SongContextMenu({ song, x, y, onClose }: Props): React.R
   const items = [
     {
       icon: Star,
-      label: song.favorite ? 'Remove from favorites' : 'Add to favorites',
+      label: song.favorite ? t('songContext.favorite.remove') : t('songContext.favorite.add'),
       onClick: () => { void toggleFavorite(db, song.id); onClose(); },
     },
     {
       icon: ListPlus,
-      label: 'Add to set list',
+      label: t('songContext.addToSetList'),
       onClick: () => setModal('playlist'),
     },
     {
       icon: Info,
-      label: 'Song info',
+      label: t('songContext.info'),
       onClick: () => setModal('info'),
     },
     {
       icon: Download,
-      label: 'Export…',
+      label: t('songContext.export'),
       onClick: () => setModal('export'),
     },
     {
       icon: Edit2,
-      label: 'Edit',
+      label: t('songContext.edit'),
       onClick: () => {
         // Pass the current page as the return target so Save/Back from the
         // edit page lands back on whichever list the user was browsing.
@@ -69,7 +71,7 @@ export default function SongContextMenu({ song, x, y, onClose }: Props): React.R
     { separator: true, label: '', onClick: () => {} },
     {
       icon: Trash2,
-      label: 'Delete',
+      label: t('songContext.delete'),
       danger: true,
       onClick: () => setModal('delete'),
     },
@@ -99,20 +101,27 @@ export default function SongContextMenu({ song, x, y, onClose }: Props): React.R
         />
       )}
 
-      {modal === 'delete' && (
-        <ConfirmDialog
-          title="Delete song?"
-          message={<>This will permanently delete <strong>{toTitleCase(song.title)}</strong>. This cannot be undone.</>}
-          confirmLabel="Delete"
-          danger
-          onCancel={() => { setModal(null); onClose(); }}
-          onConfirm={async () => {
-            await deleteSong(db, song.id);
-            setModal(null);
-            onClose();
-          }}
-        />
-      )}
+      {modal === 'delete' && (() => {
+        // Split the translated template around the {title} token so the
+        // song title can be rendered in <strong> without losing i18n.
+        const SENTINEL = 'TITLE_PLACEHOLDER';
+        const template = t('songContext.deleteMessage', { title: SENTINEL });
+        const [before = '', after = ''] = template.split(SENTINEL);
+        return (
+          <ConfirmDialog
+            title={t('songContext.deleteTitle')}
+            message={<>{before}<strong>{toTitleCase(song.title)}</strong>{after}</>}
+            confirmLabel={t('common.delete')}
+            danger
+            onCancel={() => { setModal(null); onClose(); }}
+            onConfirm={async () => {
+              await deleteSong(db, song.id);
+              setModal(null);
+              onClose();
+            }}
+          />
+        );
+      })()}
     </>
   );
 }

@@ -11,6 +11,7 @@ import type { ChordDiagram, SongPreferences } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 import ChordForm from './ChordForm';
 import { db } from '../../ipc/ipc-client';
+import { useT } from '../../i18n';
 
 interface Props {
   chord: string;
@@ -33,6 +34,7 @@ interface Props {
  * page so a chord click behaves identically in either context.
  */
 export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFullscreen }: Props): React.ReactElement {
+  const t = useT();
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
@@ -155,13 +157,13 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
 
         {!hasDiagram && !creatingCustom && (
           <div className="flex flex-col items-center gap-2 mt-3">
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No diagram found for this chord.</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{t('chordModal.noDiagram')}</span>
             <button
               onClick={() => setCreatingCustom(true)}
               className="text-xs px-3 py-1 rounded-md transition-colors"
               style={{ background: 'var(--accent)', color: 'white' }}
             >
-              Create custom diagram
+              {t('chordModal.createCustomDiagram')}
             </button>
           </div>
         )}
@@ -177,7 +179,7 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
               ))}
             </div>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Variation {currentIdx + 1} of {allDiags.length}
+              {t('chordModal.variationOf', { current: currentIdx + 1, total: allDiags.length })}
             </span>
             {/* Remember button */}
             {songId && (
@@ -189,7 +191,7 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
                   color: isRemembered ? 'var(--text-muted)' : 'white',
                 }}
               >
-                {isRemembered ? 'Remembered ✓' : 'Remember for this song'}
+                {isRemembered ? t('chordModal.remembered') : t('chordModal.rememberForSong')}
               </button>
             )}
           </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Timer, ChevronDown } from 'lucide-react';
 import { useShortcutHint } from '../../hooks/useShortcutHint';
+import { useT } from '../../i18n';
 
 /**
  * Metronome cluster: the BPM-button (toggles play/stop) sits next to a
@@ -36,6 +37,7 @@ export default function MetronomeControl({
   onMultiplierChange: (m: 0.5 | 1 | 2) => void;
 }): React.ReactElement {
   const hint = useShortcutHint();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const chevronRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -69,7 +71,7 @@ export default function MetronomeControl({
   }, [open]);
 
   const effectiveBpm = Math.round(tempo * tempoMultiplier);
-  const multiplierLabel = (m: 0.5 | 1 | 2): string => (m === 0.5 ? 'Half-time' : m === 2 ? 'Double-time' : 'Normal tempo');
+  const multiplierLabel = (m: 0.5 | 1 | 2): string => (m === 0.5 ? t('metronome.halfTime') : m === 2 ? t('metronome.doubleTime') : t('metronome.normalTempo'));
   const multiplierGlyph = (m: 0.5 | 1 | 2): string => (m === 0.5 ? '½×' : m === 2 ? '2×' : '1×');
 
   return (
@@ -79,7 +81,7 @@ export default function MetronomeControl({
           onClick={onToggle}
           className="flex items-center gap-1.5 px-2 py-1.5 text-xs transition-colors"
           style={{ color: isPlaying ? 'white' : 'var(--text-secondary)' }}
-          title={`Metronome — ${effectiveBpm} BPM, ${timeSig ?? '4/4'}${hint('toggleMetronome')}`}
+          title={`${t('metronome.tooltip', { bpm: effectiveBpm, timeSig: timeSig ?? '4/4' })}${hint('toggleMetronome')}`}
         >
           <Timer size={13} />
           <span>{effectiveBpm}</span>
@@ -92,8 +94,8 @@ export default function MetronomeControl({
             color: isPlaying ? 'white' : 'var(--text-muted)',
             borderLeft: `1px solid ${isPlaying ? 'rgba(255,255,255,0.25)' : 'var(--border)'}`,
           }}
-          title="Time feel"
-          aria-label="Time feel"
+          title={t('metronome.timeFeel')}
+          aria-label={t('metronome.timeFeel')}
           aria-expanded={open}
         >
           <ChevronDown size={12} />

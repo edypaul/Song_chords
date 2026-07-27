@@ -5,6 +5,7 @@ import { Play, Pause, ChevronDown } from 'lucide-react';
 import { usePlayerStore, useSongStore, useSetListStore } from '@song-chords/shared';
 import { db } from '../../ipc/ipc-client';
 import { useShortcutHint } from '../../hooks/useShortcutHint';
+import { useT } from '../../i18n';
 
 /**
  * Auto-scroll toolbar control. The play/stop button is the primary
@@ -21,6 +22,7 @@ import { useShortcutHint } from '../../hooks/useShortcutHint';
  */
 export default function AutoScrollControl(): React.ReactElement {
   const hint = useShortcutHint();
+  const t = useT();
   const { autoScrollActive, toggleAutoScroll, autoScrollSpeed, setScrollSpeed, autoScrollMode, setScrollMode, activeSong } = usePlayerStore();
   const savePreferences = useSongStore((s) => s.savePreferences);
   const hasDuration = Boolean(activeSong?.duration);
@@ -98,11 +100,11 @@ export default function AutoScrollControl(): React.ReactElement {
           onClick={toggleAutoScroll}
           className="flex items-center gap-1.5 px-3 py-1.5 transition-colors font-medium"
           style={{ color: autoScrollActive ? 'white' : 'var(--text-secondary)' }}
-          title={`${autoScrollActive ? 'Stop auto-scroll' : 'Start auto-scroll'}${hint('toggleAutoScroll')}`}
-          aria-label={autoScrollActive ? 'Stop auto-scroll' : 'Start auto-scroll'}
+          title={`${autoScrollActive ? t('autoScroll.stop') : t('autoScroll.start')}${hint('toggleAutoScroll')}`}
+          aria-label={autoScrollActive ? t('autoScroll.stop') : t('autoScroll.start')}
         >
           {autoScrollActive ? <Pause size={14} /> : <Play size={14} />}
-          {autoScrollActive ? 'Stop' : 'Scroll'}
+          {autoScrollActive ? t('autoScroll.stopShort') : t('autoScroll.scroll')}
         </button>
         {/* Chevron is ALWAYS available now — it opens the mode chooser so
             the user can switch between Duration and Speed at any time. */}
@@ -114,8 +116,8 @@ export default function AutoScrollControl(): React.ReactElement {
             color: autoScrollActive ? 'white' : 'var(--text-muted)',
             borderLeft: `1px solid ${autoScrollActive ? 'rgba(255,255,255,0.25)' : 'var(--border)'}`,
           }}
-          title="Auto-scroll options"
-          aria-label="Auto-scroll options"
+          title={t('autoScroll.options')}
+          aria-label={t('autoScroll.options')}
           aria-expanded={speedOpen}
         >
           <ChevronDown size={12} />
@@ -134,7 +136,7 @@ export default function AutoScrollControl(): React.ReactElement {
           minWidth: 48,
           fontVariantNumeric: 'tabular-nums',
         }}
-        title={autoScrollMode === 'duration' ? 'Scroll speed from song duration' : 'Manual scroll speed'}
+        title={autoScrollMode === 'duration' ? t('autoScroll.speedFromDuration') : t('autoScroll.manualSpeed')}
       >
         {autoScrollMode === 'duration' && hasDuration ? activeSong!.duration : `${autoScrollSpeed}%`}
       </span>
@@ -165,7 +167,7 @@ export default function AutoScrollControl(): React.ReactElement {
               className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5"
               style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}
             >
-              Auto-scroll mode
+              {t('autoScroll.modeHeading')}
             </span>
             <div className="flex rounded-lg overflow-hidden mb-3" style={{ border: '1px solid var(--border)' }}>
               <button
@@ -179,9 +181,9 @@ export default function AutoScrollControl(): React.ReactElement {
                   cursor: hasDuration ? 'pointer' : 'not-allowed',
                   borderRight: '1px solid var(--border)',
                 }}
-                title={hasDuration ? 'Pace by the song duration' : 'Set a song duration to use this mode'}
+                title={hasDuration ? t('autoScroll.paceByDuration') : t('autoScroll.durationRequired')}
               >
-                Duration
+                {t('autoScroll.duration')}
               </button>
               <button
                 onClick={() => pickMode('speed')}
@@ -190,9 +192,9 @@ export default function AutoScrollControl(): React.ReactElement {
                   background: autoScrollMode === 'speed' ? 'var(--accent)' : 'transparent',
                   color: autoScrollMode === 'speed' ? 'white' : 'var(--text-secondary)',
                 }}
-                title="Pace by the manual speed slider"
+                title={t('autoScroll.paceBySlider')}
               >
-                Speed
+                {t('autoScroll.speed')}
               </button>
             </div>
 
@@ -203,8 +205,8 @@ export default function AutoScrollControl(): React.ReactElement {
               {autoScrollMode === 'duration' ? (
                 <span className="block text-xs" style={{ color: 'var(--text-muted)' }}>
                   {hasDuration
-                    ? `Covers the song in ${activeSong!.duration} (from the song's duration).`
-                    : 'This song has no duration set, so Speed mode is used.'}
+                    ? t('autoScroll.coversInDuration', { duration: activeSong!.duration ?? '' })
+                    : t('autoScroll.noDurationFallback')}
                 </span>
               ) : (
                 <>
@@ -212,7 +214,7 @@ export default function AutoScrollControl(): React.ReactElement {
                     className="block text-[10px] font-semibold uppercase tracking-wider mb-1.5"
                     style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}
                   >
-                    Speed
+                    {t('autoScroll.speed')}
                   </span>
                   <div className="flex items-center gap-2">
                     <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontSize: '0.95em' }}>🐢</span>
@@ -223,7 +225,7 @@ export default function AutoScrollControl(): React.ReactElement {
                       value={autoScrollSpeed}
                       onChange={(e) => setScrollSpeed(Number(e.target.value))}
                       className="flex-1 accent-[var(--accent)]"
-                      title={`Speed: ${autoScrollSpeed}`}
+                      title={t('autoScroll.speedValueTooltip', { value: autoScrollSpeed })}
                     />
                     <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontSize: '0.95em' }}>🐇</span>
                   </div>

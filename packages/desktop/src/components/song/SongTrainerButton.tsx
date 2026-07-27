@@ -8,6 +8,7 @@ import {
   useSongTrainerStore,
 } from '../../store/song-trainer-store';
 import { useShortcutHint } from '../../hooks/useShortcutHint';
+import { useT } from '../../i18n';
 
 interface Props {
   /** When false, the button is rendered disabled with a tooltip
@@ -31,6 +32,7 @@ interface Props {
  * without wiring extra props.
  */
 export default function SongTrainerButton({ eligible, ineligibleReason }: Props): React.ReactElement {
+  const t = useT();
   const enabled = useSongTrainerStore((s) => s.enabled);
   const setEnabled = useSongTrainerStore((s) => s.setEnabled);
   const percentage = useSongTrainerStore((s) => s.percentage);
@@ -130,8 +132,8 @@ export default function SongTrainerButton({ eligible, ineligibleReason }: Props)
       : 'var(--text-secondary)';
 
   const disabledTitle = ineligibleReason
-    ?? 'Song trainer is only available in the default chord-names view.';
-  const activeTitle = `Song trainer${hint('toggleSongTrainer')}`;
+    ?? t('songTrainer.ineligibleDefault');
+  const activeTitle = `${t('songTrainer.title')}${hint('toggleSongTrainer')}`;
 
   const popover = open && eligible && pos ? createPortal(
     <div
@@ -151,19 +153,19 @@ export default function SongTrainerButton({ eligible, ineligibleReason }: Props)
     >
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-          Song trainer
+          {t('songTrainer.title')}
         </div>
         <button
           onClick={() => { setEnabled(false); setOpen(false); }}
           className="text-[10px] px-2 py-0.5 rounded"
           style={{ color: 'var(--text-muted)', background: 'var(--surface)' }}
-          title="Turn the trainer off"
+          title={t('songTrainer.offTitle')}
         >
-          Off
+          {t('songTrainer.off')}
         </button>
       </div>
       <div className="text-[11px] mb-2" style={{ color: 'var(--text-secondary)' }}>
-        Hide a share of chord names behind <span style={{ color: 'var(--accent)', fontWeight: 700 }}>?</span> so you can guess them. Click a <span style={{ color: 'var(--accent)', fontWeight: 700 }}>?</span> to reveal.
+        {t('songTrainer.hintPrefix')}<span style={{ color: 'var(--accent)', fontWeight: 700 }}>?</span>{t('songTrainer.hintMiddle')}<span style={{ color: 'var(--accent)', fontWeight: 700 }}>?</span>{t('songTrainer.hintSuffix')}
       </div>
       <div className="flex items-center gap-2">
         <input
@@ -174,7 +176,7 @@ export default function SongTrainerButton({ eligible, ineligibleReason }: Props)
           value={percentage}
           onChange={(e) => setPercentage(Number(e.target.value))}
           className="flex-1"
-          aria-label="Percentage of chord names to hide"
+          aria-label={t('songTrainer.percentageAria')}
         />
         <span
           className="text-xs font-mono tabular-nums"
@@ -196,10 +198,10 @@ export default function SongTrainerButton({ eligible, ineligibleReason }: Props)
           color: 'var(--text-secondary)',
           border: '1px solid var(--border)',
         }}
-        title="Pick a new random subset of chords to hide at the same percentage"
+        title={t('songTrainer.reshuffleTitle')}
       >
         <Shuffle size={12} />
-        Reshuffle
+        {t('songTrainer.reshuffle')}
       </button>
     </div>,
     document.body,
@@ -218,7 +220,7 @@ export default function SongTrainerButton({ eligible, ineligibleReason }: Props)
           cursor: eligible ? 'pointer' : 'not-allowed',
         }}
         title={eligible ? activeTitle : disabledTitle}
-        aria-label="Song trainer"
+        aria-label={t('songTrainer.ariaLabel')}
         aria-pressed={enabled}
       >
         <GraduationCap size={16} style={{ color: iconColor }} />

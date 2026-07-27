@@ -7,6 +7,7 @@ import { db } from '../ipc/ipc-client';
 import { toTitleCase } from '../utils/text';
 import SetListPickerModal from '../components/song/SetListPickerModal';
 import ChordSpellingWarning from '../components/common/ChordSpellingWarning';
+import { useT } from '../i18n';
 
 interface PendingImport {
   id: string;                     // temporary id for list keys
@@ -48,6 +49,7 @@ function saveStaging(rows: PendingImport[]): void {
 }
 
 export default function ImportPage(): React.ReactElement {
+  const t = useT();
   const navigate = useNavigate();
   const { addSong, songs } = useSongStore();
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
@@ -160,12 +162,14 @@ export default function ImportPage(): React.ReactElement {
     if (duplicates.length === 1) {
       setImportNotice({
         kind: 'duplicate',
-        message: `"${duplicates[0]}" is already in your library. The row was still added so you can review it — uncheck it to skip.`,
+        message: t('import.duplicate.one', { title: duplicates[0] ?? '' }),
       });
     } else if (duplicates.length > 1) {
+      const preview = duplicates.slice(0, 3).join(', ');
+      const rest = duplicates.length > 3 ? t('import.duplicate.andMore', { count: duplicates.length - 3 }) : '';
       setImportNotice({
         kind: 'duplicate',
-        message: `${duplicates.length} of the imported files are already in your library: ${duplicates.slice(0, 3).join(', ')}${duplicates.length > 3 ? `, and ${duplicates.length - 3} more` : ''}. Uncheck the ones you want to skip.`,
+        message: t('import.duplicate.many', { count: duplicates.length, preview, rest }),
       });
     }
     setBusy(false);
@@ -173,8 +177,8 @@ export default function ImportPage(): React.ReactElement {
 
   const handleBrowse = async () => {
     const paths = await window.electronAPI.files.openDialog([
-      { name: 'ChordPro / Text', extensions: ['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt'] },
-      { name: 'All Files', extensions: ['*'] },
+      { name: t('import.fileFilter.chordproText'), extensions: ['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt'] },
+      { name: t('import.fileFilter.allFiles'), extensions: ['*'] },
     ]);
     if (paths) await ingestFiles(paths);
   };
@@ -190,7 +194,7 @@ export default function ImportPage(): React.ReactElement {
     try {
       const text = await navigator.clipboard.readText();
       if (!text.trim()) {
-        setImportNotice({ kind: 'failed', message: 'Clipboard is empty.' });
+        setImportNotice({ kind: 'failed', message: t('import.clipboard.empty') });
         return;
       }
       const filename = `pasted-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.chordpro`;
@@ -208,21 +212,21 @@ export default function ImportPage(): React.ReactElement {
         if (titleFromFilename) {
           setImportNotice({
             kind: 'failed',
-            message: 'Pasted text had no {title} / {artist} directives. Edit the new row to add them — duplicate detection will run once a title is set.',
+            message: t('import.paste.noDirectives'),
           });
         } else if (isDuplicate(input)) {
           const label = [input.title, input.artist].filter(Boolean).map(toTitleCase).join(' — ');
           setImportNotice({
             kind: 'duplicate',
-            message: `"${label}" is already in your library. The row was still added so you can review it — uncheck it to skip.`,
+            message: t('import.duplicate.one', { title: label }),
           });
         }
       } catch (e) {
         setPending((prev) => [{ id: makeId(), filename, selected: false, error: String(e) }, ...prev]);
-        setImportNotice({ kind: 'failed', message: `Could not parse pasted text: ${String(e)}` });
+        setImportNotice({ kind: 'failed', message: t('import.paste.parseFailed', { error: String(e) }) });
       }
     } catch (e) {
-      setImportNotice({ kind: 'failed', message: `Clipboard unavailable: ${String(e)}` });
+      setImportNotice({ kind: 'failed', message: t('import.clipboard.unavailable', { error: String(e) }) });
     }
   };
 
@@ -347,11 +351,11 @@ export default function ImportPage(): React.ReactElement {
         >
           <div className="flex flex-col items-center gap-2">
             <Upload size={32} style={{ color: 'var(--accent)' }} />
-            <p className="font-semibold" style={{ color: 'var(--accent)' }}>Drop files to import</p>
+            <p className="font-semibold" style={{ color: 'var(--accent)' }}>{t('import.dropOverlay')}</p>
           </div>
         </div>
       )}
-      <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Import Songs</h1>
+      <h1 className="text-2xl font-bold mb-4" style={{ color: 'var(--text-primary)' }}>{t('import.title')}</h1>
 
       {showWarning && (
         <div className="mb-6">
@@ -377,9 +381,9 @@ export default function ImportPage(): React.ReactElement {
       >
         <Upload size={36} style={{ color: dragOver ? 'var(--accent)' : 'var(--text-muted)' }} />
         <div className="text-center">
-          <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>Drop files here or click to browse</p>
+          <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{t('import.dropOrBrowse')}</p>
           <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-            Supports ChordPro (.cho, .chordpro, .chopro, .crd, .pro) and plain text (.txt). Files are previewed here — nothing is saved to the library until you click Import.
+            {t('import.dropHint')}
           </p>
         </div>
         <div className="flex items-center gap-2 mt-2">
@@ -388,15 +392,15 @@ export default function ImportPage(): React.ReactElement {
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium"
             style={{ background: 'var(--accent)', color: 'white' }}
           >
-            <Upload size={14} />Browse Files
+            <Upload size={14} />{t('import.browseFiles')}
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); void handlePaste(); }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium"
             style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-            title="Paste ChordPro or chords-over-lyrics text from clipboard"
+            title={t('import.pasteTitle')}
           >
-            <ClipboardPaste size={14} />Paste
+            <ClipboardPaste size={14} />{t('import.paste')}
           </button>
         </div>
       </div>
@@ -416,7 +420,7 @@ export default function ImportPage(): React.ReactElement {
             : <AlertCircle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
           }
           <p className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>{importNotice.message}</p>
-          <button onClick={() => setImportNotice(null)} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title="Dismiss">
+          <button onClick={() => setImportNotice(null)} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title={t('import.dismiss')}>
             <Trash2 size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
         </div>
@@ -430,13 +434,15 @@ export default function ImportPage(): React.ReactElement {
           <AlertCircle size={18} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 1 }} />
           <div className="flex-1 min-w-0 text-sm">
             <p style={{ color: 'var(--text-primary)' }}>
-              {skipped.length} unsupported file{skipped.length === 1 ? ' was' : 's were'} skipped. Supported formats: {SUPPORTED_EXT_LABEL}.
+              {skipped.length === 1
+                ? t('import.unsupported.one', { formats: SUPPORTED_EXT_LABEL })
+                : t('import.unsupported.many', { count: skipped.length, formats: SUPPORTED_EXT_LABEL })}
             </p>
             <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }} title={skipped.join(', ')}>
               {skipped.join(', ')}
             </p>
           </div>
-          <button onClick={() => setSkipped([])} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title="Dismiss">
+          <button onClick={() => setSkipped([])} className="p-1 rounded hover:bg-[var(--surface-elevated)]" title={t('import.dismiss')}>
             <Trash2 size={14} style={{ color: 'var(--text-muted)' }} />
           </button>
         </div>
@@ -453,10 +459,10 @@ export default function ImportPage(): React.ReactElement {
                 onChange={toggleSelectAll}
                 disabled={pendingCount === 0}
               />
-              Select all
+              {t('import.selectAll')}
             </label>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {selectedCount} selected · {pendingCount} pending
+              {t('import.selectedPending', { selected: selectedCount, pending: pendingCount })}
             </span>
             <div className="flex items-center gap-2 ml-auto">
               <button
@@ -468,37 +474,41 @@ export default function ImportPage(): React.ReactElement {
                   color: allSelectedFavorite ? 'white' : 'var(--accent)',
                   border: `1px solid ${allSelectedFavorite ? 'var(--accent)' : 'var(--border)'}`,
                 }}
-                title={allSelectedFavorite ? 'Unmark the selected songs' : 'Mark the selected songs to be favorites once imported'}
+                title={allSelectedFavorite ? t('import.actions.unfavoriteTitle') : t('import.actions.favoriteTitle')}
               >
                 <Star size={13} fill={allSelectedFavorite ? 'currentColor' : 'none'} />
-                {allSelectedFavorite ? 'Favorited' : 'Favorite'}
+                {allSelectedFavorite ? t('import.actions.favorited') : t('import.actions.favorite')}
               </button>
               <button
                 onClick={() => setPickerFor({ mode: 'selected' })}
                 disabled={selectedCount === 0}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-elevated)]"
                 style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
-                title="Queue the selected songs to be added to set lists once imported"
+                title={t('import.actions.addToSetListTitle')}
               >
-                <ListPlus size={13} />Add to set list
+                <ListPlus size={13} />{t('import.actions.addToSetList')}
               </button>
               <button
                 onClick={removeSelected}
                 disabled={selectedCount === 0}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-elevated)]"
                 style={{ color: 'var(--danger)', border: '1px solid var(--border)' }}
-                title="Remove the selected rows from the staging list"
+                title={t('import.actions.removeSelectedTitle')}
               >
-                <Trash2 size={13} />Remove selected
+                <Trash2 size={13} />{t('import.actions.removeSelected')}
               </button>
               <button
                 onClick={handleImportSelected}
                 disabled={busy || selectedCount === 0}
                 className="px-4 py-1.5 rounded-lg text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: 'var(--accent)', color: 'white' }}
-                title="Add the selected songs to the library as-is"
+                title={t('import.actions.importSelectedTitle')}
               >
-                {busy ? 'Importing…' : `Import ${selectedCount || ''} to library`}
+                {busy
+                  ? t('import.actions.importing')
+                  : (selectedCount > 0
+                      ? t('import.actions.importCount', { count: selectedCount })
+                      : t('import.actions.importToLibrary'))}
               </button>
             </div>
           </div>
@@ -536,8 +546,10 @@ export default function ImportPage(): React.ReactElement {
             })()
           : (pending.find((r) => r.id === pickerFor.id)?.targetSetlistIds ?? []);
         const hint = pickerFor.mode === 'selected'
-          ? `Will be applied to ${selectedCount} selected song${selectedCount === 1 ? '' : 's'} at import time.`
-          : 'Applied to this row at import time.';
+          ? (selectedCount === 1
+              ? t('import.picker.hintOne', { count: selectedCount })
+              : t('import.picker.hintMany', { count: selectedCount }))
+          : t('import.picker.hintRow');
         return (
           <SetListPickerModal
             initialSelected={initial}
@@ -566,6 +578,7 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
   onPickSetlists: () => void;
   onToggleFavorite: () => void;
 }): React.ReactElement {
+  const t = useT();
   const title = row.input?.title ?? row.filename;
   const artist = row.input?.artist;
   const failed = !!row.error;
@@ -580,7 +593,7 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
         checked={row.selected && !failed}
         onChange={onToggleSelect}
         disabled={failed || !row.input}
-        title={failed ? 'Failed to parse' : 'Select for import'}
+        title={failed ? t('import.row.failedToParse') : t('import.row.selectForImport')}
       />
 
       {failed
@@ -599,14 +612,14 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
         </p>
         {isDuplicate && !failed && (
           <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: 'var(--accent)' }}>
-            <Copy size={11} />Already in library — importing will create a duplicate.
+            <Copy size={11} />{t('import.row.alreadyInLibrary')}
           </p>
         )}
         {setlistNames.length > 0 && (
           <p
             className="text-[11px] mt-0.5 truncate flex items-center gap-1"
             style={{ color: 'var(--accent)' }}
-            title={`Will be added to: ${setlistNames.join(', ')}`}
+            title={t('import.row.willBeAddedTo', { names: setlistNames.join(', ') })}
           >
             <ListMusic size={11} /> → {setlistNames.map(toTitleCase).join(', ')}
           </p>
@@ -623,16 +636,16 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
             onClick={onImport}
             className="text-xs px-2 py-1 rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--accent)' }}
-            title="Import this song now"
+            title={t('import.row.importNow')}
           >
-            Import
+            {t('common.import')}
           </button>
         )}
         {row.input && (
           <button
             onClick={onToggleFavorite}
             className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-            title={row.favorite ? 'Remove favorite flag' : 'Mark as favorite on import'}
+            title={row.favorite ? t('import.row.removeFavorite') : t('import.row.markFavorite')}
           >
             <Star
               size={14}
@@ -645,7 +658,7 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
           <button
             onClick={onPickSetlists}
             className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-            title="Pick set lists for this song"
+            title={t('import.row.pickSetLists')}
           >
             <ListPlus size={14} style={{ color: setlistNames.length > 0 ? 'var(--accent)' : 'var(--text-secondary)' }} />
           </button>
@@ -654,7 +667,7 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
           <button
             onClick={onEdit}
             className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-            title="Edit details before import"
+            title={t('import.row.editBeforeImport')}
           >
             <Pencil size={14} style={{ color: 'var(--text-secondary)' }} />
           </button>
@@ -662,7 +675,7 @@ function ImportRow({ row, isDuplicate, setlistNames, onToggleSelect, onRemove, o
         <button
           onClick={onRemove}
           className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-          title="Remove from this list"
+          title={t('import.row.removeFromList')}
         >
           <Trash2 size={14} style={{ color: 'var(--danger)' }} />
         </button>

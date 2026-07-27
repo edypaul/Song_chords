@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { formatShortcut, shortcutFromEvent } from '../../utils/shortcut';
+import { useT } from '../../i18n';
 
 interface Props {
   value: string;
@@ -13,6 +14,7 @@ interface Props {
  * cancels, and the × button clears the current binding (disables the action).
  */
 export default function ShortcutRecorder({ value, onChange }: Props): React.ReactElement {
+  const t = useT();
   const [listening, setListening] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -55,16 +57,16 @@ export default function ShortcutRecorder({ value, onChange }: Props): React.Reac
           color: listening ? 'white' : (value ? 'var(--text-primary)' : 'var(--text-muted)'),
           border: `1px solid ${listening ? 'var(--accent)' : 'var(--border)'}`,
         }}
-        title={listening ? 'Press any key combination…' : 'Click to rebind'}
+        title={listening ? t('shortcutRecorder.pressAny') : t('shortcutRecorder.clickToRebind')}
       >
-        {listening ? 'Press keys…' : (value ? formatShortcut(value) : '(unbound)')}
+        {listening ? t('shortcutRecorder.pressKeys') : (value ? formatShortcut(value) : t('shortcutRecorder.unbound'))}
       </button>
       {value && !listening && (
         <button
           type="button"
           onClick={() => onChange('')}
           className="p-1.5 rounded hover:bg-[var(--surface-elevated)]"
-          title="Clear binding"
+          title={t('shortcutRecorder.clearBinding')}
         >
           <X size={12} style={{ color: 'var(--text-muted)' }} />
         </button>

@@ -15,6 +15,38 @@ import {
   type ExportFormat, type ExportLayout, type ExportOptions, type PerSongExtras,
 } from '../../utils/song-export';
 import { toTitleCase } from '../../utils/text';
+import { useT } from '../../i18n';
+import type { TKey } from '../../i18n';
+
+/** Dictionary keys for each export-format label + hint. */
+const FORMAT_LABEL_KEY: Record<ExportFormat, TKey> = {
+  pdf:       'export.formats.pdf',
+  html:      'export.formats.html',
+  chordpro:  'export.formats.chordpro',
+  plaintext: 'export.formats.plaintext',
+  json:      'export.formats.json',
+};
+const FORMAT_HINT_KEY: Record<ExportFormat, TKey> = {
+  pdf:       'export.formats.pdf.hint',
+  html:      'export.formats.html.hint',
+  chordpro:  'export.formats.chordpro.hint',
+  plaintext: 'export.formats.plaintext.hint',
+  json:      'export.formats.json.hint',
+};
+
+/** Dictionary keys for each export-layout label + hint. */
+const LAYOUT_LABEL_KEY: Record<ExportLayout, TKey> = {
+  'chords':           'export.layouts.chords',
+  'chords-with-bar':  'export.layouts.chordsWithBar',
+  'inline-diagrams':  'export.layouts.inlineDiagrams',
+  'lyrics-only':      'export.layouts.lyricsOnly',
+};
+const LAYOUT_HINT_KEY: Record<ExportLayout, TKey> = {
+  'chords':           'export.layouts.chords.hint',
+  'chords-with-bar':  'export.layouts.chordsWithBar.hint',
+  'inline-diagrams':  'export.layouts.inlineDiagrams.hint',
+  'lyrics-only':      'export.layouts.lyricsOnly.hint',
+};
 
 const ICONS: Record<ExportFormat, React.ReactNode> = {
   pdf:       <Printer size={16} />,
@@ -43,6 +75,7 @@ interface Props {
 }
 
 export default function SongExportModal({ songs, bookTitle, onClose }: Props): React.ReactElement | null {
+  const t = useT();
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const customChords = useSettingsStore((s) => s.settings.customChords ?? {});
@@ -88,7 +121,9 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
   // pass an empty list when nothing's selected.
   const isMulti = songs.length > 1;
   const song = songs[0];
-  const defaultHeading = isMulti ? (bookTitle ?? `${songs.length} songs`) : (song ? toTitleCase(song.title) : 'Export');
+  const defaultHeading = isMulti
+    ? (bookTitle ?? t('export.multiHeading', { count: songs.length }))
+    : (song ? toTitleCase(song.title) : t('export.fallbackHeading'));
   // User-editable document heading — used as the title page label and the
   // file name for multi-song PDF/HTML exports. Always seeded from the
   // caller's bookTitle (or song title for single-song).
@@ -239,7 +274,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
       if (needsLayout) {
         for (const s of songs) perSongExtras[s.id] = buildExtrasFor(s);
       }
-      void exportSongs(songs, format, heading.trim() || (bookTitle ?? `${songs.length} songs`), options, perSongExtras);
+      void exportSongs(songs, format, heading.trim() || (bookTitle ?? t('export.multiHeading', { count: songs.length })), options, perSongExtras);
     } else if (song) {
       exportSong(song, format, options);
     }
@@ -281,7 +316,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
         <div className="flex items-start gap-3 p-5 pb-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {isMulti ? `Export ${songs.length} songs` : 'Export song'}
+              {isMulti ? t('export.songs', { count: songs.length }) : t('export.song')}
             </p>
             <h3 className="font-semibold text-base truncate" style={{ color: 'var(--text-primary)' }}>{heading || defaultHeading}</h3>
           </div>
@@ -296,7 +331,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
         {isMulti && step === 1 && (
           <div className="px-5 pb-3">
             <label className="text-xs font-semibold mb-1 block" style={{ color: 'var(--text-muted)' }}>
-              Document title
+              {t('export.documentTitle')}
             </label>
             <input
               value={heading}
@@ -310,7 +345,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
 
         {/* ── STEP 1 — pick a format ─────────────────────────────────── */}
         {step === 1 && (
-          <div className="px-3 pb-3 flex flex-col gap-1" role="radiogroup" aria-label="Export format">
+          <div className="px-3 pb-3 flex flex-col gap-1" role="radiogroup" aria-label={t('export.formatAria')}>
             {EXPORT_FORMATS.map((f) => {
               const active = selectedFormat === f.id;
               return (
@@ -337,15 +372,15 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{f.label}</span>
+                      <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t(FORMAT_LABEL_KEY[f.id])}</span>
                       <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>.{f.ext}</span>
                       {isMulti && (f.id === 'chordpro' || f.id === 'plaintext') && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: 'var(--surface-elevated)', color: 'var(--text-muted)' }}>
-                          One file per song
+                          {t('export.oneFilePerSong')}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{f.hint}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t(FORMAT_HINT_KEY[f.id])}</p>
                   </div>
                 </button>
               );
@@ -359,14 +394,14 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
             <div className="px-5 py-3 flex flex-col gap-2 border-t" style={{ borderColor: 'var(--border)' }}>
               <div className="flex items-center gap-3">
                 <label className="text-xs font-semibold shrink-0" style={{ color: 'var(--text-muted)' }}>
-                  Style preset
+                  {t('export.stylePreset')}
                 </label>
                 <select
                   value={exportPresetKey}
                   onChange={(e) => setExportPresetKey(e.target.value)}
                   className="flex-1 px-3 py-1.5 rounded-lg text-sm outline-none"
                   style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
-                  title="Light-mode preset used for the exported document. Doesn't change the app's active preset."
+                  title={t('export.stylePresetHint')}
                 >
                   {lightPresets.map((p) => (
                     <option key={p.key} value={p.key}>{p.name}</option>
@@ -380,7 +415,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
             <div className="px-5 py-4 flex flex-col min-h-0" style={{ flex: '1 1 auto', overflow: 'hidden' }}>
               <p className="text-xs font-semibold mb-2 shrink-0" style={{ color: 'var(--text-muted)' }}>
                 <Guitar size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: '-1px' }} />
-                Layout
+                {t('export.layout')}
               </p>
               <div className="flex flex-col gap-1 overflow-y-auto">
                 {EXPORT_LAYOUTS.filter((l) => !(isPiano && l.id === 'inline-diagrams')).map((l) => {
@@ -404,8 +439,8 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
                         {checked && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'white' }} />}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm" style={{ color: 'var(--text-primary)' }}>{l.label}</div>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{l.hint}</p>
+                        <div className="text-sm" style={{ color: 'var(--text-primary)' }}>{t(LAYOUT_LABEL_KEY[l.id])}</div>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{t(LAYOUT_HINT_KEY[l.id])}</p>
                       </div>
                     </button>
                   );
@@ -425,7 +460,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
               style={{ color: 'var(--text-secondary)' }}
             >
               <ChevronLeft size={14} />
-              Back
+              {t('export.back')}
             </button>
           )}
           <div className="flex-1" />
@@ -434,7 +469,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
             className="px-3 py-1.5 rounded-lg text-sm"
             style={{ color: 'var(--text-muted)' }}
           >
-            Cancel
+            {t('export.cancel')}
           </button>
           <button
             onClick={onPrimaryAction}
@@ -442,9 +477,9 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
             style={{ background: 'var(--accent)', color: 'white' }}
           >
             {step === 1 && layoutMattersFor(selectedFormat) ? (
-              <>Continue</>
+              <>{t('export.continue')}</>
             ) : (
-              <><Download size={14} />Export</>
+              <><Download size={14} />{t('export.export')}</>
             )}
           </button>
         </div>
@@ -459,6 +494,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
  * (white) background — gives the user a good sense of what the PDF /
  * HTML will look like before committing. */
 function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement {
+  const t = useT();
   const fontFamily = style.fontFamily || 'sans-serif';
   const lyricsBg = style.lyrics.background || '#ffffff';
   const lyricsColor = style.lyrics.color || '#0f172a';
@@ -477,7 +513,7 @@ function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement 
     <div
       className="rounded-lg overflow-hidden"
       style={{ background: lyricsBg, border: '1px solid var(--border)', fontFamily, padding: '14px 16px' }}
-      title="Preview of the preset's colors as they'll appear in the exported PDF / HTML"
+      title={t('export.preview.tooltip')}
     >
       <div style={{ textAlign: 'center', marginBottom: 10 }}>
         <div
@@ -490,15 +526,15 @@ function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement 
             marginBottom: 2,
           }}
         >
-          Sample Song
+          {t('export.preview.sampleTitle')}
         </div>
         <div style={{ color: detailsColor, fontSize: detailsSize, marginBottom: 4 }}>
-          Artist Name
+          {t('export.preview.artistName')}
         </div>
         <div style={{ color: detailsColor, fontSize: detailsSize, opacity: 0.85 }}>
-          <strong style={{ fontWeight: 700 }}>Key:</strong> G
+          <strong style={{ fontWeight: 700 }}>{t('export.preview.keyLabel')}</strong> G
           <span style={{ margin: '0 6px', opacity: 0.5 }}>|</span>
-          <strong style={{ fontWeight: 700 }}>Tempo:</strong> 120 BPM
+          <strong style={{ fontWeight: 700 }}>{t('export.preview.tempoLabel')}</strong> 120 BPM
         </div>
       </div>
       <div style={{ marginBottom: 6 }}>
@@ -515,7 +551,7 @@ function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement 
             borderRadius: 4,
           }}
         >
-          Verse 1
+          {t('export.preview.verse')}
         </span>
       </div>
       <div style={{ lineHeight: 1.1 }}>
@@ -524,7 +560,7 @@ function PresetPreview({ style }: { style: SongViewStyle }): React.ReactElement 
         <span style={{ color: chordColor, fontWeight: 600, fontSize: chordSize }}>Am</span>
       </div>
       <div style={{ color: lyricsColor, fontSize: lyricSize, lineHeight: 1.4 }}>
-        Sample lyric line for this preset
+        {t('export.preview.lyric')}
       </div>
     </div>
   );

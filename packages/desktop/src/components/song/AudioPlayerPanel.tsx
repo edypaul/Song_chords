@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X, ExternalLink, AlertCircle, FileAudio, Globe, ArrowLeft } from 'lucide-react';
 import { fileBasename, pathToAudioUrl } from '../../utils/audio-source';
 import CustomAudioPlayer, { type CustomAudioPlayerHandle } from './CustomAudioPlayer';
+import { useT } from '../../i18n';
 
 interface Props {
   /** Title shown in the panel header — the song title. */
@@ -37,6 +38,7 @@ interface Props {
  * routes through the same popup IPC.
  */
 export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, onClose }: Props): React.ReactElement | null {
+  const t = useT();
   const hasFile = !!(audioFile && audioFile.trim());
   const hasUrl = !!(link && link.trim());
 
@@ -204,8 +206,8 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
               onClick={() => { setMode('chooser'); setLoadError(false); }}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
               style={{ color: 'var(--text-muted)' }}
-              title="Switch source"
-              aria-label="Switch source"
+              title={t('audio.switchSource')}
+              aria-label={t('audio.switchSource')}
             >
               <ArrowLeft size={13} />
             </button>
@@ -228,8 +230,8 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
               onClick={openExternalAudio}
               className="p-1 rounded hover:bg-[var(--surface-elevated)]"
               style={{ color: 'var(--text-muted)' }}
-              title="Open in default audio app"
-              aria-label="Open in external app"
+              title={t('audio.openInDefaultApp')}
+              aria-label={t('audio.openInExternalApp')}
             >
               <ExternalLink size={13} />
             </button>
@@ -238,8 +240,8 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
             onClick={onClose}
             className="p-1 rounded hover:bg-[var(--surface-elevated)]"
             style={{ color: 'var(--text-muted)' }}
-            title="Close"
-            aria-label="Close audio panel"
+            title={t('common.close')}
+            aria-label={t('audio.closeAria')}
           >
             <X size={13} />
           </button>
@@ -271,10 +273,10 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center" style={{ background: 'var(--bg)', color: 'var(--text-secondary)' }}>
             <AlertCircle size={28} style={{ color: 'var(--accent)' }} />
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Couldn't play this file
+              {t('audio.error.title')}
             </span>
             <span className="text-xs max-w-sm">
-              The file may have been moved, renamed, or deleted. Re-attach it from the song edit page, or open it in your default audio app.
+              {t('audio.error.body')}
             </span>
             <div className="flex items-center gap-2 mt-2">
               {showBackToChooser && (
@@ -283,7 +285,7 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                   style={{ background: 'var(--surface-elevated)', color: 'var(--text-secondary)' }}
                 >
-                  Try other source
+                  {t('audio.tryOtherSource')}
                 </button>
               )}
               <button
@@ -291,7 +293,7 @@ export default function AudioPlayerPanel({ title, audioFile, link, onPlayUrl, on
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
                 style={{ background: 'var(--accent)', color: 'white' }}
               >
-                <ExternalLink size={12} /> Open in audio app
+                <ExternalLink size={12} /> {t('audio.openInAudioApp')}
               </button>
             </div>
           </div>
@@ -316,10 +318,11 @@ function ChooserBody({
   audioFile?: string;
   link?: string;
 }): React.ReactElement {
+  const t = useT();
   return (
     <div className="flex flex-col gap-3 p-4 w-full">
       <span className="text-xs font-semibold uppercase tracking-wider text-center" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>
-        Pick a source
+        {t('audio.pickSource')}
       </span>
       <button
         onClick={onPickFile}
@@ -328,7 +331,7 @@ function ChooserBody({
       >
         <FileAudio size={16} style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }} />
         <span className="flex flex-col min-w-0 flex-1">
-          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Local file</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('audio.localFile')}</span>
           <span className="text-xs truncate font-mono" style={{ color: 'var(--text-muted)' }} title={audioFile}>
             {audioFile ? fileBasename(audioFile) : ''}
           </span>
@@ -341,7 +344,7 @@ function ChooserBody({
       >
         <Globe size={16} style={{ color: 'var(--accent)', marginTop: 2, flexShrink: 0 }} />
         <span className="flex flex-col min-w-0 flex-1">
-          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Online source</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{t('audio.onlineSource')}</span>
           <span className="text-xs truncate" style={{ color: 'var(--text-muted)' }} title={link}>
             {link ?? ''}
           </span>

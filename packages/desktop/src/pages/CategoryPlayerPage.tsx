@@ -5,8 +5,21 @@ import type { Song } from '@song-chords/shared';
 import PerformPage, { type PerformItem } from '../components/song/PerformPage';
 import { toTitleCase } from '../utils/text';
 import { parseSortFromSearch, sortSongs } from '../utils/song-sort';
+import { useT } from '../i18n';
+import type { TKey } from '../i18n';
 
 type CategoryKey = 'artist' | 'genre' | 'key' | 'difficulty' | 'tags' | 'year' | 'decade' | 'language';
+
+const CATEGORY_LABEL_KEYS: Record<CategoryKey, TKey> = {
+  artist:     'categories.tabs.artist',
+  genre:      'categories.tabs.genre',
+  key:        'categories.tabs.key',
+  difficulty: 'categories.tabs.difficulty',
+  tags:       'categories.tabs.tags',
+  year:       'categories.tabs.year',
+  decade:     'categories.tabs.decade',
+  language:   'categories.tabs.language',
+};
 
 function extractValues(category: CategoryKey, song: Song): string[] {
   switch (category) {
@@ -22,6 +35,7 @@ function extractValues(category: CategoryKey, song: Song): string[] {
 }
 
 export default function CategoryPlayerPage(): React.ReactElement {
+  const t = useT();
   const { category, value } = useParams<{ category: CategoryKey; value: string }>();
   const songs = useSongStore((s) => s.songs);
   const [searchParams] = useSearchParams();
@@ -40,7 +54,10 @@ export default function CategoryPlayerPage(): React.ReactElement {
     [matches],
   );
 
-  const title = `${category ? toTitleCase(category) : ''}${decoded ? `: ${toTitleCase(decoded)}` : ''}`;
+  const categoryLabel = category ? t(CATEGORY_LABEL_KEYS[category]) : '';
+  const title = decoded
+    ? t('categoryPlayer.titleWithValue', { category: categoryLabel, value: toTitleCase(decoded) })
+    : categoryLabel;
 
   // Return to the category list rather than history-back so a
   // Perform → Edit → Perform round-trip doesn't leave the close X

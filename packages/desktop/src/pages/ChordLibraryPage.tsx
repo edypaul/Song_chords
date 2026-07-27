@@ -4,6 +4,7 @@ import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
 import { db } from '../ipc/ipc-client';
+import { useT } from '../i18n';
 
 const ROOT_NOTES = ['All', ...ALL_KEYS.slice(0, 12)];
 const BASS_NOTES = ['None', ...ALL_KEYS.slice(0, 12)];
@@ -44,6 +45,7 @@ const CHORD_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ChordLibraryPage(): React.ReactElement {
+  const t = useT();
   const { settings, updateSetting } = useSettingsStore();
   const customChords = settings.customChords ?? {};
   const svs = settings.songViewStyle;
@@ -179,12 +181,12 @@ export default function ChordLibraryPage(): React.ReactElement {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Chord Library</h1>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{t('chordLibrary.title')}</h1>
         {!showAddForm && (
           <button onClick={() => setShowAddForm(true)}
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             style={{ background: 'var(--accent)', color: 'white' }}>
-            + Add Chord
+            + {t('chordLibrary.addChord')}
           </button>
         )}
       </div>
@@ -192,46 +194,63 @@ export default function ChordLibraryPage(): React.ReactElement {
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6">
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Instrument
+          {t('chordLibrary.filter.instrument')}
           <select value={instrument} onChange={(e) => setInstrument(e.target.value as InstrumentType)} className="setting-select">
-            <option value="guitar">Guitar</option>
-            <option value="ukulele">Ukulele</option>
-            <option value="piano">Piano</option>
+            <option value="guitar">{t('settings.music.defaultInstrument.guitar')}</option>
+            <option value="ukulele">{t('settings.music.defaultInstrument.ukulele')}</option>
+            <option value="piano">{t('settings.music.defaultInstrument.piano')}</option>
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Root
+          {t('chordLibrary.filter.root')}
           <select value={rootFilter} onChange={(e) => setRootFilter(e.target.value)} className="setting-select">
-            {ROOT_NOTES.map((n) => <option key={n} value={n}>{n}</option>)}
+            {ROOT_NOTES.map((n) => <option key={n} value={n}>{n === 'All' ? t('chordLibrary.filter.all') : n}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Type
+          {t('chordLibrary.filter.type')}
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="setting-select">
-            {CHORD_TYPES.map((t) => <option key={t} value={t}>{CHORD_TYPE_LABELS[t] ?? t}</option>)}
+            {CHORD_TYPES.map((ct) => {
+              const label = ct === 'All'
+                ? t('chordLibrary.filter.all')
+                : ct === ''
+                  ? t('chordLibrary.filter.noSuffix')
+                  : (CHORD_TYPE_LABELS[ct] ?? ct);
+              return <option key={ct} value={ct}>{label}</option>;
+            })}
           </select>
         </label>
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
-          Over
+          {t('chordLibrary.filter.over')}
           <select value={bassFilter} onChange={(e) => setBassFilter(e.target.value)} className="setting-select">
-            {BASS_NOTES.map((n) => <option key={n} value={n}>{n}</option>)}
+            {BASS_NOTES.map((n) => <option key={n} value={n}>{n === 'None' ? t('chordLibrary.filter.none') : n}</option>)}
           </select>
         </label>
         <button onClick={() => setCustomOnly((v) => !v)}
           className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors"
           style={{ background: customOnly ? 'var(--accent)' : 'var(--surface-elevated)', color: customOnly ? 'white' : 'var(--text-muted)' }}>
-          ★ My Chords
+          ★ {t('chordLibrary.filter.myChords')}
         </button>
         <span className="text-xs ml-auto" style={{ color: 'var(--text-muted)' }}>
           {filtered.length === 0
-            ? '0 chords'
-            : `${pageStart + 1}–${Math.min(pageEnd, filtered.length)} of ${filtered.length} chord${filtered.length !== 1 ? 's' : ''}`}
+            ? t('chordLibrary.chordCountZero')
+            : filtered.length === 1
+              ? t('chordLibrary.chordCountRangeOne', {
+                  from: pageStart + 1,
+                  to: Math.min(pageEnd, filtered.length),
+                  total: filtered.length,
+                })
+              : t('chordLibrary.chordCountRangeMany', {
+                  from: pageStart + 1,
+                  to: Math.min(pageEnd, filtered.length),
+                  total: filtered.length,
+                })}
         </span>
       </div>
 
       {showAddForm ? (
         <div>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>New Custom Chord</h2>
+          <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{t('chordLibrary.newCustomChord')}</h2>
           <ChordForm instrument={instrument} onSave={addCustomChord} onCancel={() => setShowAddForm(false)} />
         </div>
       ) : (
@@ -250,7 +269,7 @@ export default function ChordLibraryPage(): React.ReactElement {
               style={{ background: 'var(--surface)', border: '1px solid var(--border)', position: 'relative', width: 110, minHeight: 140, padding: '4px 6px 8px' }}
               onClick={() => setSelectedChord(name)}>
               {hasCustom(name) && (
-                <span className="absolute top-0.5 right-0.5" style={{ color: 'var(--accent)', fontSize: 12 }} title="Has custom variations">★</span>
+                <span className="absolute top-0.5 right-0.5" style={{ color: 'var(--accent)', fontSize: 12 }} title={t('chordLibrary.hasCustomVariations')}>★</span>
               )}
               <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                 <ChordDiagramSVG diagram={diagrams[0]!} width={90}
@@ -258,13 +277,13 @@ export default function ChordLibraryPage(): React.ReactElement {
                   displayName={formatChord(name, settings.chordNotation ?? 'letter')} />
               </div>
               {diagrams.length > 1 ? (
-                <p className="text-center text-[10px]" style={{ color: 'var(--text-muted)' }}>{diagrams.length} var.</p>
+                <p className="text-center text-[10px]" style={{ color: 'var(--text-muted)' }}>{t('chordLibrary.variationCount', { count: diagrams.length })}</p>
               ) : <div style={{ height: 14 }} />}
             </div>
           ))}
         </div>
         {filtered.length === 0 && (
-          <p className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>No chords match the current filter.</p>
+          <p className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>{t('chordLibrary.emptyState')}</p>
         )}
         {totalPages > 1 && (
           <Pager page={page} totalPages={totalPages} onGoto={goToPage} />
@@ -331,6 +350,7 @@ function Pager({ page, totalPages, onGoto }: {
   totalPages: number;
   onGoto: (p: number) => void;
 }): React.ReactElement {
+  const t = useT();
   const items: Array<number | 'gap'> = [];
   const push = (n: number) => { if (items[items.length - 1] !== n) items.push(n); };
   const gap = () => { if (items[items.length - 1] !== 'gap') items.push('gap'); };
@@ -354,9 +374,9 @@ function Pager({ page, totalPages, onGoto }: {
           opacity: page <= 1 ? 0.4 : 1,
           cursor: page <= 1 ? 'not-allowed' : 'pointer',
         }}
-        aria-label="Previous page"
+        aria-label={t('chordLibrary.pager.previousPage')}
       >
-        ‹ Prev
+        ‹ {t('common.previous')}
       </button>
       {items.map((it, i) => (
         it === 'gap'
@@ -373,7 +393,7 @@ function Pager({ page, totalPages, onGoto }: {
                 fontWeight: it === page ? 600 : 400,
               }}
               aria-current={it === page ? 'page' : undefined}
-              aria-label={`Page ${it}`}
+              aria-label={t('chordLibrary.pager.page', { page: it })}
             >
               {it}
             </button>
@@ -389,9 +409,9 @@ function Pager({ page, totalPages, onGoto }: {
           opacity: page >= totalPages ? 0.4 : 1,
           cursor: page >= totalPages ? 'not-allowed' : 'pointer',
         }}
-        aria-label="Next page"
+        aria-label={t('chordLibrary.pager.nextPage')}
       >
-        Next ›
+        {t('common.next')} ›
       </button>
     </div>
   );
@@ -418,6 +438,7 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
   onUpdateCustom: (name: string, customIdx: number, d: ChordDiagram) => void;
   onDeleteCustom: (name: string, customIdx: number) => void;
 }): React.ReactElement {
+  const t = useT();
   // Open the slider on the user's saved global default so they
   // can see / un-set it directly without scrolling to find it.
   const initialIdx = typeof globalDefaultIdx === 'number'
@@ -447,7 +468,7 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowAdd((v) => !v); setEditingIdx(null); }}
               className="text-xs px-2 py-1 rounded" style={{ background: showAdd ? 'var(--surface-elevated)' : 'var(--accent)', color: showAdd ? 'var(--text-muted)' : 'white' }}>
-              {showAdd ? 'Cancel' : '+ Add'}
+              {showAdd ? t('common.cancel') : '+ ' + t('common.add')}
             </button>
             <button onClick={onClose} className="text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
           </div>
@@ -476,7 +497,7 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div key={currentIdx} className="chord-slide" style={{ position: 'relative' }}>
               {custom && (
-                <span className="absolute top-0 right-0" style={{ color: 'var(--accent)', fontSize: 12 }} title="Custom variation">★</span>
+                <span className="absolute top-0 right-0" style={{ color: 'var(--accent)', fontSize: 12 }} title={t('chordLibrary.customVariation')}>★</span>
               )}
               <ChordDiagramSVG diagram={diag} width={showAdd || editingIdx !== null ? 100 : 150}
                 lineColor={svs.lyrics.color || undefined} chordColor={svs.chords.color || undefined} hideName />
@@ -498,15 +519,15 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
             </div>
           )}
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {custom ? 'Custom' : 'Built-in'} — {currentIdx + 1} of {diagrams.length}
+            {custom ? t('chordLibrary.variationSource.custom') : t('chordLibrary.variationSource.builtin')} — {t('chordLibrary.variationOf', { current: currentIdx + 1, total: diagrams.length })}
           </span>
           {/* Edit/Delete for custom */}
           {custom && editingIdx !== currentIdx && (
             <div className="flex gap-2">
               <button onClick={() => { setEditingIdx(currentIdx); setShowAdd(false); }}
-                className="text-xs px-3 py-1 rounded" style={{ color: 'var(--text-secondary)', background: 'var(--surface-elevated)' }}>Edit</button>
+                className="text-xs px-3 py-1 rounded" style={{ color: 'var(--text-secondary)', background: 'var(--surface-elevated)' }}>{t('common.edit')}</button>
               <button onClick={() => { onDeleteCustom(chordName, customIdx(currentIdx)); setCurrentIdx(Math.max(0, currentIdx - 1)); }}
-                className="text-xs px-3 py-1 rounded" style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>Delete</button>
+                className="text-xs px-3 py-1 rounded" style={{ color: 'var(--danger, #ef4444)', background: 'var(--surface-elevated)' }}>{t('common.delete')}</button>
             </div>
           )}
           {/* Set / clear the global default voicing for this chord on
@@ -527,15 +548,15 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
                 }}
                 title={
                   isCurrentTheDefault
-                    ? 'Click to remove the global default for this chord. Songs that pinned their own voicing for this chord keep theirs.'
-                    : 'Use this voicing for this chord in every song. Songs that pin a different voicing via "Remember for this song" still override it.'
+                    ? t('chordLibrary.defaultForAllSongs.clearTitle')
+                    : t('chordLibrary.defaultForAllSongs.setTitle')
                 }
               >
-                {isCurrentTheDefault ? 'Default for all songs ✓' : 'Set as default for all songs'}
+                {isCurrentTheDefault ? t('chordLibrary.defaultForAllSongs.active') : t('chordLibrary.defaultForAllSongs.set')}
               </button>
               {typeof globalDefaultIdx === 'number' && !isCurrentTheDefault && (
                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                  Current default: variation {globalDefaultIdx + 1}
+                  {t('chordLibrary.defaultForAllSongs.currentDefault', { variation: globalDefaultIdx + 1 })}
                 </span>
               )}
             </div>
