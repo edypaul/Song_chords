@@ -80,3 +80,27 @@ export function useT(): (key: TKey, vars?: TVars) => string {
 export function useLanguage(): UiLanguage {
   return useSettingsStore((s) => s.settings.uiLanguage ?? 'en');
 }
+
+/** All supported UI language codes. Used by the auto-detect helper to
+ *  match a browser locale tag against the shipped dictionaries. */
+const SUPPORTED_LANGS: readonly UiLanguage[] = ['en', 'es', 'pt', 'it', 'fr', 'de'];
+
+/** Best-effort mapping from an OS/browser locale tag (`navigator.language`
+ *  or `navigator.languages[0]`) to one of the languages we actually ship.
+ *  Only the PRIMARY subtag is considered — regional variants (`es-AR`,
+ *  `pt-BR`, `de-CH`, …) all collapse to their base language. Returns
+ *  `'en'` for anything we don't have a dictionary for. */
+export function detectPreferredLanguage(): UiLanguage {
+  const candidates: string[] = [];
+  if (typeof navigator !== 'undefined') {
+    if (Array.isArray(navigator.languages)) candidates.push(...navigator.languages);
+    if (typeof navigator.language === 'string') candidates.push(navigator.language);
+  }
+  for (const tag of candidates) {
+    const primary = tag.toLowerCase().split(/[-_]/)[0];
+    if (SUPPORTED_LANGS.includes(primary as UiLanguage)) {
+      return primary as UiLanguage;
+    }
+  }
+  return 'en';
+}

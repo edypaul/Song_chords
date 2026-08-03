@@ -23,6 +23,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 import { useSongStore, useSetListStore, useSettingsStore } from '@song-chords/shared';
 import { db } from './ipc/ipc-client';
+import { detectPreferredLanguage } from './i18n';
 import AppShell from './components/layout/AppShell';
 import LibraryPage from './pages/LibraryPage';
 import SongViewPage from './pages/SongViewPage';
@@ -49,10 +50,31 @@ import CastSync from './components/song/CastSync';
 export default function App(): React.ReactElement {
   const loadSongs = useSongStore((s) => s.loadSongs);
   const loadSetLists = useSetListStore((s) => s.loadSetLists);
-  const { loadSettings, settings } = useSettingsStore();
+  const { loadSettings, settings, updateSetting } = useSettingsStore();
 
   useEffect(() => {
-    void loadSettings(db);
+    // Boot sequence:
+    //   1. Load settings from the DB. On very first launch, the DB
+    //      row is either missing or defaults to `uiLanguage: 'en'`
+    //      (from DEFAULT_SETTINGS).
+    //   2. If the language field wasn't explicitly saved yet — i.e.
+    //      this is the FIRST run on this machine — detect the OS
+    //      locale from the renderer's `navigator.language(s)` and
+    //      save it. Subsequent launches see the saved value and
+    //      skip detection, so a user who deliberately picks a
+    //      language in Settings later doesn't get overridden.
+    //   3. Load songs + set lists.
+    void (async () => {
+      await loadSettings(db);
+      const stored = useSettingsStore.getState().settings.uiLanguage;
+      // Only auto-detect when the setting is truly unset (undefined).
+      // A value of 'en' means the user (or a prior boot) explicitly
+      // chose English and should be respected.
+      if (stored === undefined || stored === null) {
+        const detected = detectPreferredLanguage();
+        await updateSetting(db, 'uiLanguage', detected);
+      }
+    })();
     void loadSongs(db);
     void loadSetLists(db);
   }, []);

@@ -81,5 +81,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   shortcuts: { ...DEFAULT_SHORTCUTS },
   dismissedHints: {},
-  uiLanguage: 'en',
+  // No default here — left `undefined` on first launch so the
+  // renderer's boot code can distinguish "user hasn't picked a
+  // language yet" from "user (or previous auto-detect) chose
+  // English". On first launch, App.tsx auto-detects the OS
+  // locale and writes it. Every call site defaults `?? 'en'`
+  // for the render, so the transient `undefined` state is
+  // invisible to the UI.
+  uiLanguage: undefined,
 };
