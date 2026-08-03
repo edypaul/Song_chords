@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { X, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Guitar, LayoutGrid, FileText, StickyNote, ArrowUp, Edit2, Star, ListMusic, Download } from 'lucide-react';
-import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore, annotationModeFromToggles } from '@song-chords/shared';
+import { SONG_STYLE_PRESETS, usePlayerStore, useSettingsStore, useSongStore, useSetListStore, annotationModeFromToggles, ANNOTATION_OFF } from '@song-chords/shared';
 import SongExportModal from './SongExportModal';
 import SetListPickerModal from './SetListPickerModal';
 import type { Song } from '@song-chords/shared';
@@ -354,13 +354,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     zoomReset:            () => void updateSetting(db, 'perfZoom', 1),
     onCapo:               (fret) => usePlayerStore.getState().setCapo(fret),
   });
-  // Every entry change starts with notes CLOSED and the annotation
-  // selection cleared. `null` means the read layer falls back to the
-  // DEFAULT set for the current (viewMode, preset) pair — so a song
-  // opens with its default annotation visible when one exists, and
-  // stays clean when none does. Same ref-guarded pattern as before
-  // so manual toggles within the current entry aren't clobbered by
-  // unrelated re-renders.
+  // Every entry change starts with notes CLOSED and annotations
+  // explicitly OFF (`ANNOTATION_OFF`). Users have to pick a set
+  // from the top-toolbar Annotations menu to see them — a song
+  // opens clean by default, no shapes overlaid. Same ref-guarded
+  // pattern as before so manual toggles within the current entry
+  // aren't clobbered by unrelated re-renders.
   const lastAutoOpenedIdRef = useRef<string | null>(null);
   useEffect(() => {
     const isSong = currentItem?.type === 'song';
@@ -368,7 +367,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     if (lastAutoOpenedIdRef.current === id) return;
     lastAutoOpenedIdRef.current = id;
     setShowSongNotes(false);
-    if (isSong && activeSong?.id) setSelectedSetId(activeSong.id, null);
+    if (isSong && activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
   });
 
   // Load the current song (merging its overrides) when the index changes.

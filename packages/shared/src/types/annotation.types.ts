@@ -425,6 +425,15 @@ export function pickActiveSet(
   // sets exist for this view mode. Draft included: the toggle is a
   // hard mute.
   if (explicitId === ANNOTATION_OFF) return undefined;
+  // STRICT (viewMode, preset) match. Annotations are drawn against
+  // a specific view configuration AND a specific style preset;
+  // switching either dimension must show a DIFFERENT set (or
+  // nothing) — the shapes are anchored to line positions that
+  // depend on font metrics from the preset, so a set drawn under
+  // one preset would look wrong under another. If you're missing
+  // annotations on a fresh install, it's because they were saved
+  // under a different preset than the one currently active:
+  // switch back to that preset (or draw new ones here).
   const matches = (s: AnnotationSet): boolean =>
     viewModeEquals(s.viewMode, viewMode) && s.preset === preset;
   if (explicitId) {
@@ -435,21 +444,7 @@ export function pickActiveSet(
   if (doc.draft) return doc.draft;
   const defaultForMode = doc.sets.find((s) => matches(s) && s.isDefault);
   if (defaultForMode) return defaultForMode;
-  const anyForMode = doc.sets.find(matches);
-  if (anyForMode) return anyForMode;
-  // Fallback: no set matches the CURRENT (viewMode, preset) pair.
-  // This is common right after a fresh install or a library import,
-  // where annotations were saved under a different preset than the
-  // one now active. Rather than silently showing nothing, fall back
-  // to any set that matches the current viewMode regardless of
-  // preset, preferring `isDefault`. This restores the pre-preset-
-  // feature behavior — a user always sees SOMETHING when the song
-  // has annotations, and the render will still look reasonable
-  // (line anchors are preset-independent; only fine placement may
-  // differ if the two presets have very different font metrics).
-  const defaultAnyPreset = doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode) && s.isDefault);
-  if (defaultAnyPreset) return defaultAnyPreset;
-  return doc.sets.find((s) => viewModeEquals(s.viewMode, viewMode));
+  return doc.sets.find(matches);
 }
 
 /** List every set for a specific view mode + preset (used by the

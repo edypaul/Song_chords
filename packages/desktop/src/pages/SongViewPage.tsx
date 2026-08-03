@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown } from 'lucide-react';
-import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles } from '@song-chords/shared';
+import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles, ANNOTATION_OFF } from '@song-chords/shared';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
@@ -215,16 +215,15 @@ export default function SongViewPage(): React.ReactElement {
     chordBarVisible,
     inlineDiagrams,
   });
-  // Every song change starts with notes CLOSED and the annotation
-  // selection cleared. `null` (no explicit choice) means the
-  // read layer falls back to the DEFAULT set for the current
-  // (viewMode, preset) pair — so a song opens with its default
-  // annotation visible, and stays clean when no default exists.
-  // Notes stay in the DB, only their visibility resets. Keyed on
-  // song id so switching songs also resets.
+  // Every song change starts with notes CLOSED and annotations
+  // explicitly OFF (`ANNOTATION_OFF`). Users have to pick a set
+  // from the top-toolbar Annotations menu to see them — a song
+  // opens clean by default, no shapes overlaid. Notes stay in
+  // the DB, only their visibility resets. Keyed on song id so
+  // switching songs also resets.
   useEffect(() => {
     setShowNotes(false);
-    if (activeSong?.id) setSelectedSetId(activeSong.id, null);
+    if (activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
   }, [activeSong?.id, setSelectedSetId]);
 
   // Song trainer eligibility: only the default chord-names-over-lyrics

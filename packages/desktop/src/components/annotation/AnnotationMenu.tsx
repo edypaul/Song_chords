@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Highlighter, Check, Star, EyeOff, Edit3, Trash2, Plus } from 'lucide-react';
+import { Highlighter, Check, EyeOff, Edit3, Trash2, Plus } from 'lucide-react';
 import {
   ANNOTATION_OFF,
   finalizeUntaggedPresets,
@@ -55,7 +55,7 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
   // editing root via the annotationsJson prop; both instances
   // hydrate from the same store.
   const controller = useAnnotationDoc(songId, annotationsJson, viewMode, preset);
-  const { rename, remove, setDefault } = controller;
+  const { rename, remove } = controller;
 
   const doc = useMemo(() => {
     const raw = parseSongAnnotations(annotationsJson);
@@ -242,18 +242,6 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
                     ? <Check size={11} style={{ color: 'var(--accent)' }} />
                     : <span style={{ width: 11 }} />}
                   <span className="truncate">{s.name || t('annotationMenu.unnamed')}</span>
-                </button>
-                <button
-                  onClick={() => setDefault(s.id)}
-                  className="p-1 rounded hover:bg-[var(--surface-elevated)]"
-                  title={s.isDefault ? t('annotationMenu.default') : t('annotationMenu.setAsDefault')}
-                  disabled={s.isDefault}
-                >
-                  <Star
-                    size={11}
-                    style={{ color: s.isDefault ? 'var(--accent)' : 'var(--text-muted)' }}
-                    fill={s.isDefault ? 'var(--accent)' : 'none'}
-                  />
                 </button>
                 <button
                   onClick={() => openPanelForEdit(s.id)}

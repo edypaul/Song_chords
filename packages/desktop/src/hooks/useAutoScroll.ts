@@ -125,14 +125,14 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
         if (!isPaused) {
           // The section navigator can mount a `[data-bottom-spacer]` div
           // after the song content so trailing short sections can scroll
-          // to the top. Auto-scroll has to ignore that spacer for both
-          // pacing (so song duration still maps to song length) and stop
-          // detection (so we stop at the end of the song, not at the end
-          // of the spacer).
+          // to the top of the viewport. Auto-scroll has to ignore that
+          // spacer entirely — it MUST NOT scroll into or past the last
+          // song line into the empty spacer area. Both PACING (duration
+          // maps to song length, not song + spacer) and STOP DETECTION
+          // (we stop at song end, not spacer end) are computed against
+          // `totalScrollable`, which subtracts the spacer height.
           const spacer = el.querySelector<HTMLElement>('[data-bottom-spacer]');
           const spacerHeight = spacer ? spacer.offsetHeight : 0;
-          // Duration-based speed: cover the full scrollable height in exactly durationSeconds.
-          // Fallback to the speed slider when no duration is set.
           const totalScrollable = Math.max(0, el.scrollHeight - el.clientHeight - spacerHeight);
           // Mode selects the pacing. 'duration' covers the song in exactly
           // its duration — but only when a valid duration exists; otherwise
@@ -144,7 +144,13 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
             ? totalScrollable / durationSeconds!
             : (autoScrollSpeed / 100) * 120; // slider 1–100 → 1.2–120 px/s
 
-          posRef.current += pxPerSec * (deltaMs / 1000);
+          // Advance the internal position, but CLAMP to `totalScrollable`
+          // so we never scroll into the spacer even for a single frame.
+          // The stop check below fires next, but clamping here means the
+          // last visible frame lands exactly at the end of the song
+          // content instead of jumping a few pixels into the empty
+          // spacer zone before the check triggers.
+          posRef.current = Math.min(posRef.current + pxPerSec * (deltaMs / 1000), totalScrollable);
 
           el.scrollTop = posRef.current;
           // Read back the clamped value (browser stops at max scroll)
@@ -153,9 +159,11 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
           // When we reach the end of the song content, auto-stop. With a
           // spacer present, "end of content" = totalScrollable (already
           // adjusted above) rather than the container's full scroll range.
-          // If performance mode is active we route through `perfStop` so
-          // the top-bar buttons flip too.
-          if (totalScrollable > 0 && el.scrollTop >= totalScrollable - 1) {
+          // Also stop when totalScrollable is 0 (song fits in one
+          // viewport) so we don't spin advancing an unclamped position
+          // forever. If performance mode is active we route through
+          // `perfStop` so the top-bar buttons flip too.
+          if (totalScrollable === 0 || el.scrollTop >= totalScrollable - 1) {
             const { perfRunning } = usePlayerStore.getState();
             // Mark that this stop was caused by reaching the BOTTOM (not a
             // manual stop) so the UI can keep the toolbar hidden and leave
