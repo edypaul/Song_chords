@@ -903,6 +903,8 @@ export const es: Partial<Dict> = {
   'chordModal.variationOf': 'Variación {current} de {total}',
   'chordModal.rememberForSong': 'Recordar para esta canción',
   'chordModal.remembered': 'Recordada ✓',
+  'chordModal.rememberForSongTitle': 'Fija esta variación como la digitación que esta canción usará para este acorde',
+  'chordModal.rememberedTitle': 'Haz clic para desfijar — el acorde volverá al predeterminado global (o a la primera variación)',
 
   // ─── Interactive Piano editor ─────────────────────────────────
   'piano.hint': 'Haz clic en una tecla para añadir/quitar · Shift+clic para fijarla como raíz',

@@ -902,6 +902,8 @@ export const it: Partial<Dict> = {
   'chordModal.variationOf': 'Variazione {current} di {total}',
   'chordModal.rememberForSong': 'Ricorda per questa canzone',
   'chordModal.remembered': 'Ricordata ✓',
+  'chordModal.rememberForSongTitle': 'Fissa questa variazione come diteggiatura usata da questa canzone per questo accordo',
+  'chordModal.rememberedTitle': 'Clicca per rimuovere il pin — l’accordo tornerà al predefinito globale (o alla prima variazione)',
 
   // ─── Interactive Piano editor ─────────────────────────────────
   'piano.hint': 'Fai clic su un tasto per aggiungere/rimuovere · Shift-clic per impostare come fondamentale',

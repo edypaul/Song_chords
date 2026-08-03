@@ -74,10 +74,29 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
     setCreatingCustom(false);
   };
 
+  // Toggle the per-song pin for THIS chord.
+  //   • Currently NOT remembered → write the current variation index
+  //     into `songPrefs.chordVariations[chord]`. The song will render
+  //     this voicing for this chord from now on.
+  //   • Currently remembered (this exact variation) → REMOVE the
+  //     per-song entry. The chord falls back through the resolver:
+  //     global default for this instrument (set via the Chord
+  //     Library's "Set as default for all songs"), or variation 0
+  //     if no global default is set either. Toggle behavior lets
+  //     the user "unpin" a voicing without needing a separate
+  //     Reset button.
   const handleRemember = () => {
     if (!songId) return;
     const existing = songPrefs?.chordVariations ?? {};
-    const updated = { ...existing, [chord]: currentIdx };
+    let updated: Record<string, number>;
+    if (isRemembered) {
+      // Toggle OFF: drop the per-song entry so the resolver falls
+      // through to the global default (or 0).
+      updated = { ...existing };
+      delete updated[chord];
+    } else {
+      updated = { ...existing, [chord]: currentIdx };
+    }
     const newPrefs = { ...songPrefs, chordVariations: updated };
     void savePrefs(db, songId, newPrefs);
     // Update the player store's activeSong so the UI refreshes immediately
@@ -181,7 +200,11 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {t('chordModal.variationOf', { current: currentIdx + 1, total: allDiags.length })}
             </span>
-            {/* Remember button */}
+            {/* Remember toggle. Click once to pin this variation for
+                this song; click again to unpin. When unpinned, the
+                chord falls back to the global default (Chord Library
+                → Set as default for all songs) or variation 0 if
+                none is set. */}
             {songId && (
               <button
                 onClick={handleRemember}
@@ -190,6 +213,7 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
                   background: isRemembered ? 'var(--surface-elevated)' : 'var(--accent)',
                   color: isRemembered ? 'var(--text-muted)' : 'white',
                 }}
+                title={isRemembered ? t('chordModal.rememberedTitle') : t('chordModal.rememberForSongTitle')}
               >
                 {isRemembered ? t('chordModal.remembered') : t('chordModal.rememberForSong')}
               </button>

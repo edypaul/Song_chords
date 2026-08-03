@@ -902,6 +902,8 @@ export const de: Partial<Dict> = {
   'chordModal.variationOf': 'Variante {current} von {total}',
   'chordModal.rememberForSong': 'Für diesen Song merken',
   'chordModal.remembered': 'Gemerkt ✓',
+  'chordModal.rememberForSongTitle': 'Diese Variante als Griffbild pinnen, das dieser Song für diesen Akkord verwendet',
+  'chordModal.rememberedTitle': 'Klicken zum Entpinnen — der Akkord fällt auf den globalen Standard (oder die erste Variante) zurück',
 
   // ─── Interactive Piano editor ─────────────────────────────────
   'piano.hint': 'Klicke auf eine Taste zum Hinzufügen/Entfernen · Umschalt+Klick, um sie als Grundton festzulegen',

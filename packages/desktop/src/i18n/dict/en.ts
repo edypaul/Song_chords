@@ -916,6 +916,8 @@ export const en = {
   'chordModal.variationOf': 'Variation {current} of {total}',
   'chordModal.rememberForSong': 'Remember for this song',
   'chordModal.remembered': 'Remembered ✓',
+  'chordModal.rememberForSongTitle': 'Pin this variation as the voicing this song uses for this chord',
+  'chordModal.rememberedTitle': 'Click to unpin — the chord will fall back to the global default (or the first variation)',
 
   // ─── Interactive Piano editor ─────────────────────────────────
   'piano.hint': 'Click a key to add/remove · Shift-click to set as root',
