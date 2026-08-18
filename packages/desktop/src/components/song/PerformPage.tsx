@@ -282,12 +282,16 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   // the controls are always one click away. Mirrors the SongViewPage
   // toolbar toggle 1:1 so the two surfaces behave the same.
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  // Toolbar visibility is INDEPENDENT of auto-scroll. The dedicated
-  // `toggleToolbar` shortcut (default `T`), the collapse chevron in the
-  // bar, and the "Show toolbar" tab are the only three things that ever
-  // move `toolbarHidden`. Pressing Space to start auto-scroll used to
-  // also hide the toolbar as a side effect, which surprised users — the
-  // two features are now fully decoupled.
+  // Auto-scroll auto-hides the toolbar. The user pressed Space (or the
+  // toggleAutoScroll binding) BECAUSE they want a clean read of the
+  // lyrics while the song scrolls — hiding the toolbar follows
+  // naturally. Users can still manually hide/show via the dedicated
+  // `toggleToolbar` shortcut and the chevron; this effect handles
+  // the auto-scroll case.
+  const autoScrollActive = usePlayerStore((s) => s.autoScrollActive);
+  useEffect(() => {
+    setToolbarHidden(autoScrollActive);
+  }, [autoScrollActive]);
 
   // The perform page runs in native fullscreen. Closing the chord
   // modal with Escape makes the browser drop fullscreen (a

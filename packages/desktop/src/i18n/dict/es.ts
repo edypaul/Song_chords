@@ -823,7 +823,7 @@ export const es: Partial<Dict> = {
   'songTrainer.hintPrefix': 'Oculta una parte de los nombres de acordes tras ',
   'songTrainer.hintMiddle': ' para adivinarlos. Haz clic en un ',
   'songTrainer.hintSuffix': ' para revelarlo.',
-  'songTrainer.off': 'Desactivado',
+  'songTrainer.off': 'Desactivar',
   'songTrainer.offTitle': 'Desactivar el entrenador',
   'songTrainer.percentageAria': 'Porcentaje de nombres de acordes a ocultar',
   'songTrainer.reshuffle': 'Reordenar',

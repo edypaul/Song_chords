@@ -155,13 +155,17 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
     setOpen((v) => !v);
   };
 
-  const iconColor = annotationEditing
+  // Icon color follows the same convention as every other toolbar
+  // icon: accent when the feature is "active" (editing panel is
+  // open OR a set is currently rendering), muted secondary text
+  // otherwise. The old code painted the icon red (`--danger`) when
+  // annotations were toggled Off, which stuck out visually because
+  // no other toolbar button uses red — and, since songs now open
+  // with annotations Off by default, the red state ended up being
+  // the icon's normal appearance.
+  const iconColor = annotationEditing || active
     ? 'var(--accent)'
-    : isOff
-      ? 'var(--danger)'
-      : active
-        ? 'var(--accent)'
-        : 'var(--text-secondary)';
+    : 'var(--text-secondary)';
 
   const dropdown = open && !annotationEditing && pos ? createPortal(
     <div

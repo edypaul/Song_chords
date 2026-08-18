@@ -16,6 +16,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { toTitleCase } from '../utils/text';
 import PlayLinkButton from '../components/song/PlayLinkButton';
 import NotesLinkButton from '../components/song/NotesLinkButton';
+import AnnotationsLinkButton from '../components/song/AnnotationsLinkButton';
 import { useT } from '../i18n';
 
 export default function SetListDetailPage(): React.ReactElement {
@@ -337,6 +338,15 @@ function SortableEntry({
       </button>
       <PlayLinkButton title={song.title} link={song.link} audioFile={song.audioFile} />
       <NotesLinkButton title={song.title} notes={song.notes} />
+      {/* Annotations icon appears ONLY when this song has saved
+          annotation sets — `hideWhenEmpty` suppresses the disabled-
+          placeholder state that SongListTable uses for column
+          alignment, so setlist rows stay uncluttered. */}
+      <AnnotationsLinkButton
+        title={song.title}
+        annotationsJson={song.annotations}
+        hideWhenEmpty
+      />
       {displayKey && (
         <span
           className="text-xs font-mono"

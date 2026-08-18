@@ -259,13 +259,16 @@ export default function SongViewPage(): React.ReactElement {
   // room. When hidden, a slim "show toolbar" tab stays visible so the
   // user can always bring it back.
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  // Toolbar visibility is INDEPENDENT of auto-scroll. Earlier versions
-  // auto-hid the toolbar when auto-scroll started (and auto-showed it on
-  // stop), which surprised users because pressing Space (the auto-scroll
-  // shortcut) appeared to also toggle the toolbar. The toolbar now has its
-  // own dedicated `toggleToolbar` shortcut (default `T`), and the collapse
-  // chevron / "Show toolbar" tab are the only two things that ever move
-  // `toolbarHidden`.
+  // Auto-scroll auto-hides the toolbar. The user picked Space (or
+  // whatever the current binding is) to start auto-scroll BECAUSE
+  // they want a clean, uncluttered read of the lyrics as the song
+  // scrolls past — so the toolbar hiding on start / reappearing on
+  // stop follows naturally. Users can still manually hide/show via
+  // the dedicated `toggleToolbar` shortcut and the chevron; this
+  // effect just handles the auto-scroll case.
+  useEffect(() => {
+    setToolbarHidden(autoScrollActive);
+  }, [autoScrollActive]);
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 

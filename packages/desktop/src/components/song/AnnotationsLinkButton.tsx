@@ -12,6 +12,12 @@ interface Props {
   /** Visual size — `'sm'` for table rows, `'md'` for toolbars. Matches
    *  PlayLinkButton / NotesLinkButton so the icons line up in a row. */
   size?: 'sm' | 'md';
+  /** When true, the component renders NOTHING when the song has no
+   *  annotations — useful on surfaces where a disabled-placeholder
+   *  icon would add noise (e.g. setlist detail rows). Defaults to
+   *  `false` so the SongListTable's column-alignment behaviour is
+   *  preserved by omission. */
+  hideWhenEmpty?: boolean;
 }
 
 /**
@@ -27,7 +33,7 @@ interface Props {
  * clipping, positioned next to the button, and dismisses on
  * outside-click / Escape.
  */
-export default function AnnotationsLinkButton({ title, annotationsJson, size = 'sm' }: Props): React.ReactElement {
+export default function AnnotationsLinkButton({ title, annotationsJson, size = 'sm', hideWhenEmpty = false }: Props): React.ReactElement | null {
   const t = useT();
   const doc = useMemo(() => parseSongAnnotations(annotationsJson), [annotationsJson]);
   const customPresets = useSettingsStore((s) => s.settings.customPresets ?? {});
@@ -106,6 +112,12 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
     if (!has) return;
     setOpen((v) => !v);
   };
+
+  // Caller opted out of the disabled-placeholder mode (e.g. setlist
+  // detail rows, where an "empty annotation slot" per row would
+  // just be visual noise). Return nothing when the song has no
+  // named sets.
+  if (hideWhenEmpty && !has) return null;
 
   const tooltip = has
     ? (sets.length === 1
