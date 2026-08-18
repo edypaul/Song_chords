@@ -957,6 +957,12 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
       flexWrap: 'wrap',
       alignItems: 'flex-end',
       lineHeight: 1,
+      // Small 2px outer margin — the per-chunk explicit gap spans
+      // (10px above the chord glyph + 10px below) do the real
+      // vertical rhythm work. Keeping the outer margin tiny means
+      // the visible gap above the chord equals the visible gap
+      // below, so the chord line sits optically centered between
+      // the previous lyric and its own lyric.
       margin: '2px 0',
     }}>
       {wordGroups.map((group, gi) => (
@@ -968,6 +974,22 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
             // fixed height so chord-only chunks (padded lyric = " ") can
             // never shrink the column and pull the chord onto the lyric row.
             <span key={ci} style={{ display: 'inline-block', verticalAlign: 'bottom' }}>
+              {/* Explicit gap ABOVE the chord row, mirroring the gap
+                  below. Two matched block-height spans (this one +
+                  the one after the chord-cell) guarantee the chord
+                  glyph sits with equal visible whitespace above and
+                  below, independent of the parent line's margin
+                  behavior or flex bottom-alignment quirks. Skipped
+                  in inline-diagram mode: that mode composes vertical
+                  rhythm differently (see the diagram branch above). */}
+              {showChords && !inlineDiagrams && (
+                <span
+                  style={{ display: 'block', height: '10px', lineHeight: '0' }}
+                  aria-hidden="true"
+                >
+                  {'​'}
+                </span>
+              )}
               {showChords && (
                 <span style={{
                   // Flex container anchored to the row's bottom edge so
@@ -980,14 +1002,21 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
                   //  - guitar: 6 strings → cellH ≈ width × 0.108 → ~93 px @ 80
                   //  - ukulele: 4 strings → cellH ≈ width × 0.18  → ~122 px @ 80
                   //  - piano (vertical): 14 keys stacked + label   → ~190 px @ 80
+                  //
+                  // Text-mode chord cell is tightened from 1.4em to
+                  // 1em so the chord glyph fills the cell (no more
+                  // 0.4em internal empty space above/below). The
+                  // explicit gap spans above and below now own ALL
+                  // the vertical spacing — makes centering
+                  // deterministic.
                   height: inlineDiagrams
                     ? (instrument === 'piano'
                         ? `${Math.round(diagramW * 2.4)}px`
                         : instrument === 'ukulele'
                           ? `${Math.round(diagramW * 1.55)}px`
                           : `${Math.round(diagramW * 1.2)}px`)
-                    : '1.4em',
-                  lineHeight: inlineDiagrams ? '0' : '1.4em',
+                    : '1em',
+                  lineHeight: inlineDiagrams ? '0' : '1em',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                 }}>
@@ -1093,12 +1122,28 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
                   )}
                 </span>
               )}
-              {/* Explicit gap between the chord row and the lyric.
-                  Empty block element with a fixed height \u2014 guaranteed
-                  to render visible space regardless of how parent
-                  flex / inline contexts collapse margins. */}
-              {inlineDiagrams && (
-                <span style={{ display: 'block', height: '14px', lineHeight: '0' }} aria-hidden="true">
+              {/* Explicit gap between the chord row and its lyric.
+                  Empty block element with a fixed height so parent
+                  flex / inline contexts can't collapse it.
+
+                  Sized so the visible gap BELOW the chord matches
+                  the visible gap ABOVE the chord \u2014 the chord cell
+                  has `height: 1.4em` + `alignItems: flex-end`, so
+                  the chord glyph sits at the BOTTOM of the cell
+                  with ~0.4em of empty space above it inside the
+                  cell. Combined with the outer row margin below,
+                  that's roughly 10px of visible whitespace above
+                  the chord. Matching that below the chord keeps
+                  the chord line optically centered between the
+                  previous lyric and its own lyric.
+
+                  Inline-diagram mode keeps the taller 14px gap so
+                  the diagram doesn't press against the lyric. */}
+              {showChords && (
+                <span
+                  style={{ display: 'block', height: inlineDiagrams ? '14px' : '10px', lineHeight: '0' }}
+                  aria-hidden="true"
+                >
                   {'\u200B'}
                 </span>
               )}

@@ -780,7 +780,13 @@ function renderChordLyricLine(
   // bump every chord-cell height in this line to keep lyrics aligned
   // along a single baseline.
   const useDiagrams = !!chunkDiagramMap && Object.keys(chunkDiagramMap).length > 0;
-  const chordRowHeight = useDiagrams ? '7.5em' : '1.4em';
+  // Text-mode chord cell is tightened from 1.4em to 1em so the
+  // chord glyph fills the cell (no internal empty space above/below
+  // biasing the visible gap toward the previous lyric). The
+  // matched above/below gap spans in `renderChunk` own all the
+  // vertical spacing — makes the chord line sit exactly centered
+  // between the previous lyric and its own lyric.
+  const chordRowHeight = useDiagrams ? '7.5em' : '1em';
   // Render diagrams as zero-width absolute markers anchored to the
   // chunk's top-left, so the chunk's intrinsic width is determined
   // by the lyric below it (not the SVG's 80px width). That keeps
@@ -858,7 +864,22 @@ function renderChordLyricLine(
       : '';
     const isChordOnly = c.lyric.trim().length === 0;
     const chunkClass = isChordOnly ? 'chord-chunk chord-chunk-empty' : 'chord-chunk';
-    return `<span class="${chunkClass}" style="display:inline-block;vertical-align:bottom;${chunkMinWidth}">${chordCell}<span class="chunk-lyric" style="display:block;white-space:pre;height:1.2em;line-height:1.2em;">${lyric}${padSpan}</span></span>`;
+    // Matched above / below gap spans around the chord cell. Same
+    // sizes as ChordLine.tsx so exports match on-screen spacing.
+    // The 1em chord-cell height (see chordRowHeight above) removes
+    // any internal empty space, so these two gap spans alone
+    // determine the visible whitespace — chord line ends up
+    // optically centered between the previous lyric and its own.
+    // Diagram mode keeps its historical single-below-gap layout;
+    // the diagram's own top-of-viewbox padding covers the "above"
+    // side (see cast-html for the mirror of that logic).
+    const belowPx = useDiagrams ? 14 : 10;
+    const abovePx = useDiagrams ? 0 : 10;
+    const aboveSpan = abovePx > 0
+      ? `<span aria-hidden="true" style="display:block;height:${abovePx}px;line-height:0;">&#8203;</span>`
+      : '';
+    const belowSpan = `<span aria-hidden="true" style="display:block;height:${belowPx}px;line-height:0;">&#8203;</span>`;
+    return `<span class="${chunkClass}" style="display:inline-block;vertical-align:bottom;${chunkMinWidth}">${aboveSpan}${chordCell}${belowSpan}<span class="chunk-lyric" style="display:block;white-space:pre;height:1.2em;line-height:1.2em;">${lyric}${padSpan}</span></span>`;
   };
 
   // Each word group is a `display:inline-flex; flex-wrap:nowrap` so
@@ -875,6 +896,11 @@ function renderChordLyricLine(
   // previous line's lyric while leaving an awkward gap below itself.
   // Bumping the top/bottom margin on the line div centres the diagram
   // optically between the two lyric rows on either side.
+  // Text-mode line margin kept small (2px). The per-chunk gap
+  // spans above/below the chord cell own the visible rhythm now,
+  // so the outer margin only needs to prevent adjacent lyric
+  // lines from butting into each other. Diagram mode keeps its
+  // historical 18px composition.
   const lineMargin = useDiagrams ? '18px 0 18px' : '2px 0';
   // Every chord-bearing line gets break-inside:avoid so the print
   // engine can't split between the chord row (rendered above) and the
