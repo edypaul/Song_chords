@@ -739,104 +739,23 @@ export default function SongViewPage(): React.ReactElement {
   if (performanceMode) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--bg)' }}>
-        {/* Performance top bar */}
-        <div className="flex items-center gap-3 px-4 py-2 shrink-0" style={{ background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)' }}>
-          {!perfRunning ? (
-            <>
-              {/* Pre-play toggles: metronome + auto-scroll */}
-              <button
-                onClick={() => setPerfMetroWanted((v) => !v)}
-                disabled={!activeSong?.tempo}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{
-                  background: perfMetroWanted && activeSong?.tempo ? 'var(--accent)' : 'var(--surface-elevated)',
-                  color: perfMetroWanted && activeSong?.tempo ? 'white' : 'var(--text-muted)',
-                  opacity: activeSong?.tempo ? 1 : 0.4,
-                  cursor: activeSong?.tempo ? 'pointer' : 'not-allowed',
-                }}
-                title={activeSong?.tempo ? `${t('songView.perf.metronome')}${hint('toggleMetronome')}` : t('songView.perf.noTempo')}
-              >
-                <Timer size={13} /> {t('songView.perf.metronome')}
-              </button>
-              <button
-                onClick={() => setPerfScrollWanted((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{
-                  background: perfScrollWanted ? 'var(--accent)' : 'var(--surface-elevated)',
-                  color: perfScrollWanted ? 'white' : 'var(--text-muted)',
-                }}
-                title={`${t('songView.perf.autoScroll')}${hint('toggleAutoScroll')}`}
-              >
-                <Play size={13} /> {t('songView.perf.autoScroll')}
-              </button>
-              <button
-                onClick={perfStart}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: 'var(--accent)', color: 'white' }}
-              >
-                <Play size={13} /> {t('songView.perf.play')}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* Running: only Pause (toggles Resume when paused) + Stop */}
-              <button
-                onClick={perfPauseToggle}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: 'var(--surface-elevated)', color: perfPaused ? 'var(--accent)' : 'var(--text-secondary)' }}
-              >
-                {perfPaused ? <><Play size={13} /> {t('songView.perf.resume')}</> : <><Pause size={13} /> {t('songView.perf.pause')}</>}
-              </button>
-              <button
-                onClick={perfStop}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                style={{ background: 'var(--danger, #ef4444)', color: 'white' }}
-              >
-                <Square size={13} /> {t('songView.perf.stop')}
-              </button>
-            </>
-          )}
-
-          {/* Beat indicator */}
-          {metronome.isPlaying && (
-            <div className="flex items-center gap-1 ml-1">
-              {Array.from({ length: metronome.beatsPerMeasure }, (_, i) => (
-                <div key={i} style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: i === metronome.currentBeat
-                    ? (i === 0 ? 'var(--accent)' : 'var(--chord-color)')
-                    : 'var(--border)',
-                  transition: 'background 0.05s',
-                }} />
-              ))}
-            </div>
-          )}
-
-          {/* Audio source + Cast + Annotations (full-screen perf) */}
-          <div className="ml-auto flex items-center gap-1">
-            <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
-            {/* Song trainer — same button as the non-perf toolbar so
-                the user can start practising from either surface. */}
-            <SongTrainerButton eligible={trainerEligible} ineligibleReason={trainerIneligibleReason} />
-            {/* Fullscreen intentionally omits the "annotate this song"
-                button — annotations are created in the normal view
-                and only READ in fullscreen. The picker below stays
-                so the user can still switch between sets or turn them
-                off during a performance. */}
-            <AnnotationMenu
-              songId={activeSong.id}
-              annotationsJson={activeSong.annotations}
-              viewMode={annotationMode}
-              preset={svs.preset}
-            />
-            <CastQuickButton />
-          </div>
-
-          {/* Exit */}
-          <button onClick={exitPerformance} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--text-muted)' }} title={`${t('songView.perf.exitTooltip')}${hint('toggleFullscreen')}`}>
-            <X size={13} /> {t('songView.perf.exit')}
-          </button>
-        </div>
+        {/* Minimalist perform-mode top bar: exit icon only.
+            Every other song-view control (transpose, view toggles,
+            annotations, trainer, cast, etc.) is still reachable via
+            the same keyboard shortcuts that work on the standard
+            song view — the top bar here is intentionally chrome-
+            free so the song content dominates the screen.
+            Positioned absolute so it floats above the song content
+            without stealing vertical space. */}
+        <button
+          onClick={exitPerformance}
+          className="absolute top-3 right-3 z-10 p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+          title={`${t('songView.perf.exitTooltip')}${hint('toggleFullscreen')}`}
+          aria-label={t('songView.perf.exit')}
+        >
+          <X size={16} />
+        </button>
 
         {/* Chord bar top (performance) */}
         {chordBarVisible && chordBarPosition === 'top' && displayedSong && (
