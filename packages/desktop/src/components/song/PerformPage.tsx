@@ -282,16 +282,44 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   // the controls are always one click away. Mirrors the SongViewPage
   // toolbar toggle 1:1 so the two surfaces behave the same.
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  // Auto-scroll auto-hides the toolbar. The user pressed Space (or the
-  // toggleAutoScroll binding) BECAUSE they want a clean read of the
-  // lyrics while the song scrolls — hiding the toolbar follows
-  // naturally. Users can still manually hide/show via the dedicated
-  // `toggleToolbar` shortcut and the chevron; this effect handles
-  // the auto-scroll case.
+  // Auto-scroll flow mirrors SongViewPage:
+  //   • START/RESUME → hide toolbar (section-nav icon hides via its own
+  //                    subscription to `autoScrollActive`).
+  //   • PAUSE        → reveal toolbar (user has full access to controls).
+  //   • RESUME       → hide again.
+  //   • HIT-BOTTOM   → page stays at bottom; toolbar revealed;
+  //                    `atBottomAwaitingSpace` primed so the next
+  //                    Space press scrolls to the top instead of
+  //                    starting a fresh scroll from the bottom (which
+  //                    would be a no-op).
   const autoScrollActive = usePlayerStore((s) => s.autoScrollActive);
+  const autoScrollHitBottom = usePlayerStore((s) => s.autoScrollHitBottom);
+  const autoScrollSessionRef = useRef<{ active: boolean } | null>(null);
+  const [atBottomAwaitingSpace, setAtBottomAwaitingSpace] = useState(false);
   useEffect(() => {
-    setToolbarHidden(autoScrollActive);
+    if (autoScrollActive) {
+      autoScrollSessionRef.current = { active: true };
+      setToolbarHidden(true);
+      // Fresh scroll started — clear any pending "parked at bottom"
+      // reset so the next Space press pauses instead of scrolling
+      // to the top.
+      setAtBottomAwaitingSpace(false);
+    } else if (autoScrollSessionRef.current?.active) {
+      // Pause: reveal toolbar so the user can reach controls while
+      // paused. Session ref stays so resume re-hides.
+      setToolbarHidden(false);
+    }
   }, [autoScrollActive]);
+  useEffect(() => {
+    if (!autoScrollHitBottom) return;
+    if (!autoScrollSessionRef.current?.active) return;
+    // Song reached the end. Page stays parked at the bottom; toolbar
+    // + section-nav icon reveal (section-nav auto-reveals via its
+    // own autoScrollActive subscription); the next Space press
+    // scrolls to the top.
+    setAtBottomAwaitingSpace(true);
+    setToolbarHidden(false);
+  }, [autoScrollHitBottom]);
 
   // The perform page runs in native fullscreen. Closing the chord
   // modal with Escape makes the browser drop fullscreen (a
@@ -329,7 +357,21 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     toggleLyricsOnly:     () => setViewMode(viewMode === 'lyrics-only' ? 'chords' : 'lyrics-only'),
     toggleMetronome:      () => { if (activeSong?.tempo) metronome.toggle(); },
     toggleSongNotes:      () => { if (activeSong?.notes?.trim() && !isNoteActive) setShowSongNotes((v) => !v); },
-    toggleAutoScroll:     () => usePlayerStore.getState().toggleAutoScroll(),
+    toggleAutoScroll:     () => {
+      // "Space at bottom" reset gesture: when the song has just
+      // finished auto-scrolling and is parked at the bottom, the
+      // next Space press scrolls back to the top instead of
+      // toggling auto-scroll (which from the bottom would start a
+      // fresh scroll immediately and go nowhere).
+      if (atBottomAwaitingSpace) {
+        setAtBottomAwaitingSpace(false);
+        autoScrollSessionRef.current = null;
+        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        setToolbarHidden(false);
+        return;
+      }
+      usePlayerStore.getState().toggleAutoScroll();
+    },
     transposeUp:          () => usePlayerStore.getState().transposeUp(),
     transposeDown:        () => usePlayerStore.getState().transposeDown(),
     resetTranspose:       () => usePlayerStore.getState().resetTranspose(),
