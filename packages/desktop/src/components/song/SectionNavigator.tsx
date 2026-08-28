@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ListTree } from 'lucide-react';
 import type { ParsedSong } from '@song-chords/shared';
+import { usePlayerStore } from '@song-chords/shared';
 import { useT } from '../../i18n';
 import { useSectionNavStore } from '../../store/section-nav-store';
 
@@ -43,6 +44,20 @@ export default function SectionNavigator({
   const open = useSectionNavStore((s) => s.open);
   const setOpenState = useSectionNavStore((s) => s.setOpen);
   const setKeepSpacer = useSectionNavStore((s) => s.setKeepSpacer);
+  // Hide the whole nav (icon + popover) while auto-scroll is
+  // running — same rationale as the toolbar and sidebar: the user
+  // wants a clean, uncluttered read of the scrolling lyrics.
+  // Subscribes to the player store directly instead of taking a
+  // prop, so callers don't have to thread the flag.
+  const autoScrollActive = usePlayerStore((s) => s.autoScrollActive);
+  // If the panel happens to be hover-open the moment auto-scroll
+  // starts, close it in the store so the "open" flag doesn't stay
+  // orphan while the component itself is unrendered. Prevents a
+  // brief flash of an already-open panel on the next hover after
+  // auto-scroll ends.
+  useEffect(() => {
+    if (autoScrollActive) setOpenState(false);
+  }, [autoScrollActive, setOpenState]);
   const [activeId, setActiveId] = useState<string | null>(null);
   // Debounce close-on-mouse-leave so the ~10px gap between the
   // trigger button and the popover doesn't briefly close the panel
@@ -201,6 +216,10 @@ export default function SectionNavigator({
 
   // Nothing to navigate to — render nothing rather than an empty panel.
   if (sections.length === 0) return null;
+  // Hidden during auto-scroll (see subscription above). Rendering
+  // nothing is enough — the panel's open state will reopen on the
+  // user's next hover after auto-scroll ends.
+  if (autoScrollActive) return null;
 
   // Trigger + panel share one hover-root so the pointer can travel
   // between them without triggering a close. `onMouseEnter` cancels

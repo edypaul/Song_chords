@@ -17,6 +17,7 @@ import BottomSectionSpacer from '../components/song/BottomSectionSpacer';
 import CastQuickButton from '../components/song/CastQuickButton';
 import SongTrainerButton from '../components/song/SongTrainerButton';
 import { useSongTrainerStore } from '../store/song-trainer-store';
+import { useSidebarStore } from '../store/sidebar-store';
 import AnnotationLayer from '../components/annotation/AnnotationLayer';
 import AnnotationEditingRoot from '../components/annotation/AnnotationEditingRoot';
 import AnnotationMenu from '../components/annotation/AnnotationMenu';
@@ -259,16 +260,64 @@ export default function SongViewPage(): React.ReactElement {
   // room. When hidden, a slim "show toolbar" tab stays visible so the
   // user can always bring it back.
   const [toolbarHidden, setToolbarHidden] = useState(false);
-  // Auto-scroll auto-hides the toolbar. The user picked Space (or
-  // whatever the current binding is) to start auto-scroll BECAUSE
-  // they want a clean, uncluttered read of the lyrics as the song
-  // scrolls past — so the toolbar hiding on start / reappearing on
-  // stop follows naturally. Users can still manually hide/show via
-  // the dedicated `toggleToolbar` shortcut and the chevron; this
-  // effect just handles the auto-scroll case.
+  // Sidebar collapse state (shared with AppShell via the sidebar
+  // store) so we can hide it during auto-scroll for a clean read.
+  const setSidebarCollapsed = useSidebarStore((s) => s.setCollapsed);
+  // Watch the "reached end of song" flag from the player store. Set
+  // by useAutoScroll when scroll reaches the bottom; used below to
+  // reset chrome + scroll back to top.
+  const autoScrollHitBottom = usePlayerStore((s) => s.autoScrollHitBottom);
+  // Ref to remember whether the current auto-scroll session was
+  // started via Space (or otherwise). Tracks that we OWN the
+  // hidden chrome so we can restore it later without undoing a
+  // manual toolbar/sidebar toggle.
+  const autoScrollSessionRef = useRef<{ active: boolean } | null>(null);
+  // "The song scrolled all the way to the bottom and is now parked
+  // there, waiting for the user's next Space press to reset." When
+  // set, the next `toggleAutoScroll` shortcut invocation is
+  // intercepted (see the shortcut handler below) — instead of
+  // starting a fresh scroll from the current position (which would
+  // do nothing useful, we're already at the bottom), it scrolls
+  // back to the top and restores the toolbar + sidebar.
+  const [atBottomAwaitingSpace, setAtBottomAwaitingSpace] = useState(false);
+  // Chrome (toolbar + sidebar) follows auto-scroll state directly:
+  //   • ACTIVE (start / resume)  → hide both, for a clean read.
+  //   • INACTIVE (pause)         → reveal both, so the user can
+  //                                reach controls while paused.
+  // Hit-bottom is handled separately below and also reveals chrome.
   useEffect(() => {
-    setToolbarHidden(autoScrollActive);
-  }, [autoScrollActive]);
+    if (autoScrollActive) {
+      // START or RESUME. Idempotent — safe to set hidden repeatedly.
+      autoScrollSessionRef.current = { active: true };
+      setToolbarHidden(true);
+      setSidebarCollapsed(true);
+      // Fresh scroll started — clear any "parked at bottom" pending
+      // reset from a previous session so the next Space doesn't
+      // accidentally trigger the reset instead of pausing.
+      setAtBottomAwaitingSpace(false);
+    } else if (autoScrollSessionRef.current?.active) {
+      // PAUSE (user pressed Space mid-scroll). Reveal chrome so the
+      // user has full access to controls while paused. The session
+      // ref stays so the next resume hides them again.
+      setToolbarHidden(false);
+      setSidebarCollapsed(false);
+    }
+  }, [autoScrollActive, setSidebarCollapsed]);
+
+  // Hit-bottom handler: song reached the end of auto-scroll.
+  //   • Page STAYS at the bottom (no scroll-to-top).
+  //   • Chrome is revealed (same as pause — the user is done
+  //     scrolling and probably wants access to controls).
+  //   • `atBottomAwaitingSpace` flips on so the next Space press
+  //     is treated as "reset back to top" instead of "toggle
+  //     auto-scroll", which from the bottom would be a no-op.
+  useEffect(() => {
+    if (!autoScrollHitBottom) return;
+    if (!autoScrollSessionRef.current?.active) return;
+    setAtBottomAwaitingSpace(true);
+    setToolbarHidden(false);
+    setSidebarCollapsed(false);
+  }, [autoScrollHitBottom, setSidebarCollapsed]);
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 
@@ -292,7 +341,24 @@ export default function SongViewPage(): React.ReactElement {
     toggleLyricsOnly:     () => setViewMode(viewMode === 'lyrics-only' ? 'chords' : 'lyrics-only'),
     toggleMetronome:      () => { if (activeSong?.tempo) metronome.toggle(); },
     toggleSongNotes:      () => { if (activeSong?.notes?.trim()) setShowNotes((v) => !v); },
-    toggleAutoScroll:     () => toggleAutoScroll(),
+    toggleAutoScroll:     () => {
+      // "Space at bottom" reset gesture: when the song has just
+      // finished auto-scrolling to the bottom and is parked there
+      // waiting, the next Space press scrolls back to the top and
+      // restores the toolbar + sidebar instead of toggling
+      // auto-scroll (which would start a fresh scroll from the
+      // bottom — a no-op that leaves the user staring at the last
+      // line with hidden chrome).
+      if (atBottomAwaitingSpace) {
+        setAtBottomAwaitingSpace(false);
+        autoScrollSessionRef.current = null;
+        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+        setToolbarHidden(false);
+        setSidebarCollapsed(false);
+        return;
+      }
+      toggleAutoScroll();
+    },
     transposeUp:          () => transposeUp(),
     transposeDown:        () => transposeDown(),
     resetTranspose:       () => resetTranspose(),
