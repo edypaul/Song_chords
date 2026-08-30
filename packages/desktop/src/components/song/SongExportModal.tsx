@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { X, Download, FileText, Code, FileCode, Braces, Printer, Guitar, Type, LayoutGrid, AlignLeft, ChevronLeft } from 'lucide-react';
 import type { Song, ParsedSong, ChordDiagram, ChordGridToken, SongViewStyle } from '@song-chords/shared';
+import { emptyDiagramFor } from '@song-chords/shared';
 import {
   useSettingsStore,
   extractUniqueChords, getDiagramExact, getDiagramByIndex,
@@ -79,6 +80,7 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
   const instrument = useSettingsStore((s) => s.settings.defaultInstrument);
   const svs = useSettingsStore((s) => s.settings.songViewStyle);
   const customChords = useSettingsStore((s) => s.settings.customChords ?? {});
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments);
   const globalDefaultVariations = useSettingsStore((s) => s.settings.defaultChordVariations);
   const songCentered = useSettingsStore((s) => s.settings.songCentered ?? false);
   const [layout, setLayout] = useState<ExportLayout>('chords');
@@ -155,13 +157,10 @@ export default function SongExportModal({ songs, bookTitle, onClose }: Props): R
     const varIdx = resolveChordVariation(
       name, instrument, s.preferences?.chordVariations, globalDefaultVariations,
     );
-    const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
     const found = varIdx > 0
       ? getDiagramByIndex(name, instrument, varIdx, customChords)
       : getDiagramExact(name, instrument, customChords);
-    const d: ChordDiagram = found ?? (instrument === 'piano'
-      ? { name, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-      : { name, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] });
+    const d: ChordDiagram = found ?? emptyDiagramFor(name, instrument, customInstruments);
     // Use the user-chosen export preset (light-mode preset for PDF/HTML)
     // so the diagrams match the rest of the exported document — not the
     // app's currently-active preset.

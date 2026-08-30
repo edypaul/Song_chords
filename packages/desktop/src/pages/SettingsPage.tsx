@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSettingsStore, useSongStore, useSetListStore, SONG_STYLE_PRESETS, FONT_FAMILIES, FONT_SIZE_LIMITS, DEFAULT_SONG_VIEW_STYLE, DEFAULT_SHORTCUTS, DEFAULT_SETTINGS } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
-import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, KeyboardShortcuts, ShortcutAction, UiLanguage } from '@song-chords/shared';
+import type { AppSettings, ThemeType, InstrumentType, SongViewStyle, SectionStyle, CustomPreset, ChordDiagram, CustomInstrument, KeyboardShortcuts, ShortcutAction, UiLanguage } from '@song-chords/shared';
 import { LANGUAGE_LABELS, useT } from '../i18n';
 import type { TKey } from '../i18n';
 import SongListColumnsEditor from '../components/song/SongListColumnsEditor';
@@ -128,7 +128,7 @@ export default function SettingsPage(): React.ReactElement {
 
   const handleExportChords = () => {
     try {
-      const backup = buildChordsBackup(settings.customChords ?? {});
+      const backup = buildChordsBackup(settings.customChords ?? {}, settings.customInstruments ?? {});
       const count = Object.values(backup.customChords).reduce((n, arr) => n + arr.length, 0);
       downloadJson(`songchords-custom-chords-${timestampSlug()}.json`, backup);
       flash('info', t(count === 1 ? 'settings.backup.status.exportedChordsOne' : 'settings.backup.status.exportedChordsMany', { count }));
@@ -171,6 +171,15 @@ export default function SettingsPage(): React.ReactElement {
         }
       }
       set('customChords', next);
+      // Custom instruments ride along in the same file (older files
+      // have none — leave the current instruments alone then).
+      const imported = pending.data.customInstruments;
+      if (imported && typeof imported === 'object') {
+        const nextInstruments: Record<string, CustomInstrument> = mode === 'replace'
+          ? { ...imported }
+          : { ...(settings.customInstruments ?? {}), ...imported };
+        set('customInstruments', nextInstruments);
+      }
       flash('info', mode === 'replace'
         ? t('settings.backup.status.replacedChords')
         : t('settings.backup.status.combinedChords'));
@@ -426,6 +435,15 @@ export default function SettingsPage(): React.ReactElement {
             <option value="guitar">{t('settings.music.defaultInstrument.guitar')}</option>
             <option value="ukulele">{t('settings.music.defaultInstrument.ukulele')}</option>
             <option value="piano">{t('settings.music.defaultInstrument.piano')}</option>
+            {Object.values(settings.customInstruments ?? {}).length > 0 && (
+              <optgroup label={t('settings.music.defaultInstrument.customGroup')}>
+                {Object.values(settings.customInstruments ?? {})
+                  .sort((a, b) => a.createdAt - b.createdAt)
+                  .map((ci) => (
+                    <option key={ci.id} value={ci.id}>{ci.name}</option>
+                  ))}
+              </optgroup>
+            )}
           </select>
         </SettingRow>
         <SettingRow label={t('settings.music.accidentals.label')} hint={t('settings.music.accidentals.hint')}>

@@ -1,4 +1,5 @@
 import React, { useRef, useCallback } from 'react';
+import { useSettingsStore, instrumentStringCount } from '@song-chords/shared';
 import type { InstrumentType } from '@song-chords/shared';
 
 interface Props {
@@ -10,14 +11,22 @@ interface Props {
 }
 
 const VISIBLE_FRETS = 5;
+const NO_INSTRUMENTS = {} as const;
 
 export default function InteractiveFretboard({ instrument, frets, baseFret, barre, onChange }: Props): React.ReactElement {
-  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
-  const width = 220;
+  // String count comes from the instrument definition — built-in or
+  // one of the user's custom instruments (whose open-string tuning,
+  // when given, is drawn as labels under the board).
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments ?? NO_INSTRUMENTS);
+  const strings = instrumentStringCount(instrument, customInstruments);
+  const tuning = customInstruments[instrument]?.tuning;
+  const stringLabels = tuning && tuning.length === strings ? tuning : null;
+  // Widen the board for many-string instruments so cells stay tappable.
+  const width = Math.max(220, 26 * (strings - 1) + 48);
   const padTop = 30;
   const padLeft = 24;
   const padRight = 24;
-  const padBottom = 16;
+  const padBottom = stringLabels ? 28 : 16;
   const cellW = (width - padLeft - padRight) / (strings - 1);
   const cellH = cellW * 0.85;
   const height = padTop + VISIBLE_FRETS * cellH + padBottom;
@@ -187,6 +196,15 @@ export default function InteractiveFretboard({ instrument, frets, baseFret, barr
             textAnchor="end" dominantBaseline="central" fontSize={9} fill="var(--text-muted)"
             style={{ pointerEvents: 'none' }}>
             {fi + baseFret}
+          </text>
+        ))}
+
+        {/* Open-string names for custom instruments with a tuning */}
+        {stringLabels && xs.map((x, si) => (
+          <text key={`lbl-${si}`} x={x} y={padTop + VISIBLE_FRETS * cellH + 14}
+            textAnchor="middle" fontSize={9} fill="var(--text-muted)"
+            style={{ pointerEvents: 'none' }}>
+            {stringLabels[si]}
           </text>
         ))}
       </svg>

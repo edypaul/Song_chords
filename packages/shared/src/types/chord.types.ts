@@ -1,4 +1,34 @@
-export type InstrumentType = 'guitar' | 'ukulele' | 'piano';
+/** The instruments the app ships chord libraries for. */
+export type BuiltinInstrumentType = 'guitar' | 'ukulele' | 'piano';
+
+/** Id of a user-defined instrument. The `custom:` prefix keeps custom
+ *  ids trivially distinguishable from the built-ins everywhere an
+ *  instrument is switched on, and lets `isCustomInstrument()` narrow. */
+export type CustomInstrumentId = `custom:${string}`;
+
+/**
+ * Any instrument a chord diagram can belong to. Custom instruments
+ * are fretted (a string count + optional tuning); their chord
+ * libraries are entirely user-made and live in `settings.customChords`
+ * like any other custom voicing, tagged with the instrument id.
+ */
+export type InstrumentType = BuiltinInstrumentType | CustomInstrumentId;
+
+/** A user-defined fretted instrument (charango, 7-string guitar,
+ *  bouzouki, …). Stored in `settings.customInstruments` keyed by id. */
+export interface CustomInstrument {
+  id: CustomInstrumentId;
+  /** Display name, e.g. "Charango". */
+  name: string;
+  /** Number of strings / courses drawn on the diagram (2–12). */
+  strings: number;
+  /** Optional open-string notes, LOW → HIGH, one per string (e.g.
+   *  ["E2","A2","D3","G3","B3","E4"]). Shown as labels under the
+   *  chord editor's fretboard; purely informational. */
+  tuning?: string[];
+  /** Unix ms, for stable ordering in pickers. */
+  createdAt: number;
+}
 
 /**
  * A chord shape. The same struct represents both fretted-instrument

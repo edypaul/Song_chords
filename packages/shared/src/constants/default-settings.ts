@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   inlineChordDiagrams: false,
   showAnnotations: true,
   customChords: {},
+  customInstruments: {},
   defaultChordVariations: {},
   perfMetroEnabled: true,
   perfScrollEnabled: true,

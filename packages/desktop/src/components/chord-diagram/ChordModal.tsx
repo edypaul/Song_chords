@@ -6,6 +6,7 @@ import {
   getDiagramVariations,
   formatChord,
   resolveChordVariation,
+  emptyDiagramFor,
 } from '@song-chords/shared';
 import type { ChordDiagram, SongPreferences } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
@@ -41,10 +42,8 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
   const { updateSetting } = useSettingsStore();
   const savePrefs = useSongStore((s) => s.savePreferences);
-  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
-  const emptyDiag: ChordDiagram = instrument === 'piano'
-    ? { name: chord, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-    : { name: chord, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] };
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments);
+  const emptyDiag: ChordDiagram = emptyDiagramFor(chord, instrument, customInstruments);
 
   const variations = getDiagramVariations(chord, instrument, custom);
   const hasDiagram = variations.length > 0;

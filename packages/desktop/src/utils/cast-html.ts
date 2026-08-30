@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import React from 'react';
 import type { Song, ChordDiagram, ChordGridToken, ChordGridRow, ChordGridBar } from '@song-chords/shared';
+import { emptyDiagramFor } from '@song-chords/shared';
 import { toHtml, getRenderableSong } from './song-export';
 import {
   useSettingsStore,
@@ -343,6 +344,7 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
   void settings.songCentered; // intentionally not used
   const instrument = settings.defaultInstrument;
   const customChords = settings.customChords ?? {};
+  const customInstruments = settings.customInstruments ?? {};
 
   // All cast sessions now share a single layout: chord-over-lyric
   // with a chord-diagram bar at the top. The receiver-side toolbar
@@ -393,7 +395,6 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
     const parsed = getRenderableSong(song);
     const chords = extractUniqueChords(parsed);
     const variations = song.preferences?.chordVariations ?? {};
-    const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
     const castLyricFontSize = svs.lyrics.fontSize || 19;
     const castDiagramW = Math.min(140, Math.max(64, Math.round(castLyricFontSize * 5)));
     const diagramSvgs: string[] = [];
@@ -402,9 +403,7 @@ export function buildCastHtml(song: Song, _mode: CastMode): string {
       const found = varIdx > 0
         ? getDiagramByIndex(name, instrument, varIdx, customChords)
         : getDiagramExact(name, instrument, customChords);
-      const d: ChordDiagram = found ?? (instrument === 'piano'
-        ? { name, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-        : { name, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] });
+      const d: ChordDiagram = found ?? emptyDiagramFor(name, instrument, customInstruments);
       const svg = renderToStaticMarkup(
         React.createElement(ChordDiagramSVG, {
           diagram: d,

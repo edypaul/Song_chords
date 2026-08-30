@@ -122,7 +122,10 @@ function getBuiltin(chordName: string, instrument: InstrumentType): ChordDiagram
   }
   // Piano: Proxy-backed lazy generator — already resolves slash
   // chords at runtime (splitChord + bass note), so no slash table.
-  return PIANO_DIAGRAMS[chordName] ?? [];
+  if (instrument === 'piano') return PIANO_DIAGRAMS[chordName] ?? [];
+  // Custom instruments ship no built-in library — every voicing is
+  // user-made and comes from the custom map.
+  return [];
 }
 
 /** Filter a custom-chord map to entries matching the active instrument
@@ -212,8 +215,10 @@ export function getAllChordNames(instrument: InstrumentType, custom?: DiagramMap
     names = [...Object.keys(GUITAR_DIAGRAMS), ...Object.keys(GUITAR_SLASH_DIAGRAMS)];
   } else if (instrument === 'ukulele') {
     names = [...Object.keys(UKULELE_DIAGRAMS), ...Object.keys(UKULELE_SLASH_DIAGRAMS)];
-  } else {
+  } else if (instrument === 'piano') {
     names = getAllPianoChordNames();
+  } else {
+    names = []; // custom instrument: custom chords only (added below)
   }
 
   // Add custom chord names that don't already exist in the built-in list.
@@ -299,6 +304,8 @@ export function getBuiltinDiagrams(instrument: InstrumentType): DiagramMap {
   if (instrument === 'ukulele') {
     return expandEnharmonics({ ...UKULELE_DIAGRAMS, ...UKULELE_SLASH_DIAGRAMS });
   }
+  // Custom instruments have no built-in library.
+  if (instrument !== 'piano') return {};
   // Piano: materialize the full set so callers that iterate (e.g. chord
   // library) get every name. The library is small (~300 entries) so the
   // up-front cost is fine.

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSettingsStore } from '@song-chords/shared';
+import { useSettingsStore, instrumentStringCount } from '@song-chords/shared';
 import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 import InteractiveFretboard from './InteractiveFretboard';
@@ -19,7 +19,10 @@ export default function ChordForm({ instrument, initialName, nameDisabled, hideN
 }): React.ReactElement {
   const t = useT();
   const isPiano = instrument === 'piano';
-  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
+  // Built-in or custom instrument — the custom map decides how many
+  // strings a user-defined instrument has.
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments);
+  const strings = instrumentStringCount(instrument, customInstruments);
   const [name, setName] = useState(initialName ?? initialDiagram?.name ?? '');
   const [baseFret, setBaseFret] = useState(initialDiagram?.baseFret ?? 1);
   const [frets, setFrets] = useState<(number | 'x' | 0 | null)[]>(

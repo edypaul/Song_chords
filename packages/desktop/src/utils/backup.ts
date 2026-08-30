@@ -1,5 +1,5 @@
 import type {
-  Song, SetList, SetListEntry, FavoriteEntry, ChordDiagram, CustomPreset, IDatabase, AppSettings,
+  Song, SetList, SetListEntry, FavoriteEntry, ChordDiagram, CustomPreset, CustomInstrument, IDatabase, AppSettings,
 } from '@song-chords/shared';
 import { SongRepository, SetListRepository, FavoriteRepository, SettingsRepository } from '@song-chords/shared';
 
@@ -260,6 +260,11 @@ export interface CustomChordsBackup {
   version: 1;
   exportedAt: number;
   customChords: Record<string, ChordDiagram[]>;
+  /** User-defined instruments the chords may belong to. Optional so
+   *  files written before custom instruments existed still restore;
+   *  a chord whose instrument is missing falls back to a 6-string
+   *  grid until the instrument is recreated. */
+  customInstruments?: Record<string, CustomInstrument>;
 }
 
 export interface CustomPresetsBackup {
@@ -268,8 +273,11 @@ export interface CustomPresetsBackup {
   customPresets: Record<string, CustomPreset>;
 }
 
-export function buildChordsBackup(customChords: Record<string, ChordDiagram[]>): CustomChordsBackup {
-  return { version: 1, exportedAt: Date.now(), customChords };
+export function buildChordsBackup(
+  customChords: Record<string, ChordDiagram[]>,
+  customInstruments: Record<string, CustomInstrument> = {},
+): CustomChordsBackup {
+  return { version: 1, exportedAt: Date.now(), customChords, customInstruments };
 }
 
 export function buildPresetsBackup(customPresets: Record<string, CustomPreset>): CustomPresetsBackup {
@@ -292,6 +300,7 @@ export function buildPresetsBackup(customPresets: Record<string, CustomPreset>):
  *  preferences back. */
 const SETTINGS_BACKUP_EXCLUDED = new Set<keyof AppSettings>([
   'customChords',
+  'customInstruments', // travels with the custom-chords backup
   'customPresets',
   'dismissedHints',
 ]);

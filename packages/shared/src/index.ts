@@ -7,7 +7,18 @@ export type {
   DirectiveToken, SectionToken, CommentToken, SectionType,
   ChordGridBeat, ChordGridBar, ChordGridRow, ChordGridToken,
 } from './types/parser.types';
-export type { ChordDiagram, InstrumentType } from './types/chord.types';
+export type { ChordDiagram, InstrumentType, BuiltinInstrumentType, CustomInstrumentId, CustomInstrument } from './types/chord.types';
+export {
+  CUSTOM_INSTRUMENT_PREFIX,
+  MIN_CUSTOM_STRINGS,
+  MAX_CUSTOM_STRINGS,
+  isCustomInstrument,
+  makeCustomInstrumentId,
+  instrumentStringCount,
+  emptyDiagramFor,
+  fretboardDiagramHeight,
+  inlineDiagramHeight,
+} from './utils/instruments';
 export type {
   SongAnnotations, Annotation, AnnotationKind, AnnotationAnchor,
   AnnotationSet, AnnotationViewMode,

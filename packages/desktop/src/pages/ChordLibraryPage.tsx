@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord } from '@song-chords/shared';
-import type { ChordDiagram, InstrumentType } from '@song-chords/shared';
+import { Settings2 } from 'lucide-react';
+import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord, isCustomInstrument } from '@song-chords/shared';
+import type { ChordDiagram, InstrumentType, CustomInstrument } from '@song-chords/shared';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
+import CustomInstrumentManager from '../components/chord-diagram/CustomInstrumentManager';
 import { db } from '../ipc/ipc-client';
 import { useT } from '../i18n';
 
@@ -43,14 +45,56 @@ const CHORD_TYPE_LABELS: Record<string, string> = {
   '+': '+', '+7': '+7', '+9': '+9', '+7b9': '+7b9', '+7#9': '+7#9',
   '°': '°', '°7': '°7',
 };
+const EMPTY_INSTRUMENTS: Record<string, CustomInstrument> = {};
 
 export default function ChordLibraryPage(): React.ReactElement {
   const t = useT();
   const { settings, updateSetting } = useSettingsStore();
   const customChords = settings.customChords ?? {};
+  const customInstruments = settings.customInstruments ?? EMPTY_INSTRUMENTS;
+  const customInstrumentList = useMemo(
+    () => Object.values(customInstruments).sort((a, b) => a.createdAt - b.createdAt),
+    [customInstruments],
+  );
   const svs = settings.songViewStyle;
 
   const [instrument, setInstrument] = useState<InstrumentType>(settings.defaultInstrument);
+  const [showInstrumentManager, setShowInstrumentManager] = useState(false);
+
+  // If the selected custom instrument disappears (deleted here, or a
+  // chords backup restored without it), fall back to guitar rather
+  // than showing an empty page for an instrument that no longer exists.
+  useEffect(() => {
+    if (isCustomInstrument(instrument) && !customInstruments[instrument]) setInstrument('guitar');
+  }, [instrument, customInstruments]);
+
+  // ── Custom instrument CRUD ────────────────────────────────────────
+  const saveInstrument = (ci: CustomInstrument) => {
+    void updateSetting(db, 'customInstruments', { ...customInstruments, [ci.id]: ci });
+  };
+  // Deleting an instrument cascades: its chords go, a global default
+  // pointing at it is cleared, and any per-chord default voicings
+  // recorded for it are dropped. Sequential awaits so each setting
+  // write sees the previous one.
+  const deleteInstrument = async (id: CustomInstrument['id']) => {
+    const nextInstruments = { ...customInstruments };
+    delete nextInstruments[id];
+    const nextChords: Record<string, ChordDiagram[]> = {};
+    for (const [name, list] of Object.entries(customChords)) {
+      const kept = list.filter((d) => d.instrument !== id);
+      if (kept.length) nextChords[name] = kept;
+    }
+    await updateSetting(db, 'customInstruments', nextInstruments);
+    await updateSetting(db, 'customChords', nextChords);
+    if (settings.defaultInstrument === id) await updateSetting(db, 'defaultInstrument', 'guitar');
+    const dv = settings.defaultChordVariations;
+    if (dv && dv[id]) {
+      const nextDv = { ...dv };
+      delete nextDv[id];
+      await updateSetting(db, 'defaultChordVariations', nextDv);
+    }
+    if (instrument === id) setInstrument('guitar');
+  };
   const [rootFilter, setRootFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [bassFilter, setBassFilter] = useState('None');
@@ -61,7 +105,10 @@ export default function ChordLibraryPage(): React.ReactElement {
   const PAGE_SIZE = 20;
   const gridTopRef = useRef<HTMLDivElement>(null);
 
-  const builtin = getBuiltinDiagrams(instrument);
+  // Built-in library for the instrument (empty for custom instruments —
+  // their whole library is user-made). Memoised: the enharmonic
+  // expansion is not free and this used to run on every render.
+  const builtin = useMemo(() => getBuiltinDiagrams(instrument), [instrument]);
 
   const allChords = useMemo(() => {
     const merged: Record<string, { diagrams: ChordDiagram[]; builtinCount: number }> = {};
@@ -199,8 +246,25 @@ export default function ChordLibraryPage(): React.ReactElement {
             <option value="guitar">{t('settings.music.defaultInstrument.guitar')}</option>
             <option value="ukulele">{t('settings.music.defaultInstrument.ukulele')}</option>
             <option value="piano">{t('settings.music.defaultInstrument.piano')}</option>
+            {customInstrumentList.length > 0 && (
+              <optgroup label={t('settings.music.defaultInstrument.customGroup')}>
+                {customInstrumentList.map((ci) => (
+                  <option key={ci.id} value={ci.id}>{ci.name}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
+        {/* Custom instruments: define any fretted instrument by its
+            string count and build its own chord library. */}
+        <button
+          onClick={() => setShowInstrumentManager(true)}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors hover:bg-[var(--surface-elevated)]"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)', background: 'transparent' }}
+          title={t('chordLibrary.instruments.manageTitle')}
+        >
+          <Settings2 size={12} /> {t('chordLibrary.instruments.manage')}
+        </button>
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
           {t('chordLibrary.filter.root')}
           <select value={rootFilter} onChange={(e) => setRootFilter(e.target.value)} className="setting-select">
@@ -283,12 +347,26 @@ export default function ChordLibraryPage(): React.ReactElement {
           ))}
         </div>
         {filtered.length === 0 && (
-          <p className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>{t('chordLibrary.emptyState')}</p>
+          <p className="text-center py-12 text-sm" style={{ color: 'var(--text-muted)' }}>
+            {isCustomInstrument(instrument) && customInstruments[instrument] && !Object.values(customChords).some((l) => l.some((d) => d.instrument === instrument))
+              ? t('chordLibrary.customInstrument.empty', { name: customInstruments[instrument]!.name })
+              : t('chordLibrary.emptyState')}
+          </p>
         )}
         {totalPages > 1 && (
           <Pager page={page} totalPages={totalPages} onGoto={goToPage} />
         )}
       </>
+      )}
+
+      {showInstrumentManager && (
+        <CustomInstrumentManager
+          instruments={customInstruments}
+          customChords={customChords}
+          onSave={saveInstrument}
+          onDelete={(id) => { void deleteInstrument(id); }}
+          onClose={() => setShowInstrumentManager(false)}
+        />
       )}
 
       {/* Chord detail modal */}

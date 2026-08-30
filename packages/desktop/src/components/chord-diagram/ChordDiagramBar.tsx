@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useSettingsStore, getDiagramExact, getDiagramByIndex, extractUniqueChords, formatChord } from '@song-chords/shared';
+import { useSettingsStore, getDiagramExact, getDiagramByIndex, extractUniqueChords, formatChord, emptyDiagramFor } from '@song-chords/shared';
 import type { ParsedSong } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
 
@@ -17,19 +17,17 @@ export default React.memo(function ChordDiagramBar({ song, position, chordVariat
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   const chords = useMemo(() => extractUniqueChords(song), [song]);
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments);
 
-  const strings = instrument === 'guitar' ? 6 : instrument === 'ukulele' ? 4 : 0;
   const diagrams = useMemo(() => chords.map((name) => {
     const varIdx = chordVariations?.[name] ?? 0;
     const found = varIdx > 0 ? getDiagramByIndex(name, instrument, varIdx, custom) : getDiagramExact(name, instrument, custom);
     if (found) return { name, diagram: found };
-    // Fallback empty diagram — different shape per instrument so the
-    // renderer doesn't try to draw a piano as a fretboard.
-    const fallback = instrument === 'piano'
-      ? { name, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-      : { name, instrument, baseFret: 1, strings, frets: Array(strings).fill('x') as ('x')[] };
-    return { name, diagram: fallback };
-  }), [chords, chordVariations, instrument, custom, strings]);
+    // Fallback empty diagram — shaped for the instrument (keyboard for
+    // piano, an all-muted grid with the right string count otherwise,
+    // including custom instruments).
+    return { name, diagram: emptyDiagramFor(name, instrument, customInstruments) };
+  }), [chords, chordVariations, instrument, custom, customInstruments]);
 
   if (chords.length === 0) return null;
 

@@ -153,6 +153,13 @@ export interface AppSettings {
   showAnnotations: boolean;
   customChords: Record<string, import('../types/chord.types').ChordDiagram[]>;
   /**
+   * User-defined fretted instruments, keyed by id (`custom:…`). Their
+   * chords live in `customChords` tagged with the instrument id, so
+   * deleting an instrument must also drop those voicings (the Chord
+   * Library's manager does). Backed up together with custom chords.
+   */
+  customInstruments: Record<string, import('../types/chord.types').CustomInstrument>;
+  /**
    * Global default chord voicing per instrument. When the user picks a
    * voicing in the Chord Library and clicks "Set as default for all
    * songs", we store its index here keyed by instrument + chord name.

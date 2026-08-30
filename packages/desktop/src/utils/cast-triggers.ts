@@ -55,6 +55,8 @@ export interface SettingsCastSlice {
   songViewStyle: AppSettings['songViewStyle'];
   defaultInstrument: AppSettings['defaultInstrument'];
   customChords: AppSettings['customChords'];
+  /** A custom instrument's string count shapes its diagrams. */
+  customInstruments: AppSettings['customInstruments'];
   /** Theme drives the CSS variables the payload reads via `cssVar()` for
    *  `--bg`, `--text-primary`, etc. — so a theme flip does need a re-push. */
   theme: AppSettings['theme'];
@@ -87,6 +89,7 @@ export function pickSettingsCastSlice(state: ReturnType<typeof useSettingsStore.
     songViewStyle: s.songViewStyle,
     defaultInstrument: s.defaultInstrument,
     customChords: s.customChords,
+    customInstruments: s.customInstruments,
     theme: s.theme,
     showAnnotations: s.showAnnotations,
   };

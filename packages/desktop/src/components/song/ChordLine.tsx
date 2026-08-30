@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { ParsedLine, ChordToken, LyricToken, SectionStyle, InstrumentType } from '@song-chords/shared';
-import { getDiagramExact, getDiagramByIndex, useSettingsStore, formatChord } from '@song-chords/shared';
+import { getDiagramExact, getDiagramByIndex, useSettingsStore, formatChord, emptyDiagramFor, inlineDiagramHeight } from '@song-chords/shared';
 import type { SongViewStyle } from '@song-chords/shared';
 import ChordDiagramSVG from '../chord-diagram/ChordDiagramSVG';
 import { useSongTrainerStore, isHiddenAtPercentage } from '../../store/song-trainer-store';
@@ -155,6 +155,7 @@ function groupByWords(chunks: Chunk[]): Chunk[][] {
  */
 export default React.memo(function ChordLine({ line, showChords, onChordClick, chordStyle, inlineDiagrams, instrument, svs, chordVariations, songId, sectionIndex, lineIndex, trainerEnabled }: Props): React.ReactElement {
   const custom = useSettingsStore((s) => s.settings.customChords ?? {});
+  const customInstruments = useSettingsStore((s) => s.settings.customInstruments);
   const notation = useSettingsStore((s) => s.settings.chordNotation ?? 'letter');
 
   // Song trainer: hides a percentage of chord-name occurrences behind
@@ -553,20 +554,12 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
         const found = varIdx > 0
           ? getDiagramByIndex(chunk.chord, instrument, varIdx, custom)
           : getDiagramExact(chunk.chord, instrument, custom);
-        const diag = found ?? (instrument === 'piano'
-          ? { name: chunk.chord, instrument, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-          : {
-              name: chunk.chord,
-              instrument,
-              baseFret: 1,
-              strings: instrument === 'guitar' ? 6 : 4,
-              frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
-            });
+        const diag = found ?? emptyDiagramFor(chunk.chord, instrument, customInstruments);
         map[chunk.chord] = diag;
       }
     }
     return map;
-  }, [inlineDiagrams, instrument, wordGroups, chordVariations, custom]);
+  }, [inlineDiagrams, instrument, wordGroups, chordVariations, custom, customInstruments]);
 
   const chordFontSize = chordStyle?.fontSize ? `${chordStyle.fontSize}px` : '0.85em';
   // Diagram width scales with the lyric font size so diagrams stay
@@ -605,12 +598,8 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
     //  - guitar: 6 strings → cellH ≈ width × 0.108 → ~93 px @ 80
     //  - ukulele: 4 strings → cellH ≈ width × 0.18  → ~122 px @ 80
     //  - piano (vertical): 14 keys + label          → ~190 px @ 80
-    const svgHeight =
-      instrument === 'piano'
-        ? Math.round(diagramW * 2.4)
-        : instrument === 'ukulele'
-          ? Math.round(diagramW * 1.55)
-          : Math.round(diagramW * 1.2);
+    // (Custom instruments derive their height from their string count.)
+    const svgHeight = inlineDiagramHeight(diagramW, instrument!, customInstruments);
     // Visible gap between the diagram's bottom edge and the lyric's
     // top edge.
     // Equal visible padding above and below the diagram band.
@@ -669,15 +658,7 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
       const found = varIdx > 0
         ? getDiagramByIndex(chordName, instrument!, varIdx, custom)
         : getDiagramExact(chordName, instrument!, custom);
-      const diag = found ?? (instrument === 'piano'
-        ? { name: chordName, instrument: instrument!, baseFret: 1, strings: 0, frets: [], pianoNotes: [] }
-        : {
-            name: chordName,
-            instrument: instrument!,
-            baseFret: 1,
-            strings: instrument === 'guitar' ? 6 : 4,
-            frets: Array(instrument === 'guitar' ? 6 : 4).fill('x') as ('x')[],
-          });
+      const diag = found ?? emptyDiagramFor(chordName, instrument!, customInstruments);
       // Marker is a 0-width inline-block. Its `vertical-align: top`
       // anchors it to the TOP of the line-box (consistent across
       // browsers, unaffected by font metrics or half-leading). The
@@ -1009,12 +990,8 @@ export default React.memo(function ChordLine({ line, showChords, onChordClick, c
                   // explicit gap spans above and below now own ALL
                   // the vertical spacing — makes centering
                   // deterministic.
-                  height: inlineDiagrams
-                    ? (instrument === 'piano'
-                        ? `${Math.round(diagramW * 2.4)}px`
-                        : instrument === 'ukulele'
-                          ? `${Math.round(diagramW * 1.55)}px`
-                          : `${Math.round(diagramW * 1.2)}px`)
+                  height: inlineDiagrams && instrument
+                    ? `${inlineDiagramHeight(diagramW, instrument, customInstruments)}px`
                     : '1em',
                   lineHeight: inlineDiagrams ? '0' : '1em',
                   whiteSpace: 'nowrap',
