@@ -71,6 +71,11 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
     existing[chord] = [...(existing[chord] ?? []), d];
     void updateSetting(db, 'customChords', existing);
     setCreatingCustom(false);
+    // Land on the voicing that was just created. Custom voicings are
+    // appended after the built-ins in the lookup, so the new one is at
+    // the end of the list (index 0 when the chord had no diagram at
+    // all — the placeholder is replaced by the real one).
+    setCurrentIdx(hasDiagram ? variations.length : 0);
   };
 
   // Toggle the per-song pin for THIS chord.
@@ -128,12 +133,16 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
         // handler keeps the user-gesture context that
         // requestFullscreen() requires.
         if (document.fullscreenElement) onKeepFullscreen?.();
+        // While the voicing editor is open, Escape only closes the
+        // editor — the user comes back to the chord on the same page
+        // instead of being thrown out of the modal entirely.
+        if (creatingCustom) { setCreatingCustom(false); return; }
         onClose();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose, onKeepFullscreen]);
+  }, [onClose, onKeepFullscreen, creatingCustom]);
 
   return (
     <div
@@ -149,7 +158,21 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
         {/* Header */}
         <div className="relative mb-3">
           <span className="block text-lg font-bold text-center" style={{ color: 'var(--text-primary)' }}>{formatChord(chord, notation)}</span>
-          <button onClick={onClose} className="absolute top-0 right-0 text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
+          {/* Same header controls as the Chord Library's detail modal:
+              "+ Add" opens the voicing editor inline (a new variation,
+              or the first voicing for a chord that has none); closing
+              the editor returns to this modal on the same page. */}
+          <div className="absolute top-0 right-0 flex items-center gap-2">
+            <button
+              onClick={() => setCreatingCustom((v) => !v)}
+              className="text-xs px-2 py-1 rounded"
+              style={{ background: creatingCustom ? 'var(--surface-elevated)' : 'var(--accent)', color: creatingCustom ? 'var(--text-muted)' : 'white' }}
+              title={creatingCustom ? t('common.cancel') : t('chordModal.createCustomDiagram')}
+            >
+              {creatingCustom ? t('common.cancel') : '+ ' + t('common.add')}
+            </button>
+            <button onClick={onClose} className="text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
+          </div>
         </div>
 
         {creatingCustom && (
