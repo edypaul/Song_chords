@@ -1394,4 +1394,5 @@ export const en = {
   'chordLibrary.instruments.confirmDelete': 'Delete "{name}" and its {count} chords?',
   'chordLibrary.instruments.confirmDeleteYes': 'Yes, delete',
   'chordLibrary.customInstrument.empty': 'No chords yet for {name}. Use "Add Chord" to create its first chord.',
+  'metronome.noTempo': 'No tempo set for this song — add a tempo in the song editor to enable the metronome.',
 } as const;

@@ -708,18 +708,20 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           {/* Metronome — shared cluster (BPM-button + chevron with
               ½×/1×/2× popover) so the song-view and perform pages have
               the same compact UX. */}
-          {activeSong?.tempo && (
-            <MetronomeControl
-              tempo={activeSong.tempo}
-              timeSig={activeSong.timeSig}
-              isPlaying={metronome.isPlaying}
-              currentBeat={metronome.currentBeat}
-              beatsPerMeasure={metronome.beatsPerMeasure}
-              tempoMultiplier={tempoMultiplier}
-              onToggle={metronome.toggle}
-              onMultiplierChange={setTempoMultiplier}
-            />
-          )}
+          {/* Always visible; greyed out (with an explanatory tooltip)
+              when the song has no tempo, so the toolbar layout doesn't
+              shift between songs. */}
+          <MetronomeControl
+            tempo={activeSong?.tempo ?? 0}
+            timeSig={activeSong?.timeSig}
+            isPlaying={metronome.isPlaying}
+            currentBeat={metronome.currentBeat}
+            beatsPerMeasure={metronome.beatsPerMeasure}
+            tempoMultiplier={tempoMultiplier}
+            onToggle={metronome.toggle}
+            onMultiplierChange={setTempoMultiplier}
+            disabled={!activeSong?.tempo}
+          />
 
           {/* Mutually-exclusive view toggle (see SongViewPage for the
               full rationale). Clicking any of the three activates that

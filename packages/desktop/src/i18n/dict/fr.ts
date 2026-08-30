@@ -1380,4 +1380,5 @@ export const fr: Partial<Dict> = {
   'chordLibrary.instruments.confirmDelete': 'Supprimer « {name} » et ses {count} accords ?',
   'chordLibrary.instruments.confirmDeleteYes': 'Oui, supprimer',
   'chordLibrary.customInstrument.empty': 'Aucun accord pour {name} pour l’instant. Utilisez « Ajouter un accord » pour créer le premier.',
+  'metronome.noTempo': 'Aucun tempo défini pour cette chanson — ajoutez un tempo dans l’éditeur pour activer le métronome.',
 };

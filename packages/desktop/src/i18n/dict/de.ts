@@ -1380,4 +1380,5 @@ export const de: Partial<Dict> = {
   'chordLibrary.instruments.confirmDelete': '„{name}“ und seine {count} Akkorde löschen?',
   'chordLibrary.instruments.confirmDeleteYes': 'Ja, löschen',
   'chordLibrary.customInstrument.empty': 'Noch keine Akkorde für {name}. Erstelle mit „Akkord hinzufügen“ den ersten.',
+  'metronome.noTempo': 'Für diesen Song ist kein Tempo hinterlegt — füge im Song-Editor ein Tempo hinzu, um das Metronom zu aktivieren.',
 };

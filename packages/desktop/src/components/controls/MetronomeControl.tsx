@@ -26,6 +26,7 @@ export default function MetronomeControl({
   tempoMultiplier,
   onToggle,
   onMultiplierChange,
+  disabled,
 }: {
   tempo: number;
   timeSig?: string | null;
@@ -35,6 +36,10 @@ export default function MetronomeControl({
   tempoMultiplier: 0.5 | 1 | 2;
   onToggle: () => void;
   onMultiplierChange: (m: 0.5 | 1 | 2) => void;
+  /** True when the song has no tempo — the cluster stays visible (so
+   *  the toolbar layout is stable across songs) but is greyed out and
+   *  inert, with a tooltip explaining why. */
+  disabled?: boolean;
 }): React.ReactElement {
   const hint = useShortcutHint();
   const t = useT();
@@ -75,26 +80,31 @@ export default function MetronomeControl({
   const multiplierGlyph = (m: 0.5 | 1 | 2): string => (m === 0.5 ? '½×' : m === 2 ? '2×' : '1×');
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center" style={disabled ? { opacity: 0.45 } : undefined}>
       <div className="flex items-center rounded overflow-hidden" style={{ background: isPlaying ? 'var(--accent)' : 'var(--surface-elevated)' }}>
         <button
-          onClick={onToggle}
+          onClick={disabled ? undefined : onToggle}
+          disabled={disabled}
           className="flex items-center gap-1.5 px-2 py-1.5 text-xs transition-colors"
-          style={{ color: isPlaying ? 'white' : 'var(--text-secondary)' }}
-          title={`${t('metronome.tooltip', { bpm: effectiveBpm, timeSig: timeSig ?? '4/4' })}${hint('toggleMetronome')}`}
+          style={{ color: isPlaying ? 'white' : 'var(--text-secondary)', cursor: disabled ? 'not-allowed' : undefined }}
+          title={disabled
+            ? t('metronome.noTempo')
+            : `${t('metronome.tooltip', { bpm: effectiveBpm, timeSig: timeSig ?? '4/4' })}${hint('toggleMetronome')}`}
         >
           <Timer size={13} />
-          <span>{effectiveBpm}</span>
+          <span>{disabled ? '—' : effectiveBpm}</span>
         </button>
         <button
           ref={chevronRef}
-          onClick={() => setOpen((v) => !v)}
+          onClick={disabled ? undefined : () => setOpen((v) => !v)}
+          disabled={disabled}
           className="px-1 py-1.5 transition-colors hover:opacity-80 flex items-center"
           style={{
             color: isPlaying ? 'white' : 'var(--text-muted)',
             borderLeft: `1px solid ${isPlaying ? 'rgba(255,255,255,0.25)' : 'var(--border)'}`,
+            cursor: disabled ? 'not-allowed' : undefined,
           }}
-          title={t('metronome.timeFeel')}
+          title={disabled ? t('metronome.noTempo') : t('metronome.timeFeel')}
           aria-label={t('metronome.timeFeel')}
           aria-expanded={open}
         >

@@ -1381,4 +1381,5 @@ export const pt: Partial<Dict> = {
   'chordLibrary.instruments.confirmDelete': 'Excluir "{name}" e seus {count} acordes?',
   'chordLibrary.instruments.confirmDeleteYes': 'Sim, excluir',
   'chordLibrary.customInstrument.empty': 'Nenhum acorde ainda para {name}. Use "Adicionar acorde" para criar o primeiro.',
+  'metronome.noTempo': 'Esta música não tem tempo — adicione um tempo no editor da música para ativar o metrônomo.',
 };

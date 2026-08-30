@@ -1026,27 +1026,30 @@ export default function SongViewPage(): React.ReactElement {
 
         <AutoScrollControl />
 
-        {activeSong?.tempo && (
-          <div className="w-px h-6 mx-1" style={{ background: 'var(--border)' }} />
-        )}
+        {/* Divider before the metronome — unconditional, since the
+            metronome itself is now always rendered (disabled when the
+            song has no tempo). */}
+        <div className="w-px h-6 mx-1" style={{ background: 'var(--border)' }} />
 
         {/* `display: contents` so these controls are DIRECT flex children of
             the wrapping cluster above — each one wraps individually when the
             row fills, instead of the whole group wrapping as one block (which
             left a large empty gap on the first row). */}
         <div style={{ display: 'contents' }}>
-          {activeSong?.tempo && (
-            <MetronomeControl
-              tempo={activeSong.tempo}
-              timeSig={activeSong.timeSig}
-              isPlaying={metronome.isPlaying}
-              currentBeat={metronome.currentBeat}
-              beatsPerMeasure={metronome.beatsPerMeasure}
-              tempoMultiplier={tempoMultiplier}
-              onToggle={metronome.toggle}
-              onMultiplierChange={setTempoMultiplier}
-            />
-          )}
+          {/* Always visible; greyed out (with an explanatory tooltip)
+              when the song has no tempo, so the toolbar layout doesn't
+              shift between songs. */}
+          <MetronomeControl
+            tempo={activeSong?.tempo ?? 0}
+            timeSig={activeSong?.timeSig}
+            isPlaying={metronome.isPlaying}
+            currentBeat={metronome.currentBeat}
+            beatsPerMeasure={metronome.beatsPerMeasure}
+            tempoMultiplier={tempoMultiplier}
+            onToggle={metronome.toggle}
+            onMultiplierChange={setTempoMultiplier}
+            disabled={!activeSong?.tempo}
+          />
 
           {/* Zoom indicator */}
           <button
@@ -1143,8 +1146,9 @@ export default function SongViewPage(): React.ReactElement {
           {/* Play link / audio file — kept in the main bar because it's
               a one-tap action used live (start the song's reference
               audio or open the source link). PlayLinkButton renders
-              nothing when the song has neither a link nor an audio
-              file, so it's safe to leave unconditional. */}
+              DISABLED (greyed, explanatory tooltip) when the song has
+              neither a link nor an audio file, so the toolbar layout
+              stays stable across songs. */}
           <PlayLinkButton title={activeSong.title} link={activeSong.link} audioFile={activeSong.audioFile} size="md" />
 
           {/* Favorite toggle — one-tap save-to-favorites during a session. */}
