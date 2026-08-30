@@ -48,6 +48,7 @@ export class TunerAudioEngine {
   private buffer: Float32Array | null = null;
   private currentDeviceId: string | undefined;
   private currentFftSize = 4096;
+  private currentHighPassHz = 20;
 
   /** Whether the engine is currently capturing. */
   get running(): boolean {
@@ -122,7 +123,12 @@ export class TunerAudioEngine {
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     this.currentDeviceId = this.stream.getAudioTracks()[0]?.getSettings().deviceId ?? opts.deviceId;
 
-    this.buildGraph(opts.highPassHz ?? 40);
+    // 20 Hz default: low enough to leave a 5-string bass's low B
+    // (31 Hz) and a 4-string's E1 (41 Hz) untouched — the previous
+    // 40 Hz cutoff sat right ON the E1 fundamental and weakened it,
+    // which pushed the detector onto the 2nd harmonic.
+    this.currentHighPassHz = opts.highPassHz ?? 20;
+    this.buildGraph(this.currentHighPassHz);
   }
 
   /** Swap the mic without dropping the AudioContext. */
@@ -144,7 +150,7 @@ export class TunerAudioEngine {
     };
     this.stream = await navigator.mediaDevices.getUserMedia(constraints);
     this.currentDeviceId = this.stream.getAudioTracks()[0]?.getSettings().deviceId ?? deviceId;
-    this.buildGraph(40);
+    this.buildGraph(this.currentHighPassHz);
   }
 
   /** Stop capture and release the mic. Keeps the AudioContext alive

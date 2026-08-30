@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * Circular tuning display — concentric rings + a rotating needle
@@ -31,8 +31,19 @@ export interface CircularTunerProps {
   noteLetter: string;
   /** Octave shown as a small superscript next to the letter, or null. */
   octave: number | null;
-  /** Smoothed cents in [-50, 50], or null when there's no signal. */
+  /** Smoothed cents in [-50, 50], or null when there's no signal.
+   *  Drives the colours / labels (updated at the page's ~30 Hz UI
+   *  rate). */
   cents: number | null;
+  /**
+   * Optional LIVE cents source for the needle — a ref the page
+   * updates every detection frame (60 Hz) without a React render.
+   * The needle is animated by a critically-damped spring toward
+   * whatever this holds, so it moves at full frame rate with no
+   * CSS-transition lag and no render-throttle stepping. Falls back
+   * to `cents` when not provided.
+   */
+  liveCents?: React.RefObject<number | null>;
   /** Detected frequency in Hz for the readout under the letter. */
   hz: number | null;
   /** Status line ("Perfect calibration", "Tune down", …) */
@@ -53,6 +64,7 @@ export default function CircularTuner({
   noteLetter,
   octave,
   cents,
+  liveCents,
   hz,
   statusText,
   statusColor,
@@ -74,7 +86,40 @@ export default function CircularTuner({
 
   // Needle math. Clamp cents to the visible span; map -50..+50 → -90°..+90°.
   const clampedCents = cents === null ? 0 : Math.max(-SPAN_CENTS, Math.min(SPAN_CENTS, cents));
-  const needleDeg = (clampedCents / SPAN_CENTS) * 90; // -90..+90
+
+  // ── Spring-driven needle ────────────────────────────────────────
+  // A real meter needle has mass and damping; that is what makes it
+  // read as "accurate" — it neither twitches with every frame nor
+  // lags behind the string. We integrate a critically-damped spring
+  // (no overshoot, fastest settle) toward the live cents value every
+  // animation frame and write the rotation straight to the DOM node,
+  // bypassing React state and CSS transitions. Natural frequency
+  // 3.2 Hz ⇒ settles within ~1 % in ≈ 300 ms.
+  const needleRef = useRef<SVGGElement>(null);
+  const centsPropRef = useRef<number | null>(cents);
+  centsPropRef.current = cents;
+  const springRef = useRef({ angle: 0, vel: 0, last: 0 });
+  useEffect(() => {
+    let raf = 0;
+    const OMEGA = 2 * Math.PI * 3.2;
+    const tick = (now: number): void => {
+      const st = springRef.current;
+      const dt = st.last > 0 ? Math.min(0.05, (now - st.last) / 1000) : 1 / 60;
+      st.last = now;
+      const c = liveCents ? liveCents.current : centsPropRef.current;
+      const clamped = c === null ? 0 : Math.max(-SPAN_CENTS, Math.min(SPAN_CENTS, c));
+      const target = (clamped / SPAN_CENTS) * 90;
+      const accel = OMEGA * OMEGA * (target - st.angle) - 2 * OMEGA * st.vel;
+      st.vel += accel * dt;
+      st.angle += st.vel * dt;
+      if (needleRef.current) {
+        needleRef.current.style.transform = `rotate(${st.angle.toFixed(3)}deg)`;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [liveCents]);
 
   // Colour state for the needle and the inner-most ring's stroke
   // gradient — matches the cents-meter convention.
@@ -202,15 +247,11 @@ export default function CircularTuner({
           transform on the group so we get a CSS-smooth transition
           between frames. */}
       <g
+        ref={needleRef}
         style={{
-          transform: `rotate(${needleDeg}deg)`,
+          // Rotation is written by the spring loop above every frame;
+          // no CSS transition — the spring IS the motion model.
           transformOrigin: `${cx}px ${cy}px`,
-          // Matches the page's 30 Hz display throttle (~33 ms between
-          // prop updates). A 130 ms ease-out is long enough to glide
-          // between updates without queuing — shorter linear values
-          // (the prior 90 ms) chained mid-transition and made the
-          // motion look choppy when several updates landed in a row.
-          transition: 'transform 130ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         {/* Soft glow */}

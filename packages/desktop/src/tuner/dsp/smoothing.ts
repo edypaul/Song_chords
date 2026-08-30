@@ -80,15 +80,18 @@ export class PitchSmoother {
 
   constructor(opts: SmootherOptions = {}) {
     this.silenceRms = opts.silenceRms ?? 0.008;
-    // Wider median (was 5) — 9 frames at ~60 fps ≈ 150 ms which
-    // kills isolated YIN outliers without making the response feel
-    // sluggish. Outliers were the main reason the needle "jumped
-    // all over the place" even while playing a steady note.
-    this.medianWindow = Math.max(1, opts.medianWindow ?? 9);
-    // Calmer EMA (was 0.35) — the page now applies its own adaptive
-    // smoothing in cents-space on top of this, so the upstream Hz
-    // stream should be gently filtered, not snappy.
-    this.emaAlpha = Math.min(1, Math.max(0.01, opts.emaAlpha ?? 0.22));
+    // Median of 5 (≈ 80 ms at 60 fps). The detector's fine stage
+    // (isolated-fundamental, multi-period) now delivers sub-cent
+    // frames on its own, so this only needs to catch the rare
+    // single-frame glitch on a pluck transient — the previous 9-wide
+    // window plus a heavy EMA added ~400 ms of lag that made the
+    // needle feel disconnected from the string.
+    this.medianWindow = Math.max(1, opts.medianWindow ?? 5);
+    // Light EMA in Hz-space; the needle itself is animated by a
+    // critically-damped spring in the UI, which is what smooths the
+    // motion — filtering the DATA heavily on top of that just delays
+    // the reading.
+    this.emaAlpha = Math.min(1, Math.max(0.01, opts.emaAlpha ?? 0.5));
     // Bumped 4 → 6 frames. At 60 Hz detection that's ~100 ms — long
     // enough to defeat single-frame YIN errors (the "all notes
     // flash" bug) but short enough that a real pitch change still

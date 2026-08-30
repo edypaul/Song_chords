@@ -49,6 +49,12 @@ interface TunerStoreState {
    * fingerstyle). Maps to a concrete dB-ish threshold at the page.
    */
   sensitivity: 'low' | 'medium' | 'high';
+  /**
+   * Reference-tone sound. `instrument` = a synthesised plucked /
+   * bowed string matching the selected instrument (the default);
+   * `pure` = the plain sine reference tone.
+   */
+  toneStyle: 'instrument' | 'pure';
   /** Custom tunings keyed by id. */
   customTunings: Record<string, CustomTuning>;
 
@@ -60,6 +66,7 @@ interface TunerStoreState {
   setDeviceId: (id: string | undefined) => void;
   setPreferFlats: (v: boolean) => void;
   setSensitivity: (s: 'low' | 'medium' | 'high') => void;
+  setToneStyle: (s: 'instrument' | 'pure') => void;
 
   addCustomTuning: (t: Omit<CustomTuning, 'id' | 'createdAt'> & { id?: string }) => string;
   updateCustomTuning: (id: string, patch: Partial<Omit<CustomTuning, 'id' | 'createdAt'>>) => void;
@@ -82,6 +89,7 @@ export const useTunerStore = create<TunerStoreState>()(
       deviceId: undefined,
       preferFlats: false,
       sensitivity: 'medium',
+      toneStyle: 'instrument',
       customTunings: {},
 
       setA4Hz: (hz) => set({ a4Hz: clampA4(hz) }),
@@ -92,6 +100,7 @@ export const useTunerStore = create<TunerStoreState>()(
       setDeviceId: (deviceId) => set({ deviceId }),
       setPreferFlats: (preferFlats) => set({ preferFlats }),
       setSensitivity: (sensitivity) => set({ sensitivity }),
+      setToneStyle: (toneStyle) => set({ toneStyle }),
 
       addCustomTuning: (t) => {
         const id = t.id ?? makeId();

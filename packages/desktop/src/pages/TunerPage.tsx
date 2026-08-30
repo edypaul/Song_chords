@@ -6,7 +6,7 @@ import { useT } from '../i18n';
 import type { TKey } from '../i18n';
 
 import { TunerAudioEngine, type AudioInputDevice } from '../tuner/audio/engine';
-import { ReferenceTonePlayer } from '../tuner/audio/reference-tone';
+import { ReferenceTonePlayer, voiceForInstrument } from '../tuner/audio/reference-tone';
 import { YinDetector, rms } from '../tuner/dsp/yin';
 import { PitchSmoother } from '../tuner/dsp/smoothing';
 import {
@@ -47,8 +47,21 @@ import CustomTuningEditor, { type CustomTuningDraft } from '../tuner/ui/CustomTu
  * the audio path is auditable.
  */
 
-const MIN_DETECT_HZ = 60;   // covers low B (31 Hz) after high-pass headroom
+// 27 Hz floor: a 5-string bass's low B is 30.9 Hz and a 4-string's E1
+// is 41.2 Hz. The previous 60 Hz floor could not see either
+// fundamental, so the detector locked onto the 2nd harmonic and the
+// string picker then chose the WRONG string (E1 read as E2 ≈ D2's
+// neighbourhood). With a 4096-sample window at 48 kHz the longest
+// searchable period is 2047 samples ≈ 23 Hz, so 27 Hz fits.
+const MIN_DETECT_HZ = 27;
 const MAX_DETECT_HZ = 1500; // covers a violin's high E (≈ 660 Hz) comfortably
+// Analyser buffer (fine spectral stage) and the coarse YIN window
+// within it. 8192 samples ≈ 170 ms at 48 kHz gives the low B of a
+// 5-string bass enough spectral resolution to read true; the coarse
+// stage only looks at the latest 4096 (≈ 85 ms) so a new note is
+// identified just as quickly as before and the CPU cost is unchanged.
+const ANALYSIS_BUFFER = 8192;
+const COARSE_WINDOW = 4096;
 
 interface LiveReading {
   /** Raw, unfiltered YIN frequency for the current frame. */
@@ -110,6 +123,8 @@ export default function TunerPage(): React.ReactElement {
   const setPreferFlats = useTunerStore((s) => s.setPreferFlats);
   const sensitivity = useTunerStore((s) => s.sensitivity);
   const setSensitivity = useTunerStore((s) => s.setSensitivity);
+  const toneStyle = useTunerStore((s) => s.toneStyle);
+  const setToneStyle = useTunerStore((s) => s.setToneStyle);
   const customTunings = useTunerStore((s) => s.customTunings);
   const addCustomTuning = useTunerStore((s) => s.addCustomTuning);
   const updateCustomTuning = useTunerStore((s) => s.updateCustomTuning);
@@ -187,6 +202,33 @@ export default function TunerPage(): React.ReactElement {
       .filter((f): f is number => f !== null);
   }, [activeTuning, a4Hz]);
 
+  // Detection floor for the current tuning. YIN's cost is
+  // proportional to the longest period it searches, so searching
+  // down to 27 Hz for a ukulele (lowest string 261 Hz) burns ~10 ms
+  // per frame for nothing. Use 70 % of the tuning's lowest string —
+  // enough headroom to catch a badly flat string — and the global
+  // floor for chromatic / voice, which have no strings.
+  const minDetectHz = useMemo(() => {
+    if (stringFrequencies.length === 0) return MIN_DETECT_HZ;
+    return Math.max(MIN_DETECT_HZ, Math.min(...stringFrequencies) * 0.7);
+  }, [stringFrequencies]);
+  const minDetectHzRef = useRef(minDetectHz);
+  useEffect(() => {
+    minDetectHzRef.current = minDetectHz;
+    // Rebuild the detector live when the floor changes mid-session
+    // (instrument / tuning switch). The rAF loop reads detectorRef
+    // every frame, so swapping the instance is safe.
+    const engine = engineRef.current;
+    if (!engine || !engine.running) return;
+    const buf = engine.getTimeDomainBuffer();
+    detectorRef.current = new YinDetector(buf?.length ?? ANALYSIS_BUFFER, {
+      sampleRate: engine.sampleRate,
+      minFrequency: minDetectHz,
+      maxFrequency: MAX_DETECT_HZ,
+      coarseLength: COARSE_WINDOW,
+    });
+  }, [minDetectHz]);
+
   // ── rAF loop body — has to read everything that affects targeting
   // (mode, tuning, A4) from refs so we can update them without
   // resubscribing the listener every frame. ─────────────────────────
@@ -235,7 +277,7 @@ export default function TunerPage(): React.ReactElement {
     setPermissionError(null);
     try {
       if (!engineRef.current) engineRef.current = new TunerAudioEngine();
-      await engineRef.current.start({ deviceId, fftSize: 4096, highPassHz: 40 });
+      await engineRef.current.start({ deviceId, fftSize: ANALYSIS_BUFFER, highPassHz: 20 });
       // Device labels are only populated after permission is granted.
       const list = await engineRef.current.listInputDevices();
       setDevices(list);
@@ -245,18 +287,20 @@ export default function TunerPage(): React.ReactElement {
       // Rebuild detector + smoother for this sample rate / buffer size.
       const sr = engineRef.current.sampleRate;
       const buf = engineRef.current.getTimeDomainBuffer();
-      const bufLen = buf?.length ?? 4096;
+      const bufLen = buf?.length ?? ANALYSIS_BUFFER;
       detectorRef.current = new YinDetector(bufLen, {
         sampleRate: sr,
-        minFrequency: MIN_DETECT_HZ,
+        minFrequency: minDetectHzRef.current,
         maxFrequency: MAX_DETECT_HZ,
+        coarseLength: COARSE_WINDOW,
       });
       smootherRef.current = new PitchSmoother({ silenceRms: sensitivityRms });
       // NOTE: the reference-tone player is NOT created here — it
       // owns a separate AudioContext, lazily built in `playNote()` so
       // Play works without first clicking Start.
-      // Real one-frame analysis latency: bufLen samples at sr Hz.
-      setEngineInfo({ sampleRate: sr, latencyMs: (bufLen / sr) * 1000 });
+      // Real note-identification latency: the coarse window at sr Hz
+      // (the fine stage's longer buffer only sharpens the reading).
+      setEngineInfo({ sampleRate: sr, latencyMs: (Math.min(bufLen, COARSE_WINDOW) / sr) * 1000 });
       setRunning(true);
       runLoop();
     } catch (e) {
@@ -281,8 +325,20 @@ export default function TunerPage(): React.ReactElement {
     setTonePlayingNote(null);
     setRunning(false);
     setReading(SILENT_READING);
+    liveCentsRef.current = null;
     setEngineInfo(null);
   };
+
+  // A playing reference tone is voiced for the CURRENT instrument and
+  // sound style; when either changes, stop it rather than keep a
+  // guitar pluck ringing under the ukulele preset.
+  useEffect(() => {
+    if (tonePlayerRef.current?.playing) {
+      tonePlayerRef.current.stop();
+      setTonePlayingNote(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [instrument, toneStyle]);
 
   // Clean up on unmount.
   useEffect(() => {
@@ -323,8 +379,14 @@ export default function TunerPage(): React.ReactElement {
   /** Track the latched frequency from the previous frame so we can
    *  detect a latched-note CHANGE and reset the cents smoother. */
   const lastLatchedRef = useRef<number | null>(null);
-  /** Window of cents medians for the wide outlier filter. */
-  const CENTS_MEDIAN_WINDOW = 7;
+  /** Window of cents medians for the outlier filter. 5 frames
+   *  (≈ 80 ms): enough to drop a single glitched frame, short enough
+   *  that the reading tracks a string being tuned in real time. */
+  const CENTS_MEDIAN_WINDOW = 5;
+  /** Live cents for the needle, written every detection frame
+   *  (60 Hz) and read by CircularTuner's spring loop — the needle
+   *  never waits for a React render. */
+  const liveCentsRef = useRef<number | null>(null);
 
   /** Apply the adaptive cents-space smoother and return the value
    *  the needle should track. Pass `null` for silence — that resets
@@ -358,13 +420,16 @@ export default function TunerPage(): React.ReactElement {
     const sorted = [...hist].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)]!;
     // 2) Adaptive EMA. Alpha varies with the absolute cents value:
-    //      |c| > 25  → 0.45  (catch up fast when far off)
-    //      |c| > 10  → 0.22  (mid response)
-    //      |c| ≤ 10  → 0.10  (heavy damping near the target)
-    //    This is the standard "near-target damping" every commercial
-    //    tuner uses to keep the needle from dancing around zero.
+    //      |c| > 25  → 0.6   (catch up fast when far off)
+    //      |c| > 10  → 0.4   (mid response)
+    //      |c| ≤ 10  → 0.25  (extra damping near the target)
+    //    Much lighter than before (0.45 / 0.22 / 0.10): the detector
+    //    now measures the isolated fundamental over many periods, so
+    //    frame-to-frame noise is well under a cent and the needle's
+    //    own spring provides the visual damping. Heavy data filtering
+    //    on top only added lag between the string and the needle.
     const abs = Math.abs(median);
-    const alpha = abs > 25 ? 0.45 : abs > 10 ? 0.22 : 0.10;
+    const alpha = abs > 25 ? 0.6 : abs > 10 ? 0.4 : 0.25;
     const prev = centsEmaRef.current;
     const next = prev === null ? median : prev + alpha * (median - prev);
     centsEmaRef.current = next;
@@ -416,6 +481,9 @@ export default function TunerPage(): React.ReactElement {
       // pitch change (otherwise the needle drifts through the old
       // note's cents value).
       next.targetCents = smoothCents(next.targetCents, smoothed.latched);
+      // The needle reads this every frame; text / colours update at
+      // the throttled rate below.
+      liveCentsRef.current = next.targetCents;
       // UI refresh throttle.
       const now = performance.now();
       if (now - lastEmitRef.current >= DISPLAY_INTERVAL_MS) {
@@ -484,7 +552,9 @@ export default function TunerPage(): React.ReactElement {
       tonePlayerRef.current.stop();
       setTonePlayingNote(null);
     } else {
-      tonePlayerRef.current.play(f);
+      // Voice follows the selected instrument (plucked string, bowed
+      // string) unless the user prefers the pure reference tone.
+      tonePlayerRef.current.play(f, voiceForInstrument(instrument, toneStyle));
       setTonePlayingNote(noteName);
     }
   };
@@ -710,6 +780,7 @@ export default function TunerPage(): React.ReactElement {
                   noteLetter={bigLetter}
                   octave={bigOctave}
                   cents={reading.targetCents}
+                  liveCents={liveCentsRef}
                   hz={reading.smoothHz}
                   statusText={statusText.toUpperCase()}
                   statusColor={statusColor}
@@ -944,6 +1015,39 @@ export default function TunerPage(): React.ReactElement {
                   {tonePlayingNote ? t('tuner.stopTone') : t('tuner.referenceTone')}
                 </PillButton>
 
+                {/* Reference-sound style: a synthesised instrument
+                    voice (plucked / bowed string matching the preset)
+                    or the plain sine tone. */}
+                <div
+                  className="rounded-lg overflow-hidden"
+                  style={{ border: '1px solid var(--border)', background: 'var(--surface-elevated)' }}
+                >
+                  <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
+                    {t('tuner.toneStyle.label')}
+                  </div>
+                  <div className="flex gap-1 px-2 pb-2">
+                    {(['instrument', 'pure'] as const).map((s) => {
+                      const key = `tuner.toneStyle.${s}` as TKey;
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => setToneStyle(s)}
+                          className="flex-1 py-1 rounded text-[10px] uppercase font-semibold"
+                          style={{
+                            background: toneStyle === s ? 'var(--accent)' : 'transparent',
+                            color: toneStyle === s ? 'white' : 'var(--text-secondary)',
+                            border: '1px solid var(--border)',
+                            letterSpacing: '0.08em',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t(key)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Audio device picker. Replaces the "AUDIO SETTINGS"
                     placeholder in the reference design with the real
                     thing — there's no separate audio-settings panel
@@ -1040,7 +1144,7 @@ export default function TunerPage(): React.ReactElement {
                     {t('tuner.engine')}
                   </div>
                   <div className="flex items-center justify-between font-mono">
-                    <span><Activity size={10} className="inline-block mr-1" />YIN · 4096</span>
+                    <span><Activity size={10} className="inline-block mr-1" />YIN + DFT · {ANALYSIS_BUFFER}</span>
                     <span>{engineInfo ? `${(engineInfo.sampleRate / 1000).toFixed(1)} kHz` : '—'}</span>
                   </div>
                 </div>
