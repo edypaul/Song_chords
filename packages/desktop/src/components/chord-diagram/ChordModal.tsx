@@ -110,6 +110,21 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
     }
   };
 
+  // Global default for this instrument + chord (Chord Library's "Set
+  // as default for all songs"). Offered here too so the user doesn't
+  // have to leave the song to make a voicing the app-wide default.
+  // Per-song "Remember" still wins over it for the song that pinned.
+  const globalDefaultIdx = globalDefaults?.[instrument]?.[chord];
+  const isGlobalDefault = typeof globalDefaultIdx === 'number' && globalDefaultIdx === currentIdx;
+  const handleGlobalDefault = () => {
+    const all = { ...(globalDefaults ?? {}) };
+    const forInst: Record<string, number> = { ...(all[instrument] ?? {}) };
+    if (isGlobalDefault) delete forInst[chord];
+    else forInst[chord] = currentIdx;
+    all[instrument] = forInst;
+    void updateSetting(db, 'defaultChordVariations', all);
+  };
+
   const prev = () => setCurrentIdx((i) => (i > 0 ? i - 1 : allDiags.length - 1));
   const next = () => setCurrentIdx((i) => (i < allDiags.length - 1 ? i + 1 : 0));
 
@@ -241,18 +256,39 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
                 chord falls back to the global default (Chord Library
                 → Set as default for all songs) or variation 0 if
                 none is set. */}
-            {songId && (
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              {songId && (
+                <button
+                  onClick={handleRemember}
+                  className="text-xs px-3 py-1 rounded-md transition-colors"
+                  style={{
+                    background: isRemembered ? 'var(--surface-elevated)' : 'var(--accent)',
+                    color: isRemembered ? 'var(--text-muted)' : 'white',
+                  }}
+                  title={isRemembered ? t('chordModal.rememberedTitle') : t('chordModal.rememberForSongTitle')}
+                >
+                  {isRemembered ? t('chordModal.remembered') : t('chordModal.rememberForSong')}
+                </button>
+              )}
+              {/* App-wide default — same control as the Chord Library. */}
               <button
-                onClick={handleRemember}
+                onClick={handleGlobalDefault}
                 className="text-xs px-3 py-1 rounded-md transition-colors"
                 style={{
-                  background: isRemembered ? 'var(--surface-elevated)' : 'var(--accent)',
-                  color: isRemembered ? 'var(--text-muted)' : 'white',
+                  background: isGlobalDefault ? 'var(--surface-elevated)' : 'var(--accent)',
+                  color: isGlobalDefault ? 'var(--text-muted)' : 'white',
                 }}
-                title={isRemembered ? t('chordModal.rememberedTitle') : t('chordModal.rememberForSongTitle')}
+                title={isGlobalDefault
+                  ? t('chordLibrary.defaultForAllSongs.clearTitle')
+                  : t('chordLibrary.defaultForAllSongs.setTitle')}
               >
-                {isRemembered ? t('chordModal.remembered') : t('chordModal.rememberForSong')}
+                {isGlobalDefault ? t('chordLibrary.defaultForAllSongs.active') : t('chordLibrary.defaultForAllSongs.set')}
               </button>
+            </div>
+            {typeof globalDefaultIdx === 'number' && !isGlobalDefault && (
+              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                {t('chordLibrary.defaultForAllSongs.currentDefault', { variation: globalDefaultIdx + 1 })}
+              </span>
             )}
           </div>
         )}
