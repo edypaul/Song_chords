@@ -287,11 +287,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   //                    subscription to `autoScrollActive`).
   //   • PAUSE        → reveal toolbar (user has full access to controls).
   //   • RESUME       → hide again.
-  //   • HIT-BOTTOM   → page stays at bottom; toolbar revealed;
+  //   • HIT-BOTTOM   → page stays at bottom; toolbar STAYS HIDDEN;
   //                    `atBottomAwaitingSpace` primed so the next
-  //                    Space press scrolls to the top instead of
-  //                    starting a fresh scroll from the bottom (which
-  //                    would be a no-op).
+  //                    Space press scrolls to the top AND reveals the
+  //                    toolbar. Chrome intentionally does not reveal
+  //                    itself when the song finishes — only when the
+  //                    user presses Space at the bottom.
   const autoScrollActive = usePlayerStore((s) => s.autoScrollActive);
   const autoScrollHitBottom = usePlayerStore((s) => s.autoScrollHitBottom);
   const autoScrollSessionRef = useRef<{ active: boolean } | null>(null);
@@ -305,20 +306,27 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
       // to the top.
       setAtBottomAwaitingSpace(false);
     } else if (autoScrollSessionRef.current?.active) {
-      // Pause: reveal toolbar so the user can reach controls while
-      // paused. Session ref stays so resume re-hides.
-      setToolbarHidden(false);
+      // Auto-scroll just stopped. If the stop came from reaching
+      // the end of the song (`autoScrollHitBottom` is batched true
+      // in the same store update), keep the toolbar HIDDEN — the
+      // user has asked that it only reappear after they press
+      // Space at the bottom to reset. Otherwise this is a mid-scroll
+      // pause and the user needs to reach controls.
+      const hitBottom = usePlayerStore.getState().autoScrollHitBottom;
+      if (!hitBottom) {
+        setToolbarHidden(false);
+      }
     }
   }, [autoScrollActive]);
   useEffect(() => {
     if (!autoScrollHitBottom) return;
     if (!autoScrollSessionRef.current?.active) return;
     // Song reached the end. Page stays parked at the bottom; toolbar
-    // + section-nav icon reveal (section-nav auto-reveals via its
-    // own autoScrollActive subscription); the next Space press
-    // scrolls to the top.
+    // stays HIDDEN (the section-nav icon also stays hidden — its own
+    // autoScrollActive subscription keeps it away while the session
+    // is still considered "active" via the ref). The next Space
+    // press scrolls to the top AND reveals the chrome.
     setAtBottomAwaitingSpace(true);
-    setToolbarHidden(false);
   }, [autoScrollHitBottom]);
 
   // The perform page runs in native fullscreen. Closing the chord
@@ -368,6 +376,9 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
         autoScrollSessionRef.current = null;
         scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         setToolbarHidden(false);
+        // Clear the store flag so the section-nav icon (which
+        // hides while parked at bottom) re-renders.
+        usePlayerStore.setState({ autoScrollHitBottom: false });
         return;
       }
       usePlayerStore.getState().toggleAutoScroll();

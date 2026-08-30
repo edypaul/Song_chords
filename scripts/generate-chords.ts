@@ -9,7 +9,7 @@
  */
 
 import { CHORD_FORMULAS } from '../packages/shared/src/chord-engine/formulas';
-import { generateGuitarVoicings } from '../packages/shared/src/chord-engine/voicing-generator';
+import { generateGuitarVoicings, drainCanonicalWarnings } from '../packages/shared/src/chord-engine/voicing-generator';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -66,4 +66,12 @@ console.log(`Generated ${totalVoicings} voicings for ${totalChords} chords (${VO
 console.log(`Output: ${outFile}`);
 if (emptyChords.length > 0) {
   console.error(`WARNING: No voicings generated for: ${emptyChords.join(', ')}`);
+}
+// Curated shapes (canonical-shapes.ts) that failed the engine's own
+// validation. A template legitimately not fitting one key is fine;
+// the same template failing in EVERY key means a typo in the table.
+const canonicalWarnings = drainCanonicalWarnings();
+if (canonicalWarnings.length > 0) {
+  console.warn(`\n${canonicalWarnings.length} canonical shape(s) rejected:`);
+  for (const w of canonicalWarnings) console.warn('  - ' + w);
 }

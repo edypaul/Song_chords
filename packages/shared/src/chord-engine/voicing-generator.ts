@@ -12,6 +12,11 @@
 import type { ChordDiagram } from '../types/chord.types';
 import type { ChordFormula } from './formulas';
 import { noteToSemitone, getFormula, parseChordName } from './formulas';
+import {
+  GUITAR_OPEN_SHAPES, GUITAR_MOVEABLE_SHAPES,
+  UKULELE_OPEN_SHAPES, UKULELE_MOVEABLE_SHAPES,
+} from './canonical-shapes';
+import type { Frets } from './canonical-shapes';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -222,12 +227,70 @@ function analyzeFingers(frets: number[]): FingerAnalysis {
   return { effectiveFingers, barre, isFullBarre };
 }
 
+/**
+ * Finger count for a hand-curated shape, allowing a barre by ANY
+ * finger — not just the index at the lowest fret, which is all
+ * `detectBarre` models. Textbook grips like C9 `x32333` (ring barre
+ * over G-B-e with the index below on D), Bb7 `x13334` and C6 `x35555`
+ * (index on A, ring barre above it) are played with 3–4 fingers but
+ * `analyzeFingers` counts them as 5 and rejects them.
+ *
+ * Model: pick one fret `fr` as the barre. The barre covers a maximal
+ * run of ADJACENT strings whose fret is ≥ fr (strings inside the run
+ * at a higher fret are pressed by other fingers on top of the bar;
+ * a muted / open / lower-fretted string breaks the run because a flat
+ * finger can't skip it). Each string in the run at exactly `fr` is
+ * free; every other fretted note costs one finger. Fingers above the
+ * barre may reach ≤ 3 frets. Best (lowest) count over all choices —
+ * or the plain fretted count when no barre helps.
+ */
+function lenientFingerCount(frets: number[]): number {
+  const fretted: { s: number; f: number }[] = [];
+  for (let i = 0; i < frets.length; i++) {
+    if (frets[i]! > 0) fretted.push({ s: i, f: frets[i]! });
+  }
+  if (fretted.length <= MAX_FINGERS) return fretted.length;
+
+  const maxF = Math.max(...fretted.map((x) => x.f));
+  let best = fretted.length;
+  const candidateFrets = new Set(fretted.map((x) => x.f));
+  for (const fr of candidateFrets) {
+    if (maxF - fr > 3) continue; // other fingers can't reach that far above a bar
+    let s = 0;
+    while (s < frets.length) {
+      if (frets[s]! < fr) { s++; continue; }
+      let e = s;
+      while (e + 1 < frets.length && frets[e + 1]! >= fr) e++;
+      let atFr = 0;
+      for (let i = s; i <= e; i++) if (frets[i] === fr) atFr++;
+      if (atFr >= 2) {
+        let fingers = 1; // the bar itself
+        for (const { s: si, f } of fretted) {
+          if (!(f === fr && si >= s && si <= e)) fingers++;
+        }
+        if (fingers < best) best = fingers;
+      }
+      s = e + 1;
+    }
+  }
+  return best;
+}
+
 // ─── PART 2: Physical playability filter ─────────────────────────────────────
 
 /**
  * Check hand geometry constraints beyond basic finger count.
+ *
+ * `strict` (default) applies every heuristic, including the
+ * split-barre / pointless-full-barre rejections that prune the
+ * generator's blind search. Hand-curated canonical shapes pass
+ * `strict = false`: they are known-good grips (e.g. the CAGED C-form
+ * `x54232`, a barre at 2 with fingers reaching fret 5) that the
+ * split-barre heuristic would wrongly throw out, so for them only the
+ * hard physical limits — stretch, finger count, open/high mixing,
+ * interior mutes — are enforced.
  */
-function isPhysicallyPlayable(frets: number[]): boolean {
+function isPhysicallyPlayable(frets: number[], strict: boolean = true): boolean {
   const fretted: { s: number; f: number }[] = [];
   for (let i = 0; i < frets.length; i++) {
     if (frets[i]! > 0) fretted.push({ s: i, f: frets[i]! });
@@ -241,14 +304,18 @@ function isPhysicallyPlayable(frets: number[]): boolean {
   if (maxFret - minFret > MAX_STRETCH) return false;
 
   // Effective finger count
-  const analysis = analyzeFingers(frets);
-  if (analysis.effectiveFingers > MAX_FINGERS) return false;
+  if (strict) {
+    const analysis = analyzeFingers(frets);
+    if (analysis.effectiveFingers > MAX_FINGERS) return false;
 
-  // If full barre, verify it creates a compact shape (not wasteful)
-  if (analysis.isFullBarre && analysis.barre) {
-    // Full barre is only justified if there are notes above the barre fret
-    const notesAboveBarre = fretted.filter((x) => x.f > analysis.barre!.fret);
-    if (notesAboveBarre.length === 0) return false; // pointless full barre
+    // If full barre, verify it creates a compact shape (not wasteful)
+    if (analysis.isFullBarre && analysis.barre) {
+      // Full barre is only justified if there are notes above the barre fret
+      const notesAboveBarre = fretted.filter((x) => x.f > analysis.barre!.fret);
+      if (notesAboveBarre.length === 0) return false; // pointless full barre
+    }
+  } else if (lenientFingerCount(frets) > MAX_FINGERS) {
+    return false;
   }
 
   // Split-barre rejection. A genuine barre chord is one index finger
@@ -281,7 +348,7 @@ function isPhysicallyPlayable(frets: number[]): boolean {
   // any note reaches more than 2 frets above minFret. A real partial
   // barre (e.g. A-shape barre) keeps everything within ~2 frets of
   // the bar; the contortions blow past that.
-  if (minFret > 0) {
+  if (strict && minFret > 0) {
     let minFretCount = 0;
     for (const f of frets) if (f === minFret) minFretCount++;
     const isBarShape = minFretCount >= 2;
@@ -654,8 +721,17 @@ function areTooSimilar(a: RawVoicing, b: RawVoicing): boolean {
  * Ordering: the lowest decent shape (the open chord a player reaches
  * for first) is emitted first; the rest follow by score then position.
  */
-function selectDiverseVoicings(voicings: RawVoicing[], count: number): RawVoicing[] {
-  if (voicings.length === 0) return [];
+function selectDiverseVoicings(
+  voicings: RawVoicing[],
+  count: number,
+  seeds: RawVoicing[] = [],
+): RawVoicing[] {
+  // `seeds` are pre-selected canonical shapes (guitar only — see
+  // buildCanonicalVoicings). They occupy the first slots unconditionally
+  // and in the order given; the rest of this function only tops the
+  // list up with generator-found extras that are distinct from them.
+  if (voicings.length === 0) return [...seeds];
+  if (seeds.length >= count) return [...seeds];
 
   // Hard upper bound on the neck position we will emit: guitar
   // voicings live between frets 1–12; nothing higher unless it is the
@@ -675,31 +751,33 @@ function selectDiverseVoicings(voicings: RawVoicing[], count: number): RawVoicin
   // are legitimate alternates the user explicitly wants surfaced.
   const pool = [...bounded].sort((a, b) => b.score - a.score);
 
-  const selected: RawVoicing[] = [];
+  const selected: RawVoicing[] = [...seeds];
   const isDistinct = (v: RawVoicing): boolean =>
     selected.every((s) => !areTooSimilar(s, v));
 
   const topScore = pool[0]!.score;
 
-  // 1) First slot = the shape a player reaches for first. The raw
-  //    top-scored shape is often a full barre up the neck (root-in-
-  //    bass + 6 sounding strings score highly), but musicians expect
-  //    the OPEN-position shape first. Among voicings within a tight
-  //    score band of the top, prefer one that actually uses OPEN
-  //    STRINGS (a true open chord — what a player grabs first), and
-  //    only fall back to lowest-fret position when comparing two
-  //    shapes of the same open/closed class (or no open shape exists).
-  //    This stops a low *fretted* shape (e.g. an A-shape barre at
-  //    fret 2) from beating a genuine open voicing for slot 1.
+  // 1) First slot = the shape a player reaches for first. ONLY when
+  //    there are no canonical seeds (rare qualities with no curated
+  //    template) — otherwise the seeds already define slot 1.
+  //    The raw top-scored shape is often a full barre up the neck
+  //    (root-in-bass + 6 sounding strings score highly), but musicians
+  //    expect the OPEN-position shape first. Among voicings within a
+  //    tight score band of the top, prefer one that actually uses OPEN
+  //    STRINGS, and only fall back to lowest-fret position when
+  //    comparing two shapes of the same open/closed class.
   const PRIMARY_BAND = 45;
-  const topTier = pool.filter((v) => topScore - v.score <= PRIMARY_BAND);
-  const best = topTier.reduce((bestSoFar, v) => {
-    if (v.hasOpenStrings !== bestSoFar.hasOpenStrings) {
-      return v.hasOpenStrings ? v : bestSoFar; // open beats closed
-    }
-    return v.lowestFret < bestSoFar.lowestFret ? v : bestSoFar; // else lower
-  }, topTier[0]!);
-  selected.push(best);
+  let best: RawVoicing | null = null;
+  if (seeds.length === 0) {
+    const topTier = pool.filter((v) => topScore - v.score <= PRIMARY_BAND);
+    best = topTier.reduce((bestSoFar, v) => {
+      if (v.hasOpenStrings !== bestSoFar.hasOpenStrings) {
+        return v.hasOpenStrings ? v : bestSoFar; // open beats closed
+      }
+      return v.lowestFret < bestSoFar.lowestFret ? v : bestSoFar; // else lower
+    }, topTier[0]!);
+    selected.push(best);
+  }
 
   // ── Fretboard "zone" spread cap (re-added 2026 at MAX_PER_ZONE=3) ──
   // The renderer draws a fixed 5-fret window anchored at
@@ -721,7 +799,11 @@ function selectDiverseVoicings(voicings: RawVoicing[], count: number): RawVoicin
     const z = zoneOf(v);
     zoneCounts.set(z, (zoneCounts.get(z) ?? 0) + 1);
   };
-  bumpZone(best); // the first pick occupies its zone
+  // Every pre-selected shape (seeds, or the slot-1 pick) occupies its
+  // zone. Seeds are exempt from the cap themselves — they're curated —
+  // but they still count toward it so extras don't crowd their area.
+  for (const s of seeds) bumpZone(s);
+  if (best) bumpZone(best);
 
   // 2) Fill the remaining slots. A candidate must be (a) meaningfully
   //    different from every already-picked shape, (b) still good
@@ -884,6 +966,123 @@ function filterMissingNamedExtension(
   return withExt.length > 0 ? withExt : voicings;
 }
 
+// ─── Canonical (curated) shapes — guitar only ────────────────────────────────
+
+/** Build-time diagnostics: canonical shapes that failed validation
+ *  (a typo in canonical-shapes.ts, or a template that doesn't fit a
+ *  given key). Drained by the generate script so mistakes are loud. */
+const canonicalWarnings: string[] = [];
+export function drainCanonicalWarnings(): string[] {
+  return canonicalWarnings.splice(0, canonicalWarnings.length);
+}
+
+/**
+ * Validate a hand-curated shape with the same tone rules the search
+ * uses (every sounding note in the chord, tier-1 tones present, avoid
+ * list respected, named extension present, ≤2 muted strings unless a
+ * power chord) plus the relaxed physical check. Returns the scored
+ * RawVoicing or null (and records why) if it doesn't pass.
+ */
+function canonicalToRaw(
+  frets: Frets,
+  rootSemitone: number,
+  formula: ChordFormula,
+  label: string,
+): RawVoicing | null {
+  const numeric = frets.map((f) => (f === 'x' ? -1 : f));
+  const muted = numeric.filter((f) => f < 0).length;
+  if (formula.suffix !== '5' && muted > 2) {
+    canonicalWarnings.push(`${label}: >2 muted strings`);
+    return null;
+  }
+  if (!isPhysicallyPlayable(numeric, false)) {
+    canonicalWarnings.push(`${label}: fails physical check`);
+    return null;
+  }
+  const penalty = validateTones(numeric, rootSemitone, formula);
+  if (penalty === null) {
+    canonicalWarnings.push(`${label}: wrong / missing tones`);
+    return null;
+  }
+  const ext = namedExtensionInterval(formula);
+  if (ext >= 0) {
+    const extPitch = (rootSemitone + ext) % 12;
+    const hasExt = numeric.some((f, i) => f >= 0 && pitchAt(i, f) === extPitch);
+    if (!hasExt) {
+      canonicalWarnings.push(`${label}: missing named extension`);
+      return null;
+    }
+  }
+  const score = scoreVoicing(numeric, rootSemitone % 12, rootSemitone, formula) - penalty;
+  const fretted = numeric.filter((f) => f > 0);
+  return {
+    frets: [...frets],
+    score,
+    lowestFret: fretted.length > 0 ? Math.min(...fretted) : 0,
+    hasOpenStrings: numeric.some((f) => f === 0),
+  };
+}
+
+/**
+ * The curated shapes for a chord on the active instrument, in
+ * display order:
+ *   1. exact-name open shapes (`*_OPEN_SHAPES`), as listed;
+ *   2. moveable templates for the quality (`*_MOVEABLE_SHAPES`)
+ *      transposed to every root position that fits in frets 0–12,
+ *      class 1 (primary forms) before class 2 (alternates), each
+ *      class ordered lowest root position first (an open-string
+ *      instance counts as position 0).
+ * Exact-duplicate frets are dropped (e.g. the E-form at r=0 IS the
+ * open E). Guitar and ukulele each have their own tables.
+ */
+function buildCanonicalVoicings(
+  chordName: string,
+  rootSemitone: number,
+  formula: ChordFormula,
+): RawVoicing[] {
+  const openShapes = ACTIVE_INSTRUMENT === 'ukulele' ? UKULELE_OPEN_SHAPES : GUITAR_OPEN_SHAPES;
+  const moveable = ACTIVE_INSTRUMENT === 'ukulele' ? UKULELE_MOVEABLE_SHAPES : GUITAR_MOVEABLE_SHAPES;
+  const MAX_CANONICAL_FRET = 12;
+  const out: RawVoicing[] = [];
+  const seen = new Set<string>();
+  const push = (v: RawVoicing | null): void => {
+    if (!v) return;
+    const key = v.frets.join(',');
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(v);
+  };
+
+  // 1) Open shapes for this exact chord name.
+  for (const frets of openShapes[chordName] ?? []) {
+    push(canonicalToRaw(frets, rootSemitone, formula, `${chordName} open ${frets.join('')}`));
+  }
+
+  // 2) Moveable templates for the quality.
+  const templates = moveable[formula.suffix] ?? [];
+  const instances: Array<{ v: RawVoicing; cls: number; pos: number; order: number }> = [];
+  templates.forEach((t, order) => {
+    for (let r = t.minRoot ?? 0; r <= MAX_CANONICAL_FRET; r++) {
+      if (pitchAt(t.rootString, r) !== rootSemitone % 12) continue;
+      const frets: Frets = t.offsets.map((o) => (o === 'x' ? 'x' : r + o));
+      const nums = frets.filter((f): f is number => typeof f === 'number');
+      if (nums.some((f) => f < 0)) continue;             // template sits below the nut here
+      if (Math.max(...nums) > MAX_CANONICAL_FRET) continue; // off the displayed neck
+      const v = canonicalToRaw(frets, rootSemitone, formula, `${chordName} ${t.form} @${r}`);
+      if (!v) continue;
+      // Position = the ROOT fret (an open-string instance counts as 0),
+      // so a full barre at root 3 precedes a top-4 fragment at root 5
+      // even though the fragment's lowest fretted note is lower.
+      const pos = v.hasOpenStrings ? 0 : r;
+      instances.push({ v, cls: t.cls, pos, order });
+    }
+  });
+  instances.sort((a, b) => a.cls - b.cls || a.pos - b.pos || a.order - b.order);
+  for (const inst of instances) push(inst.v);
+
+  return out;
+}
+
 function generateVoicings(chordName: string, count: number): ChordDiagram[] {
   const parsed = parseChordName(chordName);
   if (!parsed) return [];
@@ -907,15 +1106,26 @@ function generateVoicings(chordName: string, count: number): ChordDiagram[] {
   // (an A7 mislabelled A9) from ever being emitted — including as
   // voicing #1. Self-falls-back if nothing has it.
   const candidates = filterMissingNamedExtension(muteFiltered, rootSemitone, formula);
-  const selected = selectDiverseVoicings(candidates, count);
 
-  selected.sort((a, b) => {
+  // Curated shapes lead (guitar only; [] on ukulele) in their declared
+  // order — open chord, then the standard barres by position. The
+  // generator's distinct extras follow, open-position ones first then
+  // by fret, so the tail reads like the rest of a chord book page.
+  const canonical = buildCanonicalVoicings(chordName, rootSemitone, formula);
+  const selected = selectDiverseVoicings(candidates, count, canonical);
+
+  const extras = selected.filter((v) => !canonical.includes(v));
+  extras.sort((a, b) => {
     if (a.hasOpenStrings && !b.hasOpenStrings) return -1;
     if (!a.hasOpenStrings && b.hasOpenStrings) return 1;
     return a.lowestFret - b.lowestFret;
   });
 
-  return selected.map((v) => toChordDiagram(v, chordName));
+  // `count` is a hard ceiling. On guitar it's generous (10) and the
+  // curated list never reaches it; on ukulele it's the product rule
+  // "1–3 shapes per chord", so a quality with five templates still
+  // emits only its three best-positioned ones.
+  return [...canonical, ...extras].slice(0, count).map((v) => toChordDiagram(v, chordName));
 }
 
 export function generateGuitarVoicings(chordName: string, count: number = 5): ChordDiagram[] {

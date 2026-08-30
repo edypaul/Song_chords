@@ -45,10 +45,20 @@ function rootIndex(root: string): number {
  */
 function spreadIntervals(intervals: number[]): number[] {
   // Index 0 is always the root (per CHORD_FORMULAS contract). The
-  // "lower triad" is the first three intervals (root, 3rd, 5th-ish);
-  // anything after that is upper structure and gets +12 so it renders
-  // in the second octave.
-  return intervals.map((iv, i) => (i >= 3 ? iv + 12 : iv));
+  // first three intervals (root, 3rd, 5th-ish) stay in the lower
+  // octave. Of the rest, a 6th / 7th (interval 8–11 at index 3, or
+  // any 7th) also stays LOW — a pianist plays C7 / C6 / Cmaj7 / Cm7b5
+  // as one close hand-shape (C E G Bb), not with the 7th a tenth
+  // above. Only TRUE extensions — 9 / b9 / #9, 11 / #11, 13, and the
+  // added 9th of add9 — go up an octave, which is where they are
+  // actually played. (Earlier every index ≥ 3 was lifted, so a plain
+  // 7th chord rendered as a wide, un-pianistic spread.)
+  return intervals.map((iv, i) => {
+    if (i < 3) return iv;
+    const isSeventh = iv === 10 || iv === 11;
+    const isSixthOrFlatSixth = i === 3 && (iv === 8 || iv === 9);
+    return isSeventh || isSixthOrFlatSixth ? iv : iv + 12;
+  });
 }
 
 /** A slash is only a bass-note separator when what follows is an
@@ -127,24 +137,44 @@ function buildPianoNotes(root: string, suffix: string, bass?: string): number[] 
     }
   }
 
-  if (bass) {
-    let bassNote = rootIndex(bass);
-    while (bassNote > 23) bassNote -= 12;
-    while (bassNote < 0) bassNote += 12;
-    // Skip when the bass pitch is already shown (e.g. C/C) — adding it
-    // again would just duplicate a key.
-    if (!seen.has(bassNote)) {
-      seen.add(bassNote);
-      placed.push(bassNote);
-    }
-  }
-
   // `pianoNotes[0]` must remain the chord root so the renderer can
   // accent it. The recipe's first interval is always 0 (the root), so
   // `baseRoot` is guaranteed to be in `placed`; pull it to the front
   // and sort the rest ascending for a clean left-to-right keyboard read.
-  const rootNote = baseRoot;
-  const others = placed.filter((n) => n !== rootNote).sort((a, b) => a - b);
+  let rootNote = baseRoot;
+  let others = placed.filter((n) => n !== rootNote).sort((a, b) => a - b);
+
+  if (bass) {
+    // A slash chord is played with the bass as the LOWEST note and the
+    // chord stacked above it — that is the whole point of the name.
+    // Previously the bass was just added wherever its pitch fell, so
+    // G/B drew G-B-D (the bass ABOVE the root: indistinguishable from
+    // plain G). Now: bass in the low octave, every chord tone at or
+    // below it lifted an octave (dropping any that would leave the
+    // 2-octave window — rare, only for very dense chords). A bass
+    // that duplicates a chord tone (C/E) simply becomes that tone's
+    // low position, which yields the familiar inversion look.
+    const bassNote = rootIndex(bass); // 0..11 — lowest octave
+    const lift = (n: number): number | null => {
+      let m = n;
+      while (m <= bassNote) m += 12;
+      return m > 23 ? null : m;
+    };
+    const liftedRoot = lift(rootNote);
+    const liftedOthers = others
+      .filter((n) => n % 12 !== bassNote % 12)
+      .map(lift)
+      .filter((n): n is number => n !== null);
+    // Root must survive (it's the accent) — if it can't be lifted into
+    // the window, fall back to the un-shifted layout.
+    if (liftedRoot !== null) {
+      rootNote = liftedRoot;
+      others = Array.from(new Set([bassNote, ...liftedOthers])).sort((a, b) => a - b);
+    } else if (!seen.has(bassNote)) {
+      others = [...others, bassNote].sort((a, b) => a - b);
+    }
+  }
+
   return [rootNote, ...others];
 }
 
@@ -209,14 +239,18 @@ function buildInversion(root: string, suffix: string, inv: number): number[] | n
     prev = n;
   }
 
-  // Accent stays on the true root: put the root semitone (folded into
-  // the window) at index 0; the rest sorted ascending. Dedupe so the
-  // root isn't listed twice when it's also the lowest stacked note.
-  let rootNote = baseRoot;
-  while (rootNote > 23) rootNote -= 12;
-  while (rootNote < 0) rootNote += 12;
-  const others = placed.filter((n) => n !== rootNote).sort((a, b) => a - b);
-  return [rootNote, ...others];
+  // Accent stays on the true root — but on the root note THAT IS IN
+  // THE STACK, not a low root injected from the outside. The renderer
+  // highlights every entry of `pianoNotes` (index 0 merely gets the
+  // accent colour), so the previous approach of prepending the low
+  // root drew e.g. C-E-G-C' for the "1st inversion" of C: root
+  // position with a doubled root, not an inversion at all. Every
+  // inversion stack contains the root pitch class exactly once, so
+  // pull that note to index 0 and leave the rest ascending.
+  const rootPc = baseRoot % 12;
+  const rootInStack = placed.find((n) => n % 12 === rootPc)!;
+  const others = placed.filter((n) => n !== rootInStack).sort((a, b) => a - b);
+  return [rootInStack, ...others];
 }
 
 /**
@@ -245,18 +279,20 @@ function ensurePiano(name: string): ChordDiagram[] {
   // Count rule (product spec — "1 to 3 voicings of each chord type"):
   //   - Slash chords keep ONLY root position: the explicit bass note
   //     is the entire point, inverting it would contradict the name.
-  //   - Triads (3 distinct chord tones) → root + 1st + 2nd inversion
-  //     (the three a pianist actually learns).
-  //   - 4+ tone chords (7ths/9ths/extended) → root + 1st inversion
-  //     only: deeper inversions of dense chords get muddy and aren't
-  //     the common way they're voiced.
+  //   - Triads AND four-note chords (6ths / 7ths / add9) → root + 1st
+  //     + 2nd inversion: the close-position inversions every keyboard
+  //     method teaches for both triads and seventh chords.
+  //   - 5+ tone chords (9ths / 11ths / 13ths) → root + 1st inversion
+  //     only; deeper inversions of dense chords get muddy, and the
+  //     stack usually won't fit two octaves anyway (then root only —
+  //     fine, one clean shape beats a forced one).
   const voicingNotes: number[][] = [root];
   if (!parts.bass) {
     const formula = getFormula(parts.suffix);
     const distinctTones = formula
       ? new Set(formula.intervals.map((iv) => (rootIndex(parts.root) + iv) % 12)).size
       : 3;
-    const maxInversions = distinctTones <= 3 ? 2 : 1; // → up to 3 / 2 total
+    const maxInversions = distinctTones <= 4 ? 2 : 1; // → up to 3 / 2 total
     const seenKeys = new Set<string>([root.join(',')]);
     for (let inv = 1; inv <= maxInversions; inv++) {
       const v = buildInversion(parts.root, parts.suffix, inv);

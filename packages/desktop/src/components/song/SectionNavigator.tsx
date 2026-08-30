@@ -50,14 +50,22 @@ export default function SectionNavigator({
   // Subscribes to the player store directly instead of taking a
   // prop, so callers don't have to thread the flag.
   const autoScrollActive = usePlayerStore((s) => s.autoScrollActive);
+  // Also stay hidden while the song is parked at the bottom after
+  // finishing an auto-scroll run — the user has asked that chrome
+  // (toolbar + sidebar + this nav icon) only reappear once they
+  // press Space at the bottom to reset. That Space press clears
+  // `autoScrollHitBottom` back to false via the page's reset
+  // gesture, at which point this component renders again.
+  const autoScrollHitBottom = usePlayerStore((s) => s.autoScrollHitBottom);
+  const hiddenForAutoScroll = autoScrollActive || autoScrollHitBottom;
   // If the panel happens to be hover-open the moment auto-scroll
   // starts, close it in the store so the "open" flag doesn't stay
   // orphan while the component itself is unrendered. Prevents a
   // brief flash of an already-open panel on the next hover after
   // auto-scroll ends.
   useEffect(() => {
-    if (autoScrollActive) setOpenState(false);
-  }, [autoScrollActive, setOpenState]);
+    if (hiddenForAutoScroll) setOpenState(false);
+  }, [hiddenForAutoScroll, setOpenState]);
   const [activeId, setActiveId] = useState<string | null>(null);
   // Debounce close-on-mouse-leave so the ~10px gap between the
   // trigger button and the popover doesn't briefly close the panel
@@ -216,10 +224,11 @@ export default function SectionNavigator({
 
   // Nothing to navigate to — render nothing rather than an empty panel.
   if (sections.length === 0) return null;
-  // Hidden during auto-scroll (see subscription above). Rendering
-  // nothing is enough — the panel's open state will reopen on the
-  // user's next hover after auto-scroll ends.
-  if (autoScrollActive) return null;
+  // Hidden during auto-scroll AND while parked at the bottom
+  // waiting for the user's reset Space press (see subscription
+  // above). Rendering nothing is enough — the panel's open state
+  // will reopen on the user's next hover after auto-scroll ends.
+  if (hiddenForAutoScroll) return null;
 
   // Trigger + panel share one hover-root so the pointer can travel
   // between them without triggering a close. `onMouseEnter` cancels

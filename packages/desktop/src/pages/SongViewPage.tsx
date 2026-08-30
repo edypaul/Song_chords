@@ -296,28 +296,36 @@ export default function SongViewPage(): React.ReactElement {
       // accidentally trigger the reset instead of pausing.
       setAtBottomAwaitingSpace(false);
     } else if (autoScrollSessionRef.current?.active) {
-      // PAUSE (user pressed Space mid-scroll). Reveal chrome so the
-      // user has full access to controls while paused. The session
-      // ref stays so the next resume hides them again.
-      setToolbarHidden(false);
-      setSidebarCollapsed(false);
+      // Auto-scroll just stopped. Two possible reasons:
+      //   1. User pressed Space mid-scroll → this is a PAUSE.
+      //      Reveal chrome so the user can reach controls.
+      //   2. `useAutoScroll` reached the end of the song and stopped
+      //      itself — the store batches `autoScrollHitBottom: true`
+      //      in the same setState. Keep chrome HIDDEN; the user has
+      //      asked that it only reappear after they press Space at
+      //      the bottom (handled in the toggleAutoScroll shortcut).
+      const hitBottom = usePlayerStore.getState().autoScrollHitBottom;
+      if (!hitBottom) {
+        setToolbarHidden(false);
+        setSidebarCollapsed(false);
+      }
     }
   }, [autoScrollActive, setSidebarCollapsed]);
 
   // Hit-bottom handler: song reached the end of auto-scroll.
   //   • Page STAYS at the bottom (no scroll-to-top).
-  //   • Chrome is revealed (same as pause — the user is done
-  //     scrolling and probably wants access to controls).
+  //   • Chrome stays HIDDEN — the user asked for it to reveal only
+  //     after they press Space at the bottom (see toggleAutoScroll
+  //     handler below), not automatically when the song ends.
   //   • `atBottomAwaitingSpace` flips on so the next Space press
-  //     is treated as "reset back to top" instead of "toggle
-  //     auto-scroll", which from the bottom would be a no-op.
+  //     is treated as "reset back to top + reveal chrome" instead
+  //     of "toggle auto-scroll", which from the bottom would be a
+  //     no-op.
   useEffect(() => {
     if (!autoScrollHitBottom) return;
     if (!autoScrollSessionRef.current?.active) return;
     setAtBottomAwaitingSpace(true);
-    setToolbarHidden(false);
-    setSidebarCollapsed(false);
-  }, [autoScrollHitBottom, setSidebarCollapsed]);
+  }, [autoScrollHitBottom]);
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 
@@ -355,6 +363,9 @@ export default function SongViewPage(): React.ReactElement {
         scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
         setToolbarHidden(false);
         setSidebarCollapsed(false);
+        // Clear the store flag so the section-nav icon (which
+        // hides while parked at bottom) re-renders.
+        usePlayerStore.setState({ autoScrollHitBottom: false });
         return;
       }
       toggleAutoScroll();

@@ -14,17 +14,17 @@
  */
 
 import { CHORD_FORMULAS } from '../packages/shared/src/chord-engine/formulas';
-import { generateUkuleleVoicings } from '../packages/shared/src/chord-engine/voicing-generator';
+import { generateUkuleleVoicings, drainCanonicalWarnings } from '../packages/shared/src/chord-engine/voicing-generator';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-// Upper bound on variations per chord. Product rule (user): ukulele
-// gets 1–2 voicings, prioritising the most common OPEN positions. The
-// selector already orders by lowest/open position first, so capping
-// the count at 2 yields "the common open shape (+ at most one
-// sensible alternative)".
-const VOICINGS_PER_CHORD = 2;
+// Hard ceiling on variations per chord. Product rule (user, 2026-08):
+// ukulele gets 1–3 shapes per chord. The curated ukulele templates in
+// canonical-shapes.ts lead (open / lowest-position standard shapes
+// first); the generator only tops up when a quality has fewer than 3
+// curated shapes that fit the key.
+const VOICINGS_PER_CHORD = 3;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'ukulele-diagrams.ts');
 
@@ -73,4 +73,10 @@ console.log(`Generated ${totalVoicings} voicings for ${totalChords} chords (${VO
 console.log(`Output: ${outFile}`);
 if (emptyChords.length > 0) {
   console.error(`WARNING: No voicings generated for: ${emptyChords.join(', ')}`);
+}
+// Curated ukulele shapes that failed validation (see generate-chords.ts).
+const canonicalWarnings = drainCanonicalWarnings();
+if (canonicalWarnings.length > 0) {
+  console.warn(`\n${canonicalWarnings.length} canonical shape(s) rejected:`);
+  for (const w of canonicalWarnings) console.warn('  - ' + w);
 }
