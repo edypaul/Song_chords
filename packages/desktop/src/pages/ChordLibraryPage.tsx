@@ -541,15 +541,15 @@ function ChordDetailModal({ chordName, diagrams, builtinCount, customChords, ins
       <div className="rounded-xl shadow-2xl p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 280, maxWidth: 860 }}
         onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{formatChord(chordName, notation)}</h2>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { setShowAdd((v) => !v); setEditingIdx(null); }}
-              className="text-xs px-2 py-1 rounded" style={{ background: showAdd ? 'var(--surface-elevated)' : 'var(--accent)', color: showAdd ? 'var(--text-muted)' : 'white' }}>
-              {showAdd ? t('common.cancel') : '+ ' + t('common.add')}
-            </button>
-            <button onClick={onClose} className="text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
-          </div>
+        {/* Header: "+ Add" top-left, chord name centred, ✕ top-right —
+            same arrangement as the song-view chord modal. */}
+        <div className="relative mb-3" style={{ minHeight: 28 }}>
+          <button onClick={() => { setShowAdd((v) => !v); setEditingIdx(null); }}
+            className="absolute top-0 left-0 text-xs px-2 py-1 rounded" style={{ background: showAdd ? 'var(--surface-elevated)' : 'var(--accent)', color: showAdd ? 'var(--text-muted)' : 'white' }}>
+            {showAdd ? t('common.cancel') : '+ ' + t('common.add')}
+          </button>
+          <h2 className="text-lg font-bold text-center" style={{ color: 'var(--text-primary)' }}>{formatChord(chordName, notation)}</h2>
+          <button onClick={onClose} className="absolute top-0 right-0 text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
         </div>
 
         {/* Add form */}

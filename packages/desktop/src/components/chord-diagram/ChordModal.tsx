@@ -187,17 +187,15 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
               "+ Add" opens the voicing editor inline (a new variation,
               or the first voicing for a chord that has none); closing
               the editor returns to this modal on the same page. */}
-          <div className="absolute top-0 right-0 flex items-center gap-2">
-            <button
-              onClick={() => setCreatingCustom((v) => !v)}
-              className="text-xs px-2 py-1 rounded"
-              style={{ background: creatingCustom ? 'var(--surface-elevated)' : 'var(--accent)', color: creatingCustom ? 'var(--text-muted)' : 'white' }}
-              title={creatingCustom ? t('common.cancel') : t('chordModal.createCustomDiagram')}
-            >
-              {creatingCustom ? t('common.cancel') : '+ ' + t('common.add')}
-            </button>
-            <button onClick={onClose} className="text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
-          </div>
+          <button
+            onClick={() => setCreatingCustom((v) => !v)}
+            className="absolute top-0 left-0 text-xs px-2 py-1 rounded"
+            style={{ background: creatingCustom ? 'var(--surface-elevated)' : 'var(--accent)', color: creatingCustom ? 'var(--text-muted)' : 'white' }}
+            title={creatingCustom ? t('common.cancel') : t('chordModal.createCustomDiagram')}
+          >
+            {creatingCustom ? t('common.cancel') : '+ ' + t('common.add')}
+          </button>
+          <button onClick={onClose} className="absolute top-0 right-0 text-sm px-2 py-1 rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }}>✕</button>
         </div>
 
         {/* While adding a voicing, the editor REPLACES the slider: it
