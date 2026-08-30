@@ -152,7 +152,17 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
     >
       <div
         className="rounded-xl shadow-2xl p-5"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', minWidth: 240, maxWidth: 860 }}
+        style={{
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          minWidth: 240,
+          maxWidth: 860,
+          // Never taller than the window: the voicing editor is a
+          // sizeable block, so cap the modal and scroll inside it
+          // rather than letting it run off the top and bottom.
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -175,10 +185,14 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
           </div>
         </div>
 
-        {creatingCustom && (
+        {/* While adding a voicing, the editor REPLACES the slider: it
+            carries its own live preview, and stacking both made the
+            modal taller than the window. Saving or cancelling brings
+            the slider back on the (new) voicing. */}
+        {creatingCustom ? (
           <ChordForm instrument={instrument} initialName={chord} nameDisabled hideNameInPreview
             onSave={saveCustomDiagram} onCancel={() => setCreatingCustom(false)} />
-        )}
+        ) : (<>
 
         {/* Diagram slider */}
         <div className="flex items-center gap-2">
@@ -242,6 +256,7 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
             )}
           </div>
         )}
+        </>)}
       </div>
     </div>
   );
