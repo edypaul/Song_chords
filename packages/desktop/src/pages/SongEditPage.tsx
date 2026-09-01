@@ -532,14 +532,15 @@ export default function SongEditPage(): React.ReactElement {
       // when editing an existing song (matching the default a brand-
       // new song already uses). The editor textarea shows `content`
       // verbatim — it does NOT auto-convert by format — so we must
-      // convert the stored content into chords-over-lyrics here, not
-      // just flip the format flag, otherwise the textarea would show
-      // raw ChordPro under a "Chords over lyrics" label.
+      // convert the stored content into chords-over-lyrics here.
       //
-      // `detectSongFormat` guards against double-conversion: stored
-      // content is normally canonical ChordPro, but a song imported as
-      // plaintext may already be chords-over-lyrics, in which case we
-      // leave it untouched.
+      // This conversion is POSITION-FAITHFUL: when chords sit closer
+      // together than their names are wide, the converter pads the
+      // lyric with em-dashes (the same convention the song view
+      // renders) so every chord stays over its true syllable, and the
+      // reverse conversion strips that padding — so opening + saving
+      // never moves a chord. `detectSongFormat` guards against
+      // double-conversion for songs stored as chords-over-lyrics.
       const loadedIsChordPro = detectSongFormat(existing.content) === 'chordpro';
       const overLyrics = loadedIsChordPro
         ? chordProToChordsOverLyrics(existing.content)

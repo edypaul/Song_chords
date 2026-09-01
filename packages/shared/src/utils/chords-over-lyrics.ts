@@ -54,7 +54,14 @@ function mergeChordsIntoLyric(chordLine: string, lyricLine: string): string {
     const { chord, col } = chords[i]!;
     chars.splice(col, 0, `[${chord}]`);
   }
-  return chars.join('');
+  // Strip ALIGNMENT PADDING: em-dash runs directly before a chord are
+  // the dashes `chordProToChordsOverLyrics` inserted into the lyric to
+  // keep a tightly-packed chord over its true syllable (same visual
+  // convention the song view uses). They are layout, not lyrics —
+  // removing them here restores the original text, so packed chords
+  // like `[Ab]Ah[Cm]or[Bb7sus4]a.` round-trip with their positions
+  // intact.
+  return chars.join('').replace(/—+(?=\[)/g, '');
 }
 
 function chordsOnlyToInline(chordLine: string): string {
@@ -126,23 +133,41 @@ export function chordProToChordsOverLyrics(input: string): string {
     }
     if (chords.length === 0) { out.push(stripped); continue; }
     let chordLine = '';
-    for (const { chord, col } of chords) {
+    let lyricOut = stripped;
+    // Running count of characters inserted into `lyricOut` so far, so
+    // later chords' lyric columns stay in step with the padded text.
+    let shift = 0;
+    for (const { chord, col: rawCol } of chords) {
+      const col = rawCol + shift;
       // Place each chord at its lyric column when possible, but ALWAYS
-      // keep at least one space between consecutive chords. The old
-      // code padded by `col - chordLine.length`, which is 0 when two
-      // chords are adjacent in the lyric (e.g. ChordPro
-      // "[Bm]No[G]," → cols 0 and 2 with a 2-char "Bm" already on the
-      // line) so it emitted "BmG" — a single mashed token. Round-
-      // tripping that back through chordsOverLyricsToChordPro then
-      // parsed "BmG" as ONE chord ([BmG]) and other lines (whose
-      // chords didn't collide) converted fine, producing the reported
-      // mixed/half-converted result. Forcing a separating space keeps
-      // every chord a distinct, re-parseable token so the round trip
-      // is lossless for the chord names.
+      // keep at least one space between consecutive chords (adjacent
+      // chords would otherwise mash into one unparseable token, e.g.
+      // "BmG").
       const minStart = chordLine.length === 0 ? 0 : chordLine.length + 1;
       const start = Math.max(col, minStart);
+      // When the chord had to be pushed RIGHT of its lyric column
+      // (its name — plus the separating space — didn't fit), pad the
+      // LYRIC at that column so the syllable moves back under the
+      // chord: em-dashes for a mid-word split (the same convention the
+      // song view renders), plain spaces at word boundaries. Without
+      // this the pushed column silently became the chord's new
+      // position on the way back, drifting tightly-packed chords
+      // (`[Ab]Ah[Cm]or[Bb7sus4]a.` → "…Aho[?]ra."). The reverse
+      // converter strips dash-padding that sits directly before a
+      // chord, so the round trip is position-exact. Chords at/past
+      // the end of the lyric need no padding — there's no syllable to
+      // keep aligned.
+      if (start > col && col < lyricOut.length) {
+        const before = col > 0 ? lyricOut[col - 1]! : '';
+        const at = lyricOut[col]!;
+        const midWord = before !== '' && !/\s/.test(before) && !/\s/.test(at);
+        const padStr = (midWord ? '—' : ' ').repeat(start - col);
+        lyricOut = lyricOut.slice(0, col) + padStr + lyricOut.slice(col);
+        shift += start - col;
+      }
       chordLine += ' '.repeat(start - chordLine.length) + chord;
     }
+    const stripped2 = lyricOut;
     out.push(chordLine);
     // Only emit the lyric line when there is actual lyric text. A
     // chord-only ChordPro line (e.g. "[C]" or an intro like
@@ -152,7 +177,7 @@ export function chordProToChordsOverLyrics(input: string): string {
     // song as modified (phantom unsaved change). chordsOnlyToInline
     // reconstructs a chord-only line from just the chord line, so the
     // empty lyric line is not needed for a lossless round trip.
-    if (stripped.trim() !== '') out.push(stripped);
+    if (stripped2.trim() !== '') out.push(stripped2);
   }
   return out.join('\n');
 }

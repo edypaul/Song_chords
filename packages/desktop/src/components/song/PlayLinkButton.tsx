@@ -1,6 +1,6 @@
 import React from 'react';
 import { PlayCircle } from 'lucide-react';
-import { useAudioPlayer } from '../../context/AudioPlayer';
+import { useAudioPlayer } from '../../context/audio-player-context';
 import { useT } from '../../i18n';
 
 interface Props {

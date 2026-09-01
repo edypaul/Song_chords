@@ -79,14 +79,18 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
     if (container) {
       posRef.current = container.scrollTop;
       lastSetRef.current = container.scrollTop;
-      // Duration mode: seed the reading position. Starting from the
-      // very top means the singer starts at the FIRST line (content
-      // y = 0), which produces the natural lead-in — no scrolling
-      // until the sung line walks down to the anchor point. Resuming
-      // mid-song assumes the sung line is at the anchor.
-      readPosRef.current = container.scrollTop > 2
-        ? container.scrollTop + container.clientHeight * READ_ANCHOR_FRACTION
-        : 0;
+      // Duration mode: seed the reading position consistently with the
+      // anchor ramp in the tick below (anchorEff = min(anchor,
+      // readPos/2)), so starting/resuming never jumps the page:
+      //   • at the very top → 0 (the singer starts at the first line);
+      //   • within the ramp zone (scrollTop < anchor) → 2·scrollTop;
+      //   • below it → scrollTop + anchor (sung line at the anchor).
+      const seedAnchor = container.clientHeight * READ_ANCHOR_FRACTION;
+      readPosRef.current = container.scrollTop <= 2
+        ? 0
+        : container.scrollTop < seedAnchor
+          ? 2 * container.scrollTop
+          : container.scrollTop + seedAnchor;
       // Consume any pause markers whose TOP edge is already at / above
       // the fire line at startup. We use getBoundingClientRect so the
       // measurement stays correct even when CSS `zoom` is applied to the
@@ -119,7 +123,10 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
         // zoom mid-run re-syncs both trackers to the new geometry.)
         if (Math.abs(el.scrollTop - lastSetRef.current) > 2) {
           posRef.current = el.scrollTop;
-          readPosRef.current = el.scrollTop + el.clientHeight * READ_ANCHOR_FRACTION;
+          // Same seeding rule as at start (see above) so re-anchoring
+          // after a manual scroll is continuous with the anchor ramp.
+          const a = el.clientHeight * READ_ANCHOR_FRACTION;
+          readPosRef.current = el.scrollTop < a ? 2 * el.scrollTop : el.scrollTop + a;
         }
 
         // {pause: N} markers — fire when the TOP edge of the indicator
@@ -180,8 +187,13 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
             //   • rate v = (totalScrollable + clientHeight) / duration
             //     (measured live each frame, so toggling inline
             //     diagrams mid-run re-paces immediately);
-            //   • lead-in: from the top, nothing scrolls until the
-            //     sung line has walked down to the anchor;
+            //   • ramped lead-in: from the top the ANCHOR grows from 0
+            //     to its full value at twice the reading rate, so the
+            //     page starts moving IMMEDIATELY at half speed (clear
+            //     feedback that auto-scroll is on) while the sung line
+            //     drifts naturally from the top edge down to the
+            //     anchor point — a hard lead-in (page frozen until the
+            //     anchor was reached) read as "Space did nothing";
             //   • early finish: max scroll is reached once the last
             //     screenful is fully visible, with the remaining
             //     duration left for singing it — not at 0:00 left.
@@ -191,7 +203,8 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
               readPosRef.current + v * (deltaMs / 1000),
               totalScrollable + anchor,
             );
-            posRef.current = Math.min(Math.max(readPosRef.current - anchor, 0), totalScrollable);
+            const anchorEff = Math.min(anchor, readPosRef.current / 2);
+            posRef.current = Math.min(Math.max(readPosRef.current - anchorEff, 0), totalScrollable);
           } else {
             const pxPerSec = (autoScrollSpeed / 100) * 120; // slider 1–100 → 1.2–120 px/s
             // Advance the internal position, but CLAMP to `totalScrollable`

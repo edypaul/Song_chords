@@ -326,6 +326,27 @@ export default function SongViewPage(): React.ReactElement {
     if (!autoScrollSessionRef.current?.active) return;
     setAtBottomAwaitingSpace(true);
   }, [autoScrollHitBottom]);
+  // The end-of-song reset gesture: scroll back to the top and restore
+  // the chrome (toolbar + sidebar + section-nav icon). Triggered by
+  // Space while parked at the bottom, by the floating arrow, and by
+  // the "press Space" hint next to it.
+  const resetAfterSongEnd = () => {
+    setAtBottomAwaitingSpace(false);
+    autoScrollSessionRef.current = null;
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setToolbarHidden(false);
+    setSidebarCollapsed(false);
+    // Clear the store flag so the section-nav icon (which hides while
+    // parked at bottom) re-renders.
+    usePlayerStore.setState({ autoScrollHitBottom: false });
+  };
+  // Floating-arrow click: the full reset when parked after the song
+  // ended; otherwise just a plain scroll-to-top (don't reveal chrome
+  // the user hid on purpose).
+  const backToTop = () => {
+    if (atBottomAwaitingSpace) { resetAfterSongEnd(); return; }
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
 
@@ -357,15 +378,11 @@ export default function SongViewPage(): React.ReactElement {
       // auto-scroll (which would start a fresh scroll from the
       // bottom — a no-op that leaves the user staring at the last
       // line with hidden chrome).
-      if (atBottomAwaitingSpace) {
-        setAtBottomAwaitingSpace(false);
-        autoScrollSessionRef.current = null;
-        scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-        setToolbarHidden(false);
-        setSidebarCollapsed(false);
-        // Clear the store flag so the section-nav icon (which
-        // hides while parked at bottom) re-renders.
-        usePlayerStore.setState({ autoScrollHitBottom: false });
+      // Space at the bottom of the page — whether auto-scroll parked
+      // there or the user scrolled down manually — goes back to the
+      // top (starting auto-scroll from the bottom would be a no-op).
+      if (atBottomAwaitingSpace || atBottom) {
+        resetAfterSongEnd();
         return;
       }
       toggleAutoScroll();
@@ -826,17 +843,30 @@ export default function SongViewPage(): React.ReactElement {
         )}
 
         {/* Floating "back to top" button — bottom-right of the perf view,
-            shown only when the user has scrolled all the way down. */}
+            shown only when the user has scrolled all the way down. After
+            the song finished auto-scrolling, a clickable hint explains
+            that Space also brings the page back to the top. */}
         {atBottom && (
-          <button
-            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
-            style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
-            title={t('songView.backToTop')}
-            aria-label={t('songView.backToTop')}
-          >
-            <ArrowUp size={18} />
-          </button>
+          <div className="fixed bottom-6 right-6 flex items-center gap-4" style={{ zIndex: 60 }}>
+            {atBottomAwaitingSpace && (
+              <button
+                onClick={resetAfterSongEnd}
+                className="px-3 py-2 rounded-full shadow-lg text-xs transition-colors hover:bg-[var(--surface-elevated)]"
+                style={{ background: 'var(--surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+              >
+                {t('songView.spaceToTop')}
+              </button>
+            )}
+            <button
+              onClick={backToTop}
+              className="p-3 rounded-full shadow-lg transition-colors"
+              style={{ background: 'var(--accent)', color: 'white' }}
+              title={t('songView.backToTop')}
+              aria-label={t('songView.backToTop')}
+            >
+              <ArrowUp size={18} />
+            </button>
+          </div>
         )}
 
         <SectionNavigator
@@ -1377,17 +1407,28 @@ export default function SongViewPage(): React.ReactElement {
       )}
 
       {/* Floating "back to top" button — bottom-right of the normal view,
-          shown only when the user has scrolled all the way down. */}
+          shown only when the user has scrolled all the way down. After
+          the song finished auto-scrolling, a clickable hint explains
+          that Space also brings the page back to the top. */}
       {atBottom && (
-        <button
-          onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 p-3 rounded-full shadow-lg transition-colors"
-          style={{ background: 'var(--accent)', color: 'white', zIndex: 60 }}
-          title={t('songView.backToTop')}
-          aria-label={t('songView.backToTop')}
-        >
-          <ArrowUp size={18} />
-        </button>
+        <div className="fixed bottom-6 right-6 flex items-center gap-4" style={{ zIndex: 60 }}>
+          <button
+            onClick={resetAfterSongEnd}
+            className="text-xs hover:underline"
+            style={{ background: 'transparent', border: 0, color: 'var(--text-secondary)', cursor: 'pointer', padding: 0 }}
+          >
+            {t('songView.spaceToTop')}
+          </button>
+          <button
+            onClick={backToTop}
+            className="p-3 rounded-full shadow-lg transition-colors"
+            style={{ background: 'var(--accent)', color: 'white' }}
+            title={t('songView.backToTop')}
+            aria-label={t('songView.backToTop')}
+          >
+            <ArrowUp size={18} />
+          </button>
+        </div>
       )}
 
       <SectionNavigator

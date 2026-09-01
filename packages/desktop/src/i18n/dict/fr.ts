@@ -497,6 +497,7 @@ export const fr: Partial<Dict> = {
   // ─── Song view page ───────────────────────────────────────────
   'songView.notFound': 'Chanson introuvable',
   'songView.backToTop': 'Retour en haut',
+  'songView.spaceToTop': 'Appuyez sur Espace pour revenir en haut',
   'songView.hideToolbar': 'Masquer la barre d’outils',
   'songView.showToolbar': 'Afficher la barre d’outils',
   'songView.transposeDown': 'Transposer vers le bas',

@@ -1,26 +1,12 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import AudioPlayerPanel from '../components/song/AudioPlayerPanel';
 import YouTubePlayerPanel from '../components/song/YouTubePlayerPanel';
 import { parseYouTubeId } from '../utils/audio-source';
-
-export interface AudioPlayerSourceInput {
-  /** Local audio file path. Wins over `link` when both set. */
-  audioFile?: string;
-  /** Remote URL (YouTube / SoundCloud / Spotify / direct mp3 / etc.). */
-  link?: string;
-}
-
-interface AudioPlayerCtx {
-  /** Open the floating player for the given song. No-op if neither
-   *  source is set. Replaces whatever was playing. */
-  open: (title: string, source: AudioPlayerSourceInput) => void;
-  /** Close the player if it's open. */
-  close: () => void;
-  /** Currently-loaded source, or null when the player is closed. */
-  current: { title: string; audioFile?: string; link?: string } | null;
-}
-
-const Ctx = createContext<AudioPlayerCtx | null>(null);
+// The context object + hook live in their own module (see the comment
+// there): this file must export ONLY the provider component so React
+// Fast Refresh can hot-swap it without re-creating the context.
+import { AudioPlayerContext } from './audio-player-context';
+import type { AudioPlayerSourceInput } from './audio-player-context';
 
 /**
  * Global audio-player provider — mounted once at the app root so any
@@ -67,7 +53,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   return (
-    <Ctx.Provider value={{ open, close, current }}>
+    <AudioPlayerContext.Provider value={{ open, close, current }}>
       {children}
       {current && (
         <AudioPlayerPanel
@@ -94,12 +80,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
           onClose={() => setYoutube(null)}
         />
       )}
-    </Ctx.Provider>
+    </AudioPlayerContext.Provider>
   );
-}
-
-export function useAudioPlayer(): AudioPlayerCtx {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error('useAudioPlayer must be used within AudioPlayerProvider');
-  return ctx;
 }

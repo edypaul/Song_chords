@@ -497,6 +497,7 @@ export const de: Partial<Dict> = {
   // ─── Song view page ───────────────────────────────────────────
   'songView.notFound': 'Song nicht gefunden',
   'songView.backToTop': 'Zum Anfang',
+  'songView.spaceToTop': 'Leertaste drücken, um zum Anfang zu springen',
   'songView.hideToolbar': 'Symbolleiste ausblenden',
   'songView.showToolbar': 'Symbolleiste anzeigen',
   'songView.transposeDown': 'Nach unten transponieren',

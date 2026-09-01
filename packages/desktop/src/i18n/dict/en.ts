@@ -511,6 +511,7 @@ export const en = {
   // ─── Song view page ───────────────────────────────────────────
   'songView.notFound': 'Song not found',
   'songView.backToTop': 'Back to top',
+  'songView.spaceToTop': 'Press Space to go back to the top',
   'songView.hideToolbar': 'Hide toolbar',
   'songView.showToolbar': 'Show toolbar',
   'songView.transposeDown': 'Transpose down',
