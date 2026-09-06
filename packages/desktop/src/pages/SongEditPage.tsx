@@ -365,6 +365,47 @@ export default function SongEditPage(): React.ReactElement {
   // selection when the textarea still has focus; otherwise fall back to
   // the last-tracked selection (a toolbar control that stole focus has
   // a blurred textarea whose live selection may be stale/reset).
+  // ── Caret-position measurement ────────────────────────────────────
+  // A textarea exposes no caret coordinates, and "line count × line
+  // height" breaks as soon as a long line soft-wraps. Mirror the text
+  // before the caret into a hidden div with IDENTICAL box/font
+  // metrics and read a marker's offsetTop — exact under wrapping.
+  // Used by the onChange scroll logic to keep the caret in view when
+  // new lines are added at the bottom.
+  const caretMirrorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => () => {
+    caretMirrorRef.current?.remove();
+    caretMirrorRef.current = null;
+  }, []);
+  const measureCaretTop = (ta: HTMLTextAreaElement, caret: number): number => {
+    let mirror = caretMirrorRef.current;
+    if (!mirror) {
+      mirror = document.createElement('div');
+      caretMirrorRef.current = mirror;
+      document.body.appendChild(mirror);
+    }
+    const s = mirror.style;
+    s.position = 'fixed';
+    s.visibility = 'hidden';
+    s.left = '-9999px';
+    s.top = '0';
+    s.boxSizing = 'border-box';
+    // These MUST match the textarea's styles (same values the
+    // ChordHighlightOverlay mirrors) or the measured offset drifts.
+    s.width = `${ta.clientWidth}px`;
+    s.padding = '16px';
+    s.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+    s.fontSize = '14px';
+    s.lineHeight = '1.6';
+    s.whiteSpace = 'pre-wrap';
+    s.overflowWrap = 'break-word';
+    mirror.textContent = ta.value.slice(0, caret);
+    const marker = document.createElement('span');
+    marker.textContent = '​';
+    mirror.appendChild(marker);
+    return marker.offsetTop;
+  };
+
   const insertAtCursor = (text: string, caretOffset?: number) => {
     const el = textareaRef.current;
     if (!el) { setContent(content + text); return; }
@@ -1200,9 +1241,28 @@ export default function SongEditPage(): React.ReactElement {
                   lastSelectionRef.current = { start: el.selectionStart, end: el.selectionEnd };
                   requestAnimationFrame(() => {
                     const ta = textareaRef.current;
-                    if (ta && ta.scrollTop !== keepScrollTop) {
-                      ta.scrollTop = keepScrollTop;
-                      ta.scrollLeft = keepScrollLeft;
+                    if (ta) {
+                      // Start from the pre-commit scroll, then make
+                      // sure the caret is actually VISIBLE. When Enter
+                      // adds a line at the BOTTOM, Chromium's native
+                      // caret-follow is wiped by the controlled-value
+                      // commit, so blindly restoring `keepScrollTop`
+                      // left the new line hidden below the fold.
+                      // Measure the caret's real y (wrap-aware) and
+                      // nudge the scroll only as far as needed.
+                      let target = keepScrollTop;
+                      const caretTop = measureCaretTop(ta, ta.selectionStart);
+                      const lineH = 14 * 1.6;
+                      const margin = 8;
+                      if (caretTop + lineH + margin > target + ta.clientHeight) {
+                        target = caretTop + lineH + margin - ta.clientHeight;
+                      } else if (caretTop < target) {
+                        target = Math.max(0, caretTop - margin);
+                      }
+                      if (ta.scrollTop !== target) {
+                        ta.scrollTop = target;
+                        ta.scrollLeft = keepScrollLeft;
+                      }
                     }
                     // Keep the split-view preview lined up with the caret.
                     syncPreviewToCaret();
