@@ -112,3 +112,35 @@ html, body, #root {
 }
 .song-slide-next { animation: song-slide-from-right 260ms cubic-bezier(0.22, 1, 0.36, 1); }
 .song-slide-prev { animation: song-slide-from-left 260ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ── Toolbar hit-area enlargement ────────────────────────────────────
+   Small icon buttons (a 16px glyph + 8px padding = 32px box) are
+   fiddly to click mid-performance. Every button inside a container
+   tagged `.app-toolbar` gets an invisible ::after overlay extending
+   its clickable area by 6px on every side WITHOUT changing the
+   visual layout. Where two buttons' extended zones overlap, the
+   later sibling wins the overlap strip — a fair split. Disabled
+   buttons are excluded so their dead zone can't swallow clicks
+   aimed at an enabled neighbour. */
+.app-toolbar button { position: relative; }
+.app-toolbar button:not(:disabled)::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+/* No focus ring inside toolbars: after clicking an icon or picking
+   from a dropdown, the browser's focus outline lingered on the
+   control and read as a stuck highlight. Toolbars are pointer-driven
+   surfaces (every action also has a keyboard shortcut), so the ring
+   is suppressed for buttons, selects and inputs — including the
+   keyboard-triggered :focus-visible variant. */
+.app-toolbar button:focus,
+.app-toolbar button:focus-visible,
+.app-toolbar select:focus,
+.app-toolbar select:focus-visible,
+.app-toolbar input:focus,
+.app-toolbar input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}

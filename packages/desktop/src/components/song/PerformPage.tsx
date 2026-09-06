@@ -298,6 +298,17 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   // the controls are always one click away. Mirrors the SongViewPage
   // toolbar toggle 1:1 so the two surfaces behave the same.
   const [toolbarHidden, setToolbarHidden] = useState(false);
+  // Hiding the toolbar must never leave keyboard focus trapped on a
+  // control inside it. A focused checkbox/select survives the collapse
+  // (0fr + overflow-hidden doesn't unfocus), is invisible (toolbar
+  // focus outlines are suppressed), and swallows every key — Space, T,
+  // even Escape — so the whole page looks dead to the keyboard. Drop
+  // focus back to the page whenever the toolbar goes away.
+  useEffect(() => {
+    if (!toolbarHidden) return;
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el !== document.body) el.blur();
+  }, [toolbarHidden]);
   // Auto-scroll flow mirrors SongViewPage:
   //   • START/RESUME → hide toolbar (section-nav icon hides via its own
   //                    subscription to `autoScrollActive`).
@@ -387,6 +398,14 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     document.documentElement.requestFullscreen?.().catch(() => {});
   };
   const toggleFavorite = useSongStore((s) => s.toggleFavorite);
+  // Live favorite state from the SONG store. `activeSong` is a
+  // player-store snapshot (built from the setlist item when it
+  // loaded), so its `favorite` flag never updates — the toolbar star
+  // wrote the toggle to the DB but visually "did nothing". Reading
+  // the current value from the songs list re-renders on every toggle.
+  const activeSongFavorite = useSongStore((s) =>
+    activeSong ? (s.songs.find((x) => x.id === activeSong.id)?.favorite ?? activeSong.favorite ?? false) : false,
+  );
   const addSongToSetList = useSetListStore((s) => s.addSongToSetList);
   const customPresets = useSettingsStore((s) => s.settings.customPresets ?? {});
   // effectiveTheme is whatever data-theme is currently applied to
@@ -529,11 +548,21 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      const editable = (e.target as HTMLElement | null)?.isContentEditable;
-      const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!editable;
-      if (inInput) return;
-      if (e.key === 'Escape') exitPerform();
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      // Text-entry surfaces keep every key — Escape cancels editing
+      // there. But NON-text controls (selects, checkboxes) must not
+      // swallow the universal exit gesture: focus can sit invisibly on
+      // one of them (toolbar focus outlines are suppressed) and Escape
+      // would appear completely dead. Modals still win — they intercept
+      // Escape in the capture phase before this listener runs.
+      const textEntry = tag === 'TEXTAREA' || !!el?.isContentEditable ||
+        (tag === 'INPUT' && !['checkbox', 'radio', 'range', 'button'].includes((el as HTMLInputElement).type));
+      if (textEntry) return;
+      if (e.key === 'Escape') { exitPerform(); return; }
+      // Paging keys defer to focused controls (PageUp/Down moves the
+      // selection inside a native select).
+      if (tag === 'INPUT' || tag === 'SELECT') return;
       if (e.key === 'PageDown') goNext();
       if (e.key === 'PageUp')   goPrev();
     };
@@ -551,7 +580,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
   if (total === 0) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4" style={{ background: 'var(--bg)', color: 'var(--text-muted)', zIndex: 100 }}>
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4" style={{ background: 'var(--bg)', color: 'var(--text-muted)', zIndex: 100, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {emptyState ?? <p>{t('perform.nothingToPerform')}</p>}
         <button onClick={exitPerform} className="px-4 py-2 rounded-lg" style={{ background: 'var(--surface-elevated)', color: 'var(--text-primary)' }}>{t('perform.back')}</button>
       </div>
@@ -559,22 +588,30 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ background: 'var(--bg)', zIndex: 100 }}>
+    <div
+      className="fixed inset-0 flex flex-col"
+      // no-drag: this overlay paints over the frameless-window title
+      // bar, but the title bar's -webkit-app-region: drag zone eats
+      // REAL mouse clicks at the window level regardless of z-index —
+      // synthetic (devtools/test) clicks don't show it. Without this,
+      // everything in the top ~32px — the show-toolbar strip arrow,
+      // the exit ✕ — is dead whenever the window is not in native
+      // fullscreen (e.g. after Escape's UA fullscreen drop).
+      style={{ background: 'var(--bg)', zIndex: 100, WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+    >
       {/* Slim tab to bring the toolbar back when it's hidden. Always
           mounted; collapses with the same grid-rows animation as the
           toolbar (mirrors SongViewPage) so show/hide glides instead of
           popping — the collapsed state is 0px tall and its button is
           untabbable, so nothing hidden can eat clicks. */}
       {(() => {
-        // The strip shows while the toolbar is hidden AND it has
-        // something meaningful to display:
-        //   • checkbox ON  → the info content, whether auto-scroll is
-        //     running or not (arrow rides along, disabled mid-scroll);
-        //   • checkbox OFF → only when NOT auto-scrolling, and then
-        //     just the show-toolbar arrow. During a scroll an
-        //     unchecked strip would be an empty frame with a dead
-        //     arrow, so it collapses entirely.
-        const stripVisible = toolbarHidden && (infoBarEnabled || !autoScrollActive);
+        // The strip shows whenever the toolbar is hidden. The
+        // show-toolbar arrow is ALWAYS clickable — including while
+        // auto-scroll runs (revealing the toolbar mid-scroll is how
+        // you reach the pause/controls, and the reveal sticks because
+        // the auto-hide effect only fires on start/resume
+        // transitions). The info content is gated by its checkbox.
+        const stripVisible = toolbarHidden;
         return (
       <div
         className="grid shrink-0 overflow-hidden"
@@ -587,7 +624,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           {/* Informational content plus (when not auto-scrolling) the
               one action in this strip: the show-toolbar arrow. */}
           <div
-            className="flex items-center justify-center gap-5 w-full border-b"
+            className="app-toolbar flex items-center justify-center gap-5 w-full border-b"
             style={{
               height: 34,
               fontSize: 14,
@@ -602,18 +639,12 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             aria-hidden={!stripVisible}
           >
             <button
-              onClick={autoScrollActive ? undefined : () => setToolbarHidden(false)}
-              disabled={autoScrollActive}
-              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors shrink-0 disabled:hover:bg-transparent"
-              style={{
-                background: 'transparent',
-                border: 0,
-                cursor: autoScrollActive ? 'not-allowed' : 'pointer',
-                opacity: autoScrollActive ? 0.35 : 1,
-              }}
+              onClick={() => setToolbarHidden(false)}
+              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors shrink-0"
+              style={{ background: 'transparent', border: 0, cursor: 'pointer' }}
               title={`${t('perform.showToolbar')}${hint('toggleToolbar')}`}
               aria-label={t('perform.showToolbar')}
-              tabIndex={stripVisible && !autoScrollActive ? 0 : -1}
+              tabIndex={stripVisible ? 0 : -1}
             >
               <ChevronDown size={16} style={{ color: 'var(--text-secondary)' }} />
             </button>
@@ -675,7 +706,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
            transition: 'opacity 200ms ease',
          }}
        >
-      <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+      <div className="app-toolbar flex items-center gap-3 px-4 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
         <button onClick={exitPerform} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]">
           <X size={16} style={{ color: 'var(--text-secondary)' }} />
         </button>
@@ -927,13 +958,13 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           <button
             onClick={() => void toggleFavorite(db, activeSong.id)}
             className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
-            title={`${activeSong.favorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}${hint('toggleFavorite')}`}
-            aria-label={activeSong.favorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}
+            title={`${activeSongFavorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}${hint('toggleFavorite')}`}
+            aria-label={activeSongFavorite ? t('perform.removeFromFavorites') : t('perform.addToFavorites')}
           >
             <Star
               size={16}
-              fill={activeSong.favorite ? 'currentColor' : 'none'}
-              style={{ color: activeSong.favorite ? 'var(--accent)' : 'var(--text-secondary)' }}
+              fill={activeSongFavorite ? 'currentColor' : 'none'}
+              style={{ color: activeSongFavorite ? 'var(--accent)' : 'var(--text-secondary)' }}
             />
           </button>
         )}

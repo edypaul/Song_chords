@@ -74,7 +74,7 @@ export default function SongSelectionBar({ selected, onClear }: Props): React.Re
     <>
       <div className="flex items-center">
       <div
-        className="flex items-center gap-2 px-3 py-1"
+        className="app-toolbar flex items-center gap-2 px-3 py-1"
         style={{
           background: 'transparent',
           opacity: disabledOpacity,

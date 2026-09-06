@@ -260,6 +260,16 @@ export default function SongViewPage(): React.ReactElement {
   // room. When hidden, a slim "show toolbar" tab stays visible so the
   // user can always bring it back.
   const [toolbarHidden, setToolbarHidden] = useState(false);
+  // Hiding the toolbar must never leave keyboard focus trapped on a
+  // control inside it — a focused select/checkbox survives the
+  // collapse invisibly (toolbar focus outlines are suppressed) and
+  // swallows every shortcut key. Drop focus back to the page whenever
+  // the toolbar goes away. Mirrors PerformPage.
+  useEffect(() => {
+    if (!toolbarHidden) return;
+    const el = document.activeElement;
+    if (el instanceof HTMLElement && el !== document.body) el.blur();
+  }, [toolbarHidden]);
   // Sidebar collapse state (shared with AppShell via the sidebar
   // store) so we can hide it during auto-scroll for a clean read.
   const setSidebarCollapsed = useSidebarStore((s) => s.setCollapsed);
@@ -766,7 +776,16 @@ export default function SongViewPage(): React.ReactElement {
 
   if (performanceMode) {
     return (
-      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--bg)' }}>
+      <div
+        className="fixed inset-0 z-50 flex flex-col"
+        // no-drag: this overlay paints over the frameless-window title
+        // bar, but the title bar's -webkit-app-region: drag zone eats
+        // REAL mouse clicks at the window level regardless of z-index.
+        // Without this, every control in the top ~32px (the show-
+        // toolbar arrow, the exit ✕) is dead whenever the app is not
+        // in native fullscreen (e.g. right after Escape drops it).
+        style={{ background: 'var(--bg)', WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
         {/* Minimalist perform-mode top bar: exit icon only.
             Every other song-view control (transpose, view toggles,
             annotations, trainer, cast, etc.) is still reachable via
@@ -777,7 +796,7 @@ export default function SongViewPage(): React.ReactElement {
             without stealing vertical space. */}
         <button
           onClick={exitPerformance}
-          className="absolute top-3 right-3 z-10 p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors"
+          className="absolute top-3 right-3 z-10 p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors outline-none"
           style={{ color: 'var(--text-muted)' }}
           title={`${t('songView.perf.exitTooltip')}${hint('toggleFullscreen')}`}
           aria-label={t('songView.perf.exit')}
@@ -977,7 +996,7 @@ export default function SongViewPage(): React.ReactElement {
            transition: 'opacity 200ms ease',
          }}
        >
-      <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap min-w-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
+      <div className="app-toolbar flex items-center gap-3 px-4 py-3 border-b flex-wrap min-w-0" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
         {/* Title block — back + title/artist + key. Natural width; stays on
            the first row and lets its title truncate (max-w + min-w-0) so it
            never crowds the controls off the row. */}
