@@ -347,6 +347,20 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Paging to another setlist item (arrow keys, chevrons, thumbnail
+  // clicks, swipe — they all move `activeIndex`) brings the toolbar
+  // back and clears the end-of-song parked state. After a song
+  // finished auto-scrolling the toolbar is hidden awaiting Space; the
+  // next/previous song should start with the full chrome visible.
+  // (If auto-scroll is still actively running across the change, the
+  // toolbar stays hidden — that's the mid-scroll rule.)
+  useEffect(() => {
+    setAtBottomAwaitingSpace(false);
+    autoScrollSessionRef.current = null;
+    usePlayerStore.setState({ autoScrollHitBottom: false });
+    if (!usePlayerStore.getState().autoScrollActive) setToolbarHidden(false);
+  }, [activeIndex]);
+
   // The perform page runs in native fullscreen. Closing the chord
   // modal with Escape makes the browser drop fullscreen (a
   // non-cancelable UA action), so re-request it synchronously inside
@@ -530,42 +544,57 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
 
   return (
     <div className="fixed inset-0 flex flex-col" style={{ background: 'var(--bg)', zIndex: 100 }}>
-      {/* Slim strip to bring the toolbar back when it's hidden.
-          Rendered ONLY when the toolbar is hidden — no grid-rows
-          collapse animation, no layered pointer-events tricks, no
-          overlap with the toolbar's DOM. When present, it's a plain
-          22px-tall bar with a centred button as the ONLY click
-          target. When absent, nothing in this region is interactive
-          — the toolbar row below takes its place. */}
-      {toolbarHidden && (
-        <div
-          className="shrink-0 flex items-center justify-center border-b"
-          style={{
-            height: 22,
-            borderColor: 'var(--border)',
-            background: 'var(--bg-secondary)',
-          }}
-        >
+      {/* Slim tab to bring the toolbar back when it's hidden. Always
+          mounted; collapses with the same grid-rows animation as the
+          toolbar (mirrors SongViewPage) so show/hide glides instead of
+          popping — the collapsed state is 0px tall and its button is
+          untabbable, so nothing hidden can eat clicks. */}
+      <div
+        className="grid shrink-0 overflow-hidden"
+        style={{
+          gridTemplateRows: toolbarHidden ? '1fr' : '0fr',
+          transition: 'grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+        <div className="min-h-0 overflow-hidden">
           <button
             onClick={() => setToolbarHidden(false)}
-            className="flex items-center justify-center gap-1.5 text-xs rounded-md px-3 py-0.5 hover:bg-[var(--surface-elevated)] transition-colors"
-            style={{ color: 'var(--text-muted)', cursor: 'pointer' }}
+            className="flex items-center justify-center gap-1.5 w-full border-b text-xs hover:bg-[var(--surface-elevated)] transition-colors"
+            style={{
+              height: 22,
+              borderColor: 'var(--border)',
+              background: 'var(--bg-secondary)',
+              color: 'var(--text-muted)',
+              opacity: toolbarHidden ? 1 : 0,
+              transition: 'opacity 200ms ease 120ms',
+            }}
             title={`${t('perform.showToolbar')}${hint('toggleToolbar')}`}
             aria-label={t('perform.showToolbar')}
+            tabIndex={toolbarHidden ? 0 : -1}
           >
             <ChevronDown size={14} />
             <span>{t('perform.showToolbar')}</span>
           </button>
         </div>
-      )}
-      {/* Top bar — mounted only when the toolbar is showing. The
-          show-tab above handles the hidden state; conditionally
-          rendering both keeps the DOM small and eliminates the layered
-          pointer-events / visibility tricks that were previously
-          needed to stop the collapsed toolbar's descendants from
-          eating clicks intended for the show-tab. */}
-      {!toolbarHidden && (
-      <div className="shrink-0"><div>
+      </div>
+      {/* Top bar — always mounted inside an animated grid whose single
+          row collapses between 1fr (open) and 0fr (hidden), with the
+          content fading alongside. Same technique as SongViewPage so
+          both surfaces animate identically. */}
+      <div
+        className="grid shrink-0 overflow-hidden"
+        style={{
+          gridTemplateRows: toolbarHidden ? '0fr' : '1fr',
+          transition: 'grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1)',
+        }}
+      >
+       <div
+         className="min-h-0 overflow-hidden"
+         style={{
+           opacity: toolbarHidden ? 0 : 1,
+           transition: 'opacity 200ms ease',
+         }}
+       >
       <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap" style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}>
         <button onClick={exitPerform} className="p-2 rounded-lg hover:bg-[var(--surface-elevated)]">
           <X size={16} style={{ color: 'var(--text-secondary)' }} />
@@ -963,7 +992,6 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
       </div>
        </div>
       </div>
-      )}
 
       {/* Chord bar — top */}
       {chordBarVisible && chordBarPosition === 'top' && displayedSong && !isNoteActive && (
