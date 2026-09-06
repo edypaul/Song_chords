@@ -604,6 +604,8 @@ export const en = {
   'perform.stylePresetMyPresets': 'My Presets',
   'perform.stylePresetCustom': 'Custom',
   'perform.backToTop': 'Back to top',
+  'perform.infoBar': 'Info bar',
+  'perform.infoBarTitle': 'Show the previous/next song bar while the toolbar is hidden',
   'perform.positionCounter': '{index} / {total}',
 
   // ─── Song list table ─────────────────────────────────────────────

@@ -590,6 +590,8 @@ export const it: Partial<Dict> = {
   'perform.stylePresetMyPresets': 'I miei preset',
   'perform.stylePresetCustom': 'Personalizzato',
   'perform.backToTop': 'Torna in alto',
+  'perform.infoBar': 'Barra info',
+  'perform.infoBarTitle': 'Mostra la barra con la canzone precedente/successiva quando la barra degli strumenti è nascosta',
   'perform.positionCounter': '{index} / {total}',
 
   // ─── Song list table ─────────────────────────────────────────────

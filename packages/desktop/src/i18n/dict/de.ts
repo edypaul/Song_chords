@@ -590,6 +590,8 @@ export const de: Partial<Dict> = {
   'perform.stylePresetMyPresets': 'Meine Vorlagen',
   'perform.stylePresetCustom': 'Benutzerdefiniert',
   'perform.backToTop': 'Zum Anfang',
+  'perform.infoBar': 'Info-Leiste',
+  'perform.infoBarTitle': 'Leiste mit vorherigem/nächstem Song anzeigen, während die Werkzeugleiste ausgeblendet ist',
   'perform.positionCounter': '{index} / {total}',
 
   // ─── Song list table ─────────────────────────────────────────────

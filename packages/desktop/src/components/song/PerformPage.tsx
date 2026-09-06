@@ -220,6 +220,22 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     setNavDirection('prev');
     setActiveIndex((i) => Math.max(i - 1, 0));
   }, []);
+
+  // Display names for the neighbouring items, shown (read-only) in the
+  // collapsed-toolbar strip so the performer keeps set context while
+  // the toolbar is hidden.
+  const miniTitle = (idx: number): string | null => {
+    const it = items[idx];
+    if (!it) return null;
+    if (it.type === 'note') return it.noteTitle?.trim() || '📝';
+    return toTitleCase(it.song?.title ?? '');
+  };
+  const prevMiniTitle = miniTitle(activeIndex - 1);
+  const nextMiniTitle = miniTitle(activeIndex + 1);
+  // Whether the informational strip (prev title · position · next
+  // title) appears while the toolbar is hidden. Toggled from the
+  // toolbar; session-local like the other perform toggles.
+  const [infoBarEnabled, setInfoBarEnabled] = useState(true);
   // Disable swipe while the annotation drawing panel is open —
   // otherwise a horizontal drag to draw a line/arrow triggers a
   // next-/prev-song navigation.
@@ -549,34 +565,98 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
           toolbar (mirrors SongViewPage) so show/hide glides instead of
           popping — the collapsed state is 0px tall and its button is
           untabbable, so nothing hidden can eat clicks. */}
+      {(() => {
+        // The strip shows while the toolbar is hidden AND it has
+        // something meaningful to display:
+        //   • checkbox ON  → the info content, whether auto-scroll is
+        //     running or not (arrow rides along, disabled mid-scroll);
+        //   • checkbox OFF → only when NOT auto-scrolling, and then
+        //     just the show-toolbar arrow. During a scroll an
+        //     unchecked strip would be an empty frame with a dead
+        //     arrow, so it collapses entirely.
+        const stripVisible = toolbarHidden && (infoBarEnabled || !autoScrollActive);
+        return (
       <div
         className="grid shrink-0 overflow-hidden"
         style={{
-          gridTemplateRows: toolbarHidden ? '1fr' : '0fr',
+          gridTemplateRows: stripVisible ? '1fr' : '0fr',
           transition: 'grid-template-rows 260ms cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         <div className="min-h-0 overflow-hidden">
-          <button
-            onClick={() => setToolbarHidden(false)}
-            className="flex items-center justify-center gap-1.5 w-full border-b text-xs hover:bg-[var(--surface-elevated)] transition-colors"
+          {/* Informational content plus (when not auto-scrolling) the
+              one action in this strip: the show-toolbar arrow. */}
+          <div
+            className="flex items-center justify-center gap-5 w-full border-b"
             style={{
-              height: 22,
+              height: 34,
+              fontSize: 14,
               borderColor: 'var(--border)',
               background: 'var(--bg-secondary)',
               color: 'var(--text-muted)',
-              opacity: toolbarHidden ? 1 : 0,
+              opacity: stripVisible ? 1 : 0,
               transition: 'opacity 200ms ease 120ms',
+              paddingLeft: 20,
+              paddingRight: 20,
             }}
-            title={`${t('perform.showToolbar')}${hint('toggleToolbar')}`}
-            aria-label={t('perform.showToolbar')}
-            tabIndex={toolbarHidden ? 0 : -1}
+            aria-hidden={!stripVisible}
           >
-            <ChevronDown size={14} />
-            <span>{t('perform.showToolbar')}</span>
-          </button>
+            <button
+              onClick={autoScrollActive ? undefined : () => setToolbarHidden(false)}
+              disabled={autoScrollActive}
+              className="p-2 rounded-lg hover:bg-[var(--surface-elevated)] transition-colors shrink-0 disabled:hover:bg-transparent"
+              style={{
+                background: 'transparent',
+                border: 0,
+                cursor: autoScrollActive ? 'not-allowed' : 'pointer',
+                opacity: autoScrollActive ? 0.35 : 1,
+              }}
+              title={`${t('perform.showToolbar')}${hint('toggleToolbar')}`}
+              aria-label={t('perform.showToolbar')}
+              tabIndex={stripVisible && !autoScrollActive ? 0 : -1}
+            >
+              <ChevronDown size={16} style={{ color: 'var(--text-secondary)' }} />
+            </button>
+            {infoBarEnabled && (<>
+            {/* Previous item */}
+            {prevMiniTitle && (
+              <span
+                className="truncate min-w-0"
+                style={{ color: 'var(--text-secondary)', maxWidth: 300, fontWeight: 500 }}
+              >
+                {prevMiniTitle}
+              </span>
+            )}
+            <span
+              className="font-mono rounded-full shrink-0"
+              style={{
+                fontVariantNumeric: 'tabular-nums',
+                whiteSpace: 'nowrap',
+                color: 'var(--text-primary)',
+                background: 'var(--surface-elevated)',
+                border: '1px solid var(--border)',
+                fontSize: 12.5,
+                padding: '2px 12px',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {t('perform.positionCounter', { index: activeIndex + 1, total })}
+            </span>
+            {/* Next item */}
+            {nextMiniTitle && (
+              <span
+                className="truncate min-w-0"
+                style={{ color: 'var(--text-secondary)', maxWidth: 300, fontWeight: 500 }}
+              >
+                {nextMiniTitle}
+              </span>
+            )}
+            </>)}
+          </div>
         </div>
       </div>
+        );
+      })()}
       {/* Top bar — always mounted inside an animated grid whose single
           row collapses between 1fr (open) and 0fr (hidden), with the
           content fading alongside. Same technique as SongViewPage so
@@ -975,6 +1055,34 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             {svs.preset === 'custom' && <option value="custom">{t('perform.stylePresetCustom')}</option>}
           </select>
         )}
+
+        {/* Show/hide the informational strip that replaces the toolbar
+            while it's hidden (prev title · position · next title). */}
+        <label
+          className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md hover:bg-[var(--surface-elevated)] transition-colors"
+          style={{ color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}
+          title={t('perform.infoBarTitle')}
+        >
+          <input
+            type="checkbox"
+            checked={infoBarEnabled}
+            onChange={(e) => {
+              setInfoBarEnabled(e.target.checked);
+              // Drop focus right away — a focused checkbox would both
+              // swallow the Space shortcut (play/pause auto-scroll)
+              // and get toggled by it. After blurring, Space goes back
+              // to the page shortcuts.
+              e.target.blur();
+            }}
+            onKeyDown={(e) => {
+              // Belt and braces: never let Space (or Enter) toggle the
+              // checkbox from the keyboard — Space is the auto-scroll
+              // gesture on this page.
+              if (e.key === ' ' || e.key === 'Enter') e.preventDefault();
+            }}
+          />
+          {t('perform.infoBar')}
+        </label>
 
         {/* Collapse the toolbar — sits at the end of the left cluster
             (immediately after the last option) so the affordance is
