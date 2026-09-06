@@ -375,17 +375,25 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   };
 
   // Paging to another setlist item (arrow keys, chevrons, thumbnail
-  // clicks, swipe — they all move `activeIndex`) brings the toolbar
-  // back and clears the end-of-song parked state. After a song
-  // finished auto-scrolling the toolbar is hidden awaiting Space; the
-  // next/previous song should start with the full chrome visible.
-  // (If auto-scroll is still actively running across the change, the
-  // toolbar stays hidden — that's the mid-scroll rule.)
+  // clicks, swipe — they all move `activeIndex`) clears the
+  // end-of-song parked state. Whether the toolbar comes back depends
+  // on how the previous song was left:
+  //   • Song ENDED via auto-scroll (parked at the bottom awaiting
+  //     Space) → the toolbar STAYS HIDDEN: paging on from a finished
+  //     song is part of the performing flow, so the next song starts
+  //     chrome-free too.
+  //   • Auto-scroll still actively running across the change → stays
+  //     hidden (the mid-scroll rule).
+  //   • Anything else (manual paging with the toolbar open, paused
+  //     scroll, …) → toolbar shown.
   useEffect(() => {
+    // Read BEFORE clearing — this flag is what marks "parked at the
+    // bottom after auto-scroll finished".
+    const endedAtBottom = usePlayerStore.getState().autoScrollHitBottom;
     setAtBottomAwaitingSpace(false);
     autoScrollSessionRef.current = null;
     usePlayerStore.setState({ autoScrollHitBottom: false });
-    if (!usePlayerStore.getState().autoScrollActive) setToolbarHidden(false);
+    if (!usePlayerStore.getState().autoScrollActive && !endedAtBottom) setToolbarHidden(false);
   }, [activeIndex]);
 
   // The perform page runs in native fullscreen. Closing the chord
