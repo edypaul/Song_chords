@@ -68,7 +68,7 @@ export { chordsOverLyricsToChordPro, chordProToChordsOverLyrics, detectSongForma
 export { bulkReplaceChord, tokenizeChordSpans, uniqueChordNames, isValidChordName } from './utils/chord-edit';
 export type { ChordSpan, BulkReplaceResult } from './utils/chord-edit';
 export { resolveChordVariation } from './utils/chord-variation';
-export { importFromString } from './utils/file-importer';
+export { importFromString, importSongsFromJson } from './utils/file-importer';
 export { toLatin, fromLatin, formatChord, formatKey, normalizeContentToLetter } from './utils/chord-notation';
 
 // Chord diagrams

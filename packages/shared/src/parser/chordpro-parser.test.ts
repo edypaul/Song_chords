@@ -43,6 +43,45 @@ describe('parseChordPro', () => {
     expect(result.metadata.timeSig).toBe('3/4');
   });
 
+  it('extracts extended metadata directives (year / genre / language)', () => {
+    const result = parseChordPro('{year: 1999}\n{genre: Rock}\n{language: Spanish}');
+    expect(result.metadata.year).toBe(1999);
+    expect(result.metadata.genre).toBe('Rock');
+    expect(result.metadata.language).toBe('Spanish');
+  });
+
+  it('extracts {meta: <name> <value>} directives into metadata', () => {
+    const input = [
+      '{meta: difficulty 3}',
+      '{meta: tags rock, worship; live}',
+      '{meta: link https://youtu.be/abc123}',
+      '{meta: genre Ballad}',
+    ].join('\n');
+    const result = parseChordPro(input);
+    expect(result.metadata.difficulty).toBe(3);
+    expect(result.metadata.tags).toEqual(['rock', 'worship', 'live']);
+    expect(result.metadata.link).toBe('https://youtu.be/abc123');
+    expect(result.metadata.genre).toBe('Ballad');
+  });
+
+  it('accumulates multi-line notes from repeated {meta: notes} directives', () => {
+    const input = '{meta: notes First line}\n{meta: notes}\n{meta: notes Third line}';
+    const result = parseChordPro(input);
+    expect(result.metadata.notes).toBe('First line\n\nThird line');
+  });
+
+  it('does not render {meta:} lines as section chips', () => {
+    const result = parseChordPro('{meta: tags rock}\nHello');
+    expect(result.lines[0]!.isSection).toBe(false);
+    expect(result.lines[0]!.isDirective).toBe(true);
+  });
+
+  it('ignores unknown {meta:} names without creating sections', () => {
+    const result = parseChordPro('{meta: sorttitle Amazing}');
+    expect(result.lines[0]!.isSection).toBe(false);
+    expect(result.metadata).toEqual({});
+  });
+
   it('extracts multiple metadata directives', () => {
     const input = `{title: My Song}
 {artist: Me}

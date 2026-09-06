@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload, AlertCircle, Trash2, Pencil, ListPlus, ListMusic, Star, ClipboardPaste, Copy } from 'lucide-react';
-import { importFromString, useSongStore, useSetListStore, useSettingsStore } from '@song-chords/shared';
+import { importFromString, importSongsFromJson, useSongStore, useSetListStore, useSettingsStore } from '@song-chords/shared';
 import type { Song, SongCreateInput } from '@song-chords/shared';
 import { db } from '../ipc/ipc-client';
 import { toTitleCase } from '../utils/text';
@@ -21,8 +21,8 @@ interface PendingImport {
   favorite?: boolean;
 }
 
-const SUPPORTED_EXTENSIONS = new Set(['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt']);
-const SUPPORTED_EXT_LABEL = '.cho, .chordpro, .chopro, .crd, .pro, .txt';
+const SUPPORTED_EXTENSIONS = new Set(['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt', 'json']);
+const SUPPORTED_EXT_LABEL = '.cho, .chordpro, .chopro, .crd, .pro, .txt, .json';
 
 function getExtension(filename: string): string {
   const dot = filename.lastIndexOf('.');
@@ -147,11 +147,18 @@ export default function ImportPage(): React.ReactElement {
       }
       try {
         const content = await window.electronAPI.files.readFile(filePath);
-        const input = importFromString(content, filename);
-        next.push({ id: makeId(), filename, input, selected: true });
-        if (isDuplicate(input)) {
-          const label = [input.title, input.artist].filter(Boolean).map(toTitleCase).join(' — ');
-          duplicates.push(label || filename);
+        // .json files are this app's own full-record export (single song or
+        // an array of songs) — every metadata field transfers. Everything
+        // else goes through the ChordPro/plain-text detector.
+        const inputs = getExtension(filename) === 'json'
+          ? importSongsFromJson(content)
+          : [importFromString(content, filename)];
+        for (const input of inputs) {
+          next.push({ id: makeId(), filename, input, selected: true });
+          if (isDuplicate(input)) {
+            const label = [input.title, input.artist].filter(Boolean).map(toTitleCase).join(' — ');
+            duplicates.push(label || filename);
+          }
         }
       } catch (e) {
         next.push({ id: makeId(), filename, selected: false, error: String(e) });
@@ -177,7 +184,7 @@ export default function ImportPage(): React.ReactElement {
 
   const handleBrowse = async () => {
     const paths = await window.electronAPI.files.openDialog([
-      { name: t('import.fileFilter.chordproText'), extensions: ['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt'] },
+      { name: t('import.fileFilter.chordproText'), extensions: ['cho', 'chordpro', 'chopro', 'crd', 'pro', 'txt', 'json'] },
       { name: t('import.fileFilter.allFiles'), extensions: ['*'] },
     ]);
     if (paths) await ingestFiles(paths);
@@ -196,6 +203,26 @@ export default function ImportPage(): React.ReactElement {
       if (!text.trim()) {
         setImportNotice({ kind: 'failed', message: t('import.clipboard.empty') });
         return;
+      }
+      // Pasted JSON (a copied .json export) gets the full-metadata pipeline.
+      // Only treated as JSON when it actually parses as a song export;
+      // otherwise the text falls through to the ChordPro/plain-text path so
+      // lyrics that merely start with "{" or "[" still import normally.
+      if (/^[[{]/.test(text.trim())) {
+        try {
+          const inputs = importSongsFromJson(text);
+          const jsonFilename = `pasted-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.json`;
+          setPending((prev) => [
+            ...inputs.map((input) => ({ id: makeId(), filename: jsonFilename, input, selected: true })),
+            ...prev,
+          ]);
+          const dup = inputs.find((i) => isDuplicate(i));
+          if (dup) {
+            const label = [dup.title, dup.artist].filter(Boolean).map(toTitleCase).join(' — ');
+            setImportNotice({ kind: 'duplicate', message: t('import.duplicate.one', { title: label }) });
+          }
+          return;
+        } catch { /* not a song JSON — fall through to text import */ }
       }
       const filename = `pasted-${new Date().toISOString().slice(11, 19).replace(/:/g, '')}.chordpro`;
       try {

@@ -46,7 +46,48 @@ const METADATA_DIRECTIVES = new Set([
   'time',
   'duration', 'length',
   'copyright', 'ccli',
+  'year', 'genre', 'language',
 ]);
+
+// Names accepted inside {meta: <name> <value>} — the ChordPro-standard
+// escape hatch for metadata without a dedicated directive. This is how the
+// app's own exports carry the fields the song form collects (genre, tags,
+// difficulty, notes, link, …) so a shared .chordpro file re-imports with
+// its full metadata. `notes` may appear multiple times (one per line) and
+// accumulates with newlines.
+const META_NUMBER_KEYS = new Set<keyof SongMetadata>(['tempo', 'capo', 'year', 'difficulty']);
+const META_NAME_TO_KEY: Record<string, keyof SongMetadata> = {
+  title: 'title', artist: 'artist', subtitle: 'artist', album: 'album',
+  key: 'key', tempo: 'tempo', time: 'timeSig', capo: 'capo',
+  duration: 'duration', copyright: 'copyright', ccli: 'ccli',
+  year: 'year', genre: 'genre', language: 'language', lang: 'language',
+  difficulty: 'difficulty', tags: 'tags', notes: 'notes', link: 'link',
+};
+
+function applyMetaDirective(metadata: SongMetadata, rawValue: string): void {
+  // Value shape: "<name> <rest…>" (or "<name>: <rest…>").
+  const m = /^([\w-]+):?\s*(.*)$/s.exec(rawValue.trim());
+  if (!m) return;
+  const key = META_NAME_TO_KEY[m[1]!.toLowerCase()];
+  const value = (m[2] ?? '').trim();
+  if (!key) return; // unknown meta name — swallowed, never rendered
+  if (key === 'notes') {
+    metadata.notes = metadata.notes === undefined ? value : `${metadata.notes}\n${value}`;
+    return;
+  }
+  if (value === '') return;
+  if (key === 'tags') {
+    const tags = value.split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+    if (tags.length) metadata.tags = tags;
+    return;
+  }
+  if (META_NUMBER_KEYS.has(key)) {
+    const n = parseInt(value, 10);
+    if (Number.isFinite(n)) (metadata as Record<string, unknown>)[key] = n;
+    return;
+  }
+  (metadata as Record<string, unknown>)[key] = value;
+}
 
 function parseChordString(raw: string): Pick<ChordToken, 'chord' | 'root' | 'quality' | 'bass'> {
   const chord = raw.trim();
@@ -118,6 +159,9 @@ function directiveNameToMetadataKey(name: string): keyof SongMetadata | null {
     duration: 'duration', length: 'duration',
     copyright: 'copyright',
     ccli: 'ccli',
+    year: 'year',
+    genre: 'genre',
+    language: 'language',
   };
   return map[name] ?? null;
 }
@@ -247,12 +291,24 @@ export function parseChordPro(rawContent: string): ParsedSong {
       if (METADATA_DIRECTIVES.has(name)) {
         const metaKey = directiveNameToMetadataKey(name);
         if (metaKey && value !== undefined) {
-          if (metaKey === 'tempo' || metaKey === 'capo') {
+          if (META_NUMBER_KEYS.has(metaKey)) {
             (metadata as Record<string, unknown>)[metaKey] = parseInt(value, 10);
           } else {
             (metadata as Record<string, unknown>)[metaKey] = value;
           }
         }
+        const dirToken: DirectiveToken = { type: 'directive', name, value };
+        lines.push({ tokens: [dirToken], hasChords: false, isDirective: true, isSection: false, isComment: false, isEmpty: false });
+        continue;
+      }
+
+      // {meta: <name> <value>} — ChordPro's generic metadata directive.
+      // Used by this app's exports for fields without a dedicated
+      // directive (genre, tags, difficulty, notes, link, …). Handled
+      // before the free-form section fallback so these lines populate
+      // metadata instead of rendering as section chips.
+      if (name === 'meta') {
+        if (value !== undefined) applyMetaDirective(metadata, value);
         const dirToken: DirectiveToken = { type: 'directive', name, value };
         lines.push({ tokens: [dirToken], hasChords: false, isDirective: true, isSection: false, isComment: false, isEmpty: false });
         continue;

@@ -128,8 +128,50 @@ function lineToChordAboveLyric(line: ParsedLine): string[] {
   return out;
 }
 
+/** Escape a value for use inside a `{name: value}` directive — braces would
+ *  terminate the directive early and break the line's parse. */
+function directiveValue(v: string): string {
+  return v.replace(/[{}]/g, '').replace(/\r?\n/g, ' ').trim();
+}
+
+/**
+ * ChordPro export = the stored content plus a metadata header carrying every
+ * field the song form collects, so sharing the file with another installation
+ * re-imports the song with its full metadata. Standard directives are used
+ * where ChordPro defines them; app-specific fields ride on the spec's generic
+ * `{meta: <name> <value>}` directive (multi-line notes become one
+ * `{meta: notes <line>}` per line). Fields the content itself already
+ * declares are not duplicated.
+ */
 export function toChordPro(song: Song): string {
-  return song.content;
+  const declared = parseChordPro(song.content).metadata;
+  const header: string[] = [];
+  const push = (line: string) => header.push(line);
+
+  if (!declared.title && song.title) push(`{title: ${directiveValue(song.title)}}`);
+  if (!declared.artist && song.artist) push(`{artist: ${directiveValue(song.artist)}}`);
+  if (!declared.album && song.album) push(`{album: ${directiveValue(song.album)}}`);
+  if (!declared.key && song.key) push(`{key: ${directiveValue(song.key)}}`);
+  if (!declared.tempo && song.tempo) push(`{tempo: ${song.tempo}}`);
+  if (!declared.timeSig && song.timeSig) push(`{time: ${directiveValue(song.timeSig)}}`);
+  if (!declared.capo && song.capo > 0) push(`{capo: ${song.capo}}`);
+  if (!declared.duration && song.duration) push(`{duration: ${directiveValue(song.duration)}}`);
+  if (!declared.year && song.year) push(`{year: ${song.year}}`);
+  if (!declared.genre && song.genre) push(`{genre: ${directiveValue(song.genre)}}`);
+  if (!declared.language && song.language) push(`{language: ${directiveValue(song.language)}}`);
+  if (!declared.difficulty && song.difficulty) push(`{meta: difficulty ${song.difficulty}}`);
+  if (!declared.tags?.length && song.tags.length > 0) {
+    push(`{meta: tags ${directiveValue(song.tags.join(', '))}}`);
+  }
+  if (!declared.link && song.link) push(`{meta: link ${directiveValue(song.link)}}`);
+  if (declared.notes === undefined && song.notes?.trim()) {
+    for (const line of song.notes.split(/\r?\n/)) {
+      push(`{meta: notes ${line.replace(/[{}]/g, '').trimEnd()}}`);
+    }
+  }
+
+  if (header.length === 0) return song.content;
+  return `${header.join('\n')}\n\n${song.content}`;
 }
 
 export function toPlainText(song: Song): string {

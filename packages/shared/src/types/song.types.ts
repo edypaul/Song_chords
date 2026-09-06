@@ -75,4 +75,17 @@ export interface SongMetadata {
   duration?: string;
   copyright?: string;
   ccli?: string;
+  // ── Extended metadata carried via {year:}/{genre:}/{language:} and
+  // {meta: <name> <value>} directives so a ChordPro export can round-trip
+  // the full song record between installations of this app.
+  year?: number;
+  genre?: string;
+  language?: string;
+  /** 1-5, same scale as Song.difficulty. */
+  difficulty?: number;
+  tags?: string[];
+  /** Multi-line — accumulated from one {meta: notes <line>} per line. */
+  notes?: string;
+  /** Streaming/audio URL (Song.link). */
+  link?: string;
 }
