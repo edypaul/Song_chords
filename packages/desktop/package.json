@@ -2,6 +2,7 @@
   "name": "@song-chords/desktop",
   "version": "1.0.0",
   "description": "Song Chords - Desktop App (Electron + React)",
+  "author": "Paul",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -44,6 +45,7 @@
   "build": {
     "appId": "com.songchords.desktop",
     "productName": "Song Chords",
+    "electronVersion": "31.7.7",
     "directories": {
       "output": "release",
       "buildResources": "build"
