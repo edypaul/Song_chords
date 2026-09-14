@@ -154,9 +154,26 @@ export function registerIpcHandlers(db: IDatabase): void {
       },
     });
     // `alwaysOnTop` with the default level only floats above other
-    // app windows — call again with the `floating` level so it
-    // stays visible while the main song view is focused too.
-    win.setAlwaysOnTop(true, 'floating');
+    // app windows. Use the `screen-saver` level so the popup also
+    // stays above the main window while it is in NATIVE FULLSCREEN
+    // (song view fullscreen / perform mode) — the plain topmost band
+    // is not reliably above a fullscreen window on Windows.
+    const assertOnTop = () => {
+      if (!win.isDestroyed() && !win.isAlwaysOnTop()) win.setAlwaysOnTop(true, 'screen-saver');
+    };
+    win.setAlwaysOnTop(true, 'screen-saver');
+    // Some pages (YouTube's watch page among them) make Windows strip
+    // the popup's topmost style shortly after load — observed as
+    // isAlwaysOnTop() flipping to false with no Electron call. In
+    // fullscreen perform mode that buries the player behind the app
+    // the moment the user clicks the song ("the video player closed").
+    // Re-assert on the moments it matters (after load, and on blur —
+    // i.e. when the user clicks back into the main window) plus a
+    // cheap watchdog for anything else.
+    win.webContents.on('did-finish-load', assertOnTop);
+    win.on('blur', assertOnTop);
+    const onTopWatchdog = setInterval(assertOnTop, 2000);
+    win.on('closed', () => clearInterval(onTopWatchdog));
     win.setMenuBarVisibility(false);
     win.setAutoHideMenuBar(true);
     win.webContents.setWindowOpenHandler(({ url: openUrl }) => {
