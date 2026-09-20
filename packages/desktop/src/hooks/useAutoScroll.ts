@@ -1,22 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@song-chords/shared';
-import {
-  buildKnots, knotsTimeToPos, knotsPosToTime, sungDurationFor,
-  type Knot, type ProfileEntry,
-} from '../utils/duration-profile';
-
-/** Fire offset for {pause: N} markers, measured from the viewport's top
- * edge. Zero = the marker fires the instant its bottom border meets the
- * top of the visible area (i.e., the chip has just scrolled out of view). */
-const PAUSE_FIRE_OFFSET_PX = 0;
-
-/**
- * Where the "line being sung" sits in the viewport during
- * duration-paced scrolling, as a fraction of the container height
- * from the top. Musicians read a bit above centre; keeping the sung
- * line ~35 % down leaves the upcoming lines visible below it.
- */
-const READ_ANCHOR_FRACTION = 0.35;
+import { MIN_SUNG_FRACTION } from '../utils/duration-profile';
 
 function parseDurationToSeconds(duration: string | undefined): number | null {
   if (!duration) return null;
@@ -26,6 +10,62 @@ function parseDurationToSeconds(duration: string | undefined): number | null {
   const secs = parseInt(parts[1]!, 10);
   if (isNaN(mins) || isNaN(secs) || secs >= 60) return null;
   return mins * 60 + secs;
+}
+
+interface PauseMeasure {
+  /** {pause: N} markers with their freeze position (see below), sorted. */
+  pauseMarks: { el: HTMLElement; y: number; seconds: number }[];
+  totalPause: number;
+}
+
+/**
+ * Measure the {pause: N} markers of a scroll container in SCROLL-SPACE
+ * coordinates. Shared by both scroll modes so pauses behave
+ * identically on every page.
+ *
+ * Zoom: the song body can carry CSS `zoom` (perform-mode zoom).
+ * Chromium's legacy zoom (< 128; Electron 31 = 126) reports
+ * getBoundingClientRect in UNZOOMED coordinates while
+ * scrollTop/scrollHeight are in zoomed space — multiply rect offsets
+ * by the accumulated zoom between the marker and the container, with
+ * an offsetHeight calibration so a future Chromium (≥ 128,
+ * standardized zoom, rects ARE scaled) doesn't get double-corrected.
+ *
+ * Freeze positions: each marker's `y` is the SCROLL POSITION where the
+ * page freezes — the directive's OWN position, so the hold happens
+ * exactly where the {pause} is placed (chip at the top of the view),
+ * the first pause included.
+ */
+function measurePauses(el: HTMLElement): PauseMeasure {
+  const cTop = el.getBoundingClientRect().top;
+  const base = el.scrollTop;
+  const markEls = Array.from(el.querySelectorAll<HTMLElement>('[data-pause]'))
+    .filter((m) => {
+      const r = m.getBoundingClientRect();
+      return r.height > 0 || r.width > 0; // skip hidden copies
+    });
+  let zoom = 1;
+  for (let n = markEls[0]?.parentElement ?? null; n && n !== el; n = n.parentElement) {
+    const z = parseFloat(getComputedStyle(n).zoom as unknown as string);
+    if (z && z > 0 && z !== 1) zoom *= z;
+  }
+  if (zoom !== 1) {
+    const probe = markEls.find((m) => m.offsetHeight > 0);
+    if (probe) {
+      const ratio = probe.getBoundingClientRect().height / probe.offsetHeight;
+      zoom = zoom / Math.max(ratio, 0.01);
+      if (Math.abs(zoom - 1) < 0.02) zoom = 1;
+    }
+  }
+  let totalPause = 0;
+  const pauseMarks: PauseMeasure['pauseMarks'] = [];
+  for (const m of markEls) {
+    const seconds = Math.max(0, parseFloat(m.dataset['pause'] ?? '0') || 0);
+    totalPause += seconds;
+    pauseMarks.push({ el: m, y: (m.getBoundingClientRect().top - cTop) * zoom + base, seconds });
+  }
+  pauseMarks.sort((a, b) => a.y - b.y);
+  return { pauseMarks, totalPause };
 }
 
 export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void {
@@ -50,30 +90,21 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
   }, []);
   // Fractional scroll position we're tracking internally (avoids rounding losing sub-pixel progress)
   const posRef = useRef<number>(0);
-  // Duration mode tracks the READING position (the content y of the
-  // line currently being sung), not the scrollTop. scrollTop follows
-  // it, clamped so the sung line stays at the anchor point. See the
-  // duration branch in `tick` for the full model.
-  const readPosRef = useRef<number>(0);
   // The scrollTop we last programmatically set — used to detect manual scroll
   const lastSetRef = useRef<number>(0);
-  // Duration-mode time→position profile, built from the rendered
-  // content lines (see utils/duration-profile.ts). Rebuilt whenever
-  // the container geometry changes — zoom, inline-diagram toggle,
-  // window resize — with the elapsed sung time carried across the
-  // rebuild so the reading position lands on the same LINE in the new
-  // layout.
-  const profileRef = useRef<{ knots: Knot[]; sungDuration: number; geomKey: string } | null>(null);
-  // Elapsed SUNG seconds (excludes {pause} holds). null = derive from
-  // the current reading position on the next frame (fresh start, or
-  // the user scrolled manually).
-  const elapsedRef = useRef<number | null>(null);
   // Timestamp (performance.now()) until which scrolling is paused because
   // we crossed a {pause: N} marker. 0 = no pause active.
   const pauseUntilRef = useRef<number>(0);
   // Markers we've already triggered this run so a single pause directive
   // doesn't keep firing every frame.
   const consumedMarkersRef = useRef<Set<Element>>(new Set());
+  // {pause: N} freeze positions + total hold seconds (see
+  // measurePauses) — shared by BOTH scroll modes, rebuilt on geometry
+  // change (zoom, inline-diagram toggle, resize).
+  const pauseMarksRef = useRef<{ key: string; marks: PauseMeasure['pauseMarks']; totalPause: number } | null>(null);
+  // Whether this run already consumed the marks the start position was
+  // past (done once, on the first marks build of the run).
+  const marksSeededRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!autoScrollActive) {
@@ -86,8 +117,8 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
       // markers again.
       pauseUntilRef.current = 0;
       consumedMarkersRef.current = new Set();
-      profileRef.current = null;
-      elapsedRef.current = null;
+      pauseMarksRef.current = null;
+      marksSeededRef.current = false;
       return;
     }
 
@@ -96,35 +127,11 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
     if (container) {
       posRef.current = container.scrollTop;
       lastSetRef.current = container.scrollTop;
-      // Duration mode: seed the reading position consistently with the
-      // anchor ramp in the tick below (anchorEff = min(anchor,
-      // readPos/2)), so starting/resuming never jumps the page:
-      //   • at the very top → 0 (the singer starts at the first line);
-      //   • within the ramp zone (scrollTop < anchor) → 2·scrollTop;
-      //   • below it → scrollTop + anchor (sung line at the anchor).
-      const seedAnchor = container.clientHeight * READ_ANCHOR_FRACTION;
-      readPosRef.current = container.scrollTop <= 2
-        ? 0
-        : container.scrollTop < seedAnchor
-          ? 2 * container.scrollTop
-          : container.scrollTop + seedAnchor;
-      // Fresh run: rebuild the duration profile and re-derive elapsed
-      // sung time from the seeded reading position on the first frame.
-      profileRef.current = null;
-      elapsedRef.current = null;
-      // Consume any pause markers whose TOP edge is already at / above
-      // the fire line at startup. We use getBoundingClientRect so the
-      // measurement stays correct even when CSS `zoom` is applied to the
-      // song body (perform-mode zoom) — offsetTop alone reports pre-zoom
-      // layout coords and would mis-trigger when zoom ≠ 100%.
-      const startMarkers = container.querySelectorAll<HTMLElement>('[data-pause]');
-      const startContainerTop = container.getBoundingClientRect().top;
-      for (const m of startMarkers) {
-        const relTop = m.getBoundingClientRect().top - startContainerTop;
-        if (relTop <= PAUSE_FIRE_OFFSET_PX) {
-          consumedMarkersRef.current.add(m);
-        }
-      }
+      // Markers the start position is already past are consumed on
+      // the first marks build of the run (in the tick below) —
+      // nothing to pre-consume here.
+      pauseMarksRef.current = null;
+      marksSeededRef.current = false;
     }
 
     const durationSeconds = parseDurationToSeconds(activeSong?.duration);
@@ -144,168 +151,95 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
         // zoom mid-run re-syncs both trackers to the new geometry.)
         if (Math.abs(el.scrollTop - lastSetRef.current) > 2) {
           posRef.current = el.scrollTop;
-          // Same seeding rule as at start (see above) so re-anchoring
-          // after a manual scroll is continuous with the anchor ramp.
-          const a = el.clientHeight * READ_ANCHOR_FRACTION;
-          readPosRef.current = el.scrollTop < a ? 2 * el.scrollTop : el.scrollTop + a;
-          // Elapsed sung time no longer matches the page position —
-          // re-derive it from the new reading position next frame.
-          elapsedRef.current = null;
+          // A jump FORWARD skips the freeze positions in between —
+          // consume them so they don't all fire in a chain at the
+          // landing point. (Backward jumps: already-fired marks stay
+          // consumed — each pause holds once per run.)
+          if (pauseMarksRef.current) {
+            for (const pm of pauseMarksRef.current.marks) {
+              if (pm.y < el.scrollTop - 1) consumedMarkersRef.current.add(pm.el);
+            }
+          }
         }
 
-        // {pause: N} markers — fire when the TOP edge of the indicator
-        // chip reaches the top of the visible scroll container. We
-        // measure with getBoundingClientRect so the comparison stays
-        // accurate even when the inner song body has CSS `zoom` applied
-        // (perform-mode zoom). Each marker fires only once per run.
-        const markers = el.querySelectorAll<HTMLElement>('[data-pause]');
-        const containerTop = el.getBoundingClientRect().top;
-        for (const marker of markers) {
-          if (consumedMarkersRef.current.has(marker)) continue;
-          const relTop = marker.getBoundingClientRect().top - containerTop;
-          if (relTop <= PAUSE_FIRE_OFFSET_PX) {
-            const seconds = parseFloat(marker.dataset.pause ?? '0');
-            if (seconds > 0) {
-              pauseUntilRef.current = timestamp + seconds * 1000;
+        // Mode selects the pacing; 'duration' needs a valid duration,
+        // otherwise it falls back to the speed slider so the toggle
+        // still scrolls.
+        const useDuration =
+          autoScrollMode === 'duration' && !!durationSeconds && durationSeconds > 0;
+
+        // The section navigator can mount a `[data-bottom-spacer]` div
+        // after the song content so trailing short sections can scroll
+        // to the top of the viewport. Auto-scroll has to ignore that
+        // spacer entirely — it MUST NOT scroll into or past the last
+        // song line into the empty spacer area. Both PACING (duration
+        // maps to song length, not song + spacer) and STOP DETECTION
+        // (we stop at song end, not spacer end) are computed against
+        // `totalScrollable`, which subtracts the spacer height.
+        const spacer = el.querySelector<HTMLElement>('[data-bottom-spacer]');
+        const spacerHeight = spacer ? spacer.offsetHeight : 0;
+        const totalScrollable = Math.max(0, el.scrollHeight - el.clientHeight - spacerHeight);
+
+        // {pause: N} — ONE rule for BOTH modes and every page: the
+        // page freezes EXACTLY WHERE THE DIRECTIVE IS PLACED, i.e.
+        // when scrollTop reaches the chip's own position (chip at the
+        // top of the view during the hold) — the first pause of the
+        // song included. A pause too deep for the scroll range to
+        // reach (inside the last screenful) fires at the end of the
+        // scrollable range.
+        {
+          const marksKey = `${el.scrollHeight}|${el.clientHeight}`;
+          if (!pauseMarksRef.current || pauseMarksRef.current.key !== marksKey) {
+            const { pauseMarks, totalPause } = measurePauses(el);
+            pauseMarksRef.current = { key: marksKey, marks: pauseMarks, totalPause };
+            if (!marksSeededRef.current) {
+              marksSeededRef.current = true;
+              // Freeze positions the run STARTS below were passed
+              // before this run began — don't fire them retroactively.
+              for (const pm of pauseMarksRef.current.marks) {
+                if (Math.min(pm.y, totalScrollable) < el.scrollTop - 1) {
+                  consumedMarkersRef.current.add(pm.el);
+                }
+              }
             }
-            consumedMarkersRef.current.add(marker);
-            // Only consume one marker per frame so back-to-back pauses
-            // don't all collapse into a single pause window.
-            break;
+          }
+          for (const pm of pauseMarksRef.current.marks) {
+            if (consumedMarkersRef.current.has(pm.el)) continue;
+            if (el.scrollTop >= Math.min(pm.y, totalScrollable) - 1) {
+              consumedMarkersRef.current.add(pm.el);
+              if (pm.seconds > 0) pauseUntilRef.current = timestamp + pm.seconds * 1000;
+              // Only one marker per frame so back-to-back pauses hold
+              // sequentially instead of collapsing into one window.
+              break;
+            }
           }
         }
 
         // Skip scrolling while a pause is active.
         const isPaused = pauseUntilRef.current > timestamp;
         if (!isPaused) {
-          // The section navigator can mount a `[data-bottom-spacer]` div
-          // after the song content so trailing short sections can scroll
-          // to the top of the viewport. Auto-scroll has to ignore that
-          // spacer entirely — it MUST NOT scroll into or past the last
-          // song line into the empty spacer area. Both PACING (duration
-          // maps to song length, not song + spacer) and STOP DETECTION
-          // (we stop at song end, not spacer end) are computed against
-          // `totalScrollable`, which subtracts the spacer height.
-          const spacer = el.querySelector<HTMLElement>('[data-bottom-spacer]');
-          const spacerHeight = spacer ? spacer.offsetHeight : 0;
-          const totalScrollable = Math.max(0, el.scrollHeight - el.clientHeight - spacerHeight);
-          // Mode selects the pacing; 'duration' needs a valid duration,
-          // otherwise it falls back to the speed slider so the toggle
-          // still scrolls.
-          const useDuration =
-            autoScrollMode === 'duration' && !!durationSeconds && durationSeconds > 0;
           if (useDuration) {
-            // ── Reading-anchor model over a content-line time map ───
-            // The singer reads the CONTENT top to bottom over the
-            // song's duration while the scroll keeps the sung line
-            // parked at the anchor point (~35 % down the view), with:
-            //   • ramped lead-in: from the top the ANCHOR grows from 0
-            //     to its full value at twice the reading rate, so the
-            //     page starts moving IMMEDIATELY at half speed while
-            //     the sung line drifts down to the anchor point;
-            //   • early finish: max scroll is reached once the last
-            //     screenful is fully visible, with the remaining
-            //     duration left for singing it — not at 0:00 left.
+            // ── Constant-rate duration model ────────────────────────
+            // ONE uniform speed for the whole song (user-specified:
+            // "smooth, same rate throughout"): the page — title and
+            // details block included — covers the full reading span
+            // (totalScrollable + clientHeight) in the song's duration
+            // MINUS its {pause: N} holds, which the scroller spends
+            // frozen at the markers instead. Because the span includes
+            // the final screenful, the bottom is reached EARLY, with
+            // that screenful's share of time left for singing it —
+            // not at 0:00.
             //
-            // Pacing comes from a piecewise time→position map built
-            // from the rendered lines (utils/duration-profile.ts)
-            // instead of a constant px/s, so that:
-            //   • inline chord diagrams: a diagram-inflated line gets
-            //     the same singing time as its plain rendering — its
-            //     extra pixels scroll faster, not longer;
-            //   • section titles / blanks / pause chips consume no
-            //     singing time (crossed inside neighbouring slices);
-            //   • {pause: N} holds are SUBTRACTED from the pacing
-            //     budget — the stored duration includes them, and the
-            //     scroller spends them stopped at the markers;
-            //   • zoom / diagram toggles / resizes rebuild the map
-            //     (geometry key below); elapsed sung time carries
-            //     over, so the reading position stays on the same
-            //     LINE in the new layout. Measurements use
-            //     getBoundingClientRect so CSS zoom is reflected.
-            const anchor = el.clientHeight * READ_ANCHOR_FRACTION;
-            const geomKey = `${el.scrollHeight}|${el.clientHeight}|${spacerHeight}`;
-            if (!profileRef.current || profileRef.current.geomKey !== geomKey) {
-              const entries: ProfileEntry[] = [];
-              const cTop = el.getBoundingClientRect().top;
-              const base = el.scrollTop;
-              const lineEls = Array.from(el.querySelectorAll<HTMLElement>('[data-scroll-weight]'));
-              // The song body can carry CSS `zoom` (perform-mode zoom).
-              // Chromium's legacy zoom (< 128; Electron 31 = 126)
-              // reports getBoundingClientRect in UNZOOMED coordinates
-              // while scrollTop/scrollHeight are in zoomed space —
-              // multiply rect offsets by the accumulated zoom between
-              // the line and the scroll container to land in scroll
-              // coordinates. (zoom = 1 everywhere → no-op.)
-              let zoom = 1;
-              for (let n = lineEls[0]?.parentElement ?? null; n && n !== el; n = n.parentElement) {
-                const z = parseFloat(getComputedStyle(n).zoom as unknown as string);
-                if (z && z > 0 && z !== 1) zoom *= z;
-              }
-              if (zoom !== 1) {
-                // Calibrate against the actual rect behaviour so this
-                // stays correct if Electron moves to Chromium ≥ 128
-                // (standardized zoom, where rects ARE scaled): compare
-                // a line's visual rect height to its layout
-                // offsetHeight. Legacy zoom → ratio ≈ 1 → keep the
-                // multiplier; standard zoom → ratio ≈ zoom → no
-                // correction needed.
-                const probe = lineEls.find((le) => le.offsetHeight > 0);
-                if (probe) {
-                  const ratio = probe.getBoundingClientRect().height / probe.offsetHeight;
-                  zoom = zoom / Math.max(ratio, 0.01);
-                  if (Math.abs(zoom - 1) < 0.02) zoom = 1;
-                }
-              }
-              for (const lineEl of lineEls) {
-                const w = parseFloat(lineEl.dataset['scrollWeight'] ?? '0');
-                if (!(w > 0)) continue;
-                const r = lineEl.getBoundingClientRect();
-                if (r.height <= 0 && r.width <= 0) continue; // not laid out
-                entries.push({
-                  y: (r.top - cTop) * zoom + base,
-                  bottom: (r.bottom - cTop) * zoom + base,
-                  w,
-                });
-              }
-              let totalPause = 0;
-              for (const m of el.querySelectorAll<HTMLElement>('[data-pause]')) {
-                totalPause += Math.max(0, parseFloat(m.dataset['pause'] ?? '0') || 0);
-              }
-              const sung = sungDurationFor(durationSeconds!, totalPause);
-              const knots = buildKnots(entries, sung);
-              // The run must be able to REACH the stop condition
-              // (scrollTop = totalScrollable). If unusually large
-              // trailing padding leaves the last line's bottom short
-              // of that, stretch the final slice to the scroll end so
-              // the scroller can't stall just before finishing.
-              if (knots.length > 0) {
-                const lastKnot = knots[knots.length - 1]!;
-                if (lastKnot.y < totalScrollable + anchor) lastKnot.y = totalScrollable + anchor;
-              }
-              profileRef.current = { knots, sungDuration: sung, geomKey };
-            }
-            const profile = profileRef.current;
-            if (profile.knots.length > 0) {
-              if (elapsedRef.current === null) {
-                elapsedRef.current = knotsPosToTime(profile.knots, readPosRef.current);
-              }
-              elapsedRef.current = Math.min(elapsedRef.current + deltaMs / 1000, profile.sungDuration);
-              readPosRef.current = Math.min(
-                knotsTimeToPos(profile.knots, elapsedRef.current),
-                totalScrollable + anchor,
-              );
-            } else {
-              // No tagged content lines (e.g. an empty song body):
-              // fall back to the constant-velocity reading model.
-              const v = (totalScrollable + el.clientHeight) / durationSeconds!;
-              readPosRef.current = Math.min(
-                readPosRef.current + v * (deltaMs / 1000),
-                totalScrollable + anchor,
-              );
-            }
-            const anchorEff = Math.min(anchor, readPosRef.current / 2);
-            posRef.current = Math.min(Math.max(readPosRef.current - anchorEff, 0), totalScrollable);
+            // Everything is measured live each frame, so zoom
+            // changes, inline-diagram toggles and window resizes
+            // re-pace immediately with no seams.
+            const totalPause = pauseMarksRef.current?.totalPause ?? 0;
+            const scrollTime = Math.max(
+              durationSeconds! - totalPause,
+              durationSeconds! * MIN_SUNG_FRACTION,
+            );
+            const v = (totalScrollable + el.clientHeight) / scrollTime;
+            posRef.current = Math.min(posRef.current + v * (deltaMs / 1000), totalScrollable);
           } else {
             const pxPerSec = (autoScrollSpeed / 100) * 120; // slider 1–100 → 1.2–120 px/s
             // Advance the internal position, but CLAMP to `totalScrollable`

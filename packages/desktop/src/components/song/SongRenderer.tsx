@@ -3,6 +3,7 @@ import type { ParsedSong, ParsedLine, ChordGridToken, SectionType, SongViewStyle
 import { useSettingsStore } from '@song-chords/shared';
 import ChordLine from './ChordLine';
 import ChordGrid from './ChordGrid';
+import { estimateSyllables, lineWeightFromSyllables } from '../../utils/duration-profile';
 
 interface Props {
   song: ParsedSong;
@@ -170,21 +171,41 @@ const RenderLine = memo(function RenderLine({
     'data-annot-section': String(sectionIndex),
     'data-annot-line-index': String(lineIndex),
   } as Record<string, string>;
-  // Musical weight for duration-paced auto-scroll (see
-  // utils/duration-profile.ts). Content lines carry singing time;
-  // section chips / comments / blanks / pause markers don't, so the
-  // scroller glides over them instead of "singing" their pixels.
+  // Timing hints for duration-paced auto-scroll (see
+  // utils/duration-profile.ts). Sung lines carry a RELATIVE weight
+  // proportional to their estimated syllables; instrumental blocks
+  // (chord grids, chord-only riff lines) carry a BAR COUNT that the
+  // scroller converts to absolute seconds via the song's tempo and
+  // time signature. Section chips / comments / blanks / pause markers
+  // carry neither, so the scroller glides over them instead of
+  // "singing" their pixels.
   const scrollWeightAttrs = (weight: number): Record<string, string> =>
     weight > 0 ? { 'data-scroll-weight': String(weight) } : {};
+  const scrollBarsAttrs = (bars: number): Record<string, string> =>
+    bars > 0 ? { 'data-scroll-bars': String(bars) } : {};
+  // Sung-vs-instrumental split for chord/lyric lines: a line with real
+  // lyric text is sung (syllable weight); a chord-only line is played
+  // (≈ 1 bar per chord marker, the common charting convention).
+  const lyricText = line.tokens
+    .filter((t) => t.type === 'lyric')
+    .map((t) => (t as { text: string }).text)
+    .join('');
+  const chordCount = line.tokens.filter((t) => t.type === 'chord').length;
+  const sungLineAttrs = (): Record<string, string> =>
+    lyricText.trim()
+      ? scrollWeightAttrs(lineWeightFromSyllables(estimateSyllables(lyricText)))
+      : scrollBarsAttrs(chordCount);
   if (line.isChordGrid) {
     if (viewMode === 'lyrics-only') return null;
     const token = line.tokens[0] as ChordGridToken;
     // Wrap so the annotation anchor sits on a stable DOM element.
     // ChordGrid renders its own inner container; the wrapper adds no
     // layout impact but gives annotations a reliable target.
-    // Weight = row count: each grid row reads like one played line.
+    // Bars = every bar in every row, times the row's repeat count.
+    const gridBars = (token.rows ?? []).reduce(
+      (sum, row) => sum + row.bars.length * (row.repeatCount ?? 1), 0);
     return (
-      <div {...annotAttrs} {...scrollWeightAttrs(token.rows?.length || 1)}>
+      <div {...annotAttrs} {...scrollBarsAttrs(gridBars || 1)}>
         <ChordGrid token={token} fontSize={fontSize} chordColor={svs.chords.color} onChordClick={onChordClick} />
       </div>
     );
@@ -294,10 +315,11 @@ const RenderLine = memo(function RenderLine({
     // line-height: 1.4 keeps successive lyric lines tight (no
     // inflated half-leading), which makes the chord-line diagrams
     // visually centered between the surrounding lyrics.
-    // Still weight 1 even when the lyric text is empty (a chord-only
-    // riff line hidden by lyrics-only view) — the music still plays
-    // through it.
-    return <div {...annotAttrs} {...scrollWeightAttrs(1)} style={{ lineHeight: 1.4 }}>{lyrics}</div>;
+    // Timing attrs come from the SOURCE line (sung weight or bar
+    // count) even when the lyric text renders empty here (a
+    // chord-only riff line hidden by lyrics-only view) — the music
+    // still plays through it.
+    return <div {...annotAttrs} {...sungLineAttrs()} style={{ lineHeight: 1.4 }}>{lyrics}</div>;
   }
 
   if (!line.hasChords && viewMode === 'chords-only') {
@@ -309,7 +331,7 @@ const RenderLine = memo(function RenderLine({
     // has its own internal layout; a bare div wrapper adds no visual
     // side effect.
     return (
-      <div {...annotAttrs} {...scrollWeightAttrs(1)}>
+      <div {...annotAttrs} {...sungLineAttrs()}>
         <ChordLine line={line} onChordClick={onChordClick} showChords={viewMode !== 'lyrics-only'} chordStyle={svs.chords}
           inlineDiagrams={showInline} instrument={instrument} svs={svs} chordVariations={chordVariations}
           songId={songId} sectionIndex={sectionIndex} lineIndex={lineIndex} trainerEnabled={trainerEnabled} />
@@ -321,6 +343,12 @@ const RenderLine = memo(function RenderLine({
   // Same tight line-height for non-chord lyric lines (or pure text
   // lines) so they don't inflate the visual gap above the next
   // chord-line's diagram.
-  return <div {...annotAttrs} {...scrollWeightAttrs(text.trim() ? 1 : 0)} style={{ lineHeight: 1.4 }}>{text || ' '}</div>;
+  return (
+    <div
+      {...annotAttrs}
+      {...scrollWeightAttrs(text.trim() ? lineWeightFromSyllables(estimateSyllables(text)) : 0)}
+      style={{ lineHeight: 1.4 }}
+    >{text || ' '}</div>
+  );
 });
 
