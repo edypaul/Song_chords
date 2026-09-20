@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@song-chords/shared';
+import {
+  buildKnots, knotsTimeToPos, knotsPosToTime, sungDurationFor,
+  type Knot, type ProfileEntry,
+} from '../utils/duration-profile';
 
 /** Fire offset for {pause: N} markers, measured from the viewport's top
  * edge. Zero = the marker fires the instant its bottom border meets the
@@ -53,6 +57,17 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
   const readPosRef = useRef<number>(0);
   // The scrollTop we last programmatically set — used to detect manual scroll
   const lastSetRef = useRef<number>(0);
+  // Duration-mode time→position profile, built from the rendered
+  // content lines (see utils/duration-profile.ts). Rebuilt whenever
+  // the container geometry changes — zoom, inline-diagram toggle,
+  // window resize — with the elapsed sung time carried across the
+  // rebuild so the reading position lands on the same LINE in the new
+  // layout.
+  const profileRef = useRef<{ knots: Knot[]; sungDuration: number; geomKey: string } | null>(null);
+  // Elapsed SUNG seconds (excludes {pause} holds). null = derive from
+  // the current reading position on the next frame (fresh start, or
+  // the user scrolled manually).
+  const elapsedRef = useRef<number | null>(null);
   // Timestamp (performance.now()) until which scrolling is paused because
   // we crossed a {pause: N} marker. 0 = no pause active.
   const pauseUntilRef = useRef<number>(0);
@@ -71,6 +86,8 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
       // markers again.
       pauseUntilRef.current = 0;
       consumedMarkersRef.current = new Set();
+      profileRef.current = null;
+      elapsedRef.current = null;
       return;
     }
 
@@ -91,6 +108,10 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
         : container.scrollTop < seedAnchor
           ? 2 * container.scrollTop
           : container.scrollTop + seedAnchor;
+      // Fresh run: rebuild the duration profile and re-derive elapsed
+      // sung time from the seeded reading position on the first frame.
+      profileRef.current = null;
+      elapsedRef.current = null;
       // Consume any pause markers whose TOP edge is already at / above
       // the fire line at startup. We use getBoundingClientRect so the
       // measurement stays correct even when CSS `zoom` is applied to the
@@ -127,6 +148,9 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
           // after a manual scroll is continuous with the anchor ramp.
           const a = el.clientHeight * READ_ANCHOR_FRACTION;
           readPosRef.current = el.scrollTop < a ? 2 * el.scrollTop : el.scrollTop + a;
+          // Elapsed sung time no longer matches the page position —
+          // re-derive it from the new reading position next frame.
+          elapsedRef.current = null;
         }
 
         // {pause: N} markers — fire when the TOP edge of the indicator
@@ -171,38 +195,115 @@ export function useAutoScroll(containerRef: React.RefObject<HTMLElement>): void 
           const useDuration =
             autoScrollMode === 'duration' && !!durationSeconds && durationSeconds > 0;
           if (useDuration) {
-            // ── Reading-anchor model ────────────────────────────────
-            // The naive mapping (top → max scroll over the duration)
-            // reads wrong at both ends: the first screenful is already
-            // visible yet scrolling starts instantly, and the LAST
-            // screenful only finishes arriving at the very last second
-            // — the singer waits on the closing lines, which is
-            // especially bad with inline chord diagrams where a
-            // screenful holds only a few lines.
-            //
-            // Model instead: the singer reads the CONTENT — a span of
-            // `totalScrollable + clientHeight` pixels — top to bottom
-            // over the song's duration, and the scroll keeps the sung
-            // line parked at the anchor point (~35 % down the view).
-            //   • rate v = (totalScrollable + clientHeight) / duration
-            //     (measured live each frame, so toggling inline
-            //     diagrams mid-run re-paces immediately);
+            // ── Reading-anchor model over a content-line time map ───
+            // The singer reads the CONTENT top to bottom over the
+            // song's duration while the scroll keeps the sung line
+            // parked at the anchor point (~35 % down the view), with:
             //   • ramped lead-in: from the top the ANCHOR grows from 0
             //     to its full value at twice the reading rate, so the
-            //     page starts moving IMMEDIATELY at half speed (clear
-            //     feedback that auto-scroll is on) while the sung line
-            //     drifts naturally from the top edge down to the
-            //     anchor point — a hard lead-in (page frozen until the
-            //     anchor was reached) read as "Space did nothing";
+            //     page starts moving IMMEDIATELY at half speed while
+            //     the sung line drifts down to the anchor point;
             //   • early finish: max scroll is reached once the last
             //     screenful is fully visible, with the remaining
             //     duration left for singing it — not at 0:00 left.
+            //
+            // Pacing comes from a piecewise time→position map built
+            // from the rendered lines (utils/duration-profile.ts)
+            // instead of a constant px/s, so that:
+            //   • inline chord diagrams: a diagram-inflated line gets
+            //     the same singing time as its plain rendering — its
+            //     extra pixels scroll faster, not longer;
+            //   • section titles / blanks / pause chips consume no
+            //     singing time (crossed inside neighbouring slices);
+            //   • {pause: N} holds are SUBTRACTED from the pacing
+            //     budget — the stored duration includes them, and the
+            //     scroller spends them stopped at the markers;
+            //   • zoom / diagram toggles / resizes rebuild the map
+            //     (geometry key below); elapsed sung time carries
+            //     over, so the reading position stays on the same
+            //     LINE in the new layout. Measurements use
+            //     getBoundingClientRect so CSS zoom is reflected.
             const anchor = el.clientHeight * READ_ANCHOR_FRACTION;
-            const v = (totalScrollable + el.clientHeight) / durationSeconds!;
-            readPosRef.current = Math.min(
-              readPosRef.current + v * (deltaMs / 1000),
-              totalScrollable + anchor,
-            );
+            const geomKey = `${el.scrollHeight}|${el.clientHeight}|${spacerHeight}`;
+            if (!profileRef.current || profileRef.current.geomKey !== geomKey) {
+              const entries: ProfileEntry[] = [];
+              const cTop = el.getBoundingClientRect().top;
+              const base = el.scrollTop;
+              const lineEls = Array.from(el.querySelectorAll<HTMLElement>('[data-scroll-weight]'));
+              // The song body can carry CSS `zoom` (perform-mode zoom).
+              // Chromium's legacy zoom (< 128; Electron 31 = 126)
+              // reports getBoundingClientRect in UNZOOMED coordinates
+              // while scrollTop/scrollHeight are in zoomed space —
+              // multiply rect offsets by the accumulated zoom between
+              // the line and the scroll container to land in scroll
+              // coordinates. (zoom = 1 everywhere → no-op.)
+              let zoom = 1;
+              for (let n = lineEls[0]?.parentElement ?? null; n && n !== el; n = n.parentElement) {
+                const z = parseFloat(getComputedStyle(n).zoom as unknown as string);
+                if (z && z > 0 && z !== 1) zoom *= z;
+              }
+              if (zoom !== 1) {
+                // Calibrate against the actual rect behaviour so this
+                // stays correct if Electron moves to Chromium ≥ 128
+                // (standardized zoom, where rects ARE scaled): compare
+                // a line's visual rect height to its layout
+                // offsetHeight. Legacy zoom → ratio ≈ 1 → keep the
+                // multiplier; standard zoom → ratio ≈ zoom → no
+                // correction needed.
+                const probe = lineEls.find((le) => le.offsetHeight > 0);
+                if (probe) {
+                  const ratio = probe.getBoundingClientRect().height / probe.offsetHeight;
+                  zoom = zoom / Math.max(ratio, 0.01);
+                  if (Math.abs(zoom - 1) < 0.02) zoom = 1;
+                }
+              }
+              for (const lineEl of lineEls) {
+                const w = parseFloat(lineEl.dataset['scrollWeight'] ?? '0');
+                if (!(w > 0)) continue;
+                const r = lineEl.getBoundingClientRect();
+                if (r.height <= 0 && r.width <= 0) continue; // not laid out
+                entries.push({
+                  y: (r.top - cTop) * zoom + base,
+                  bottom: (r.bottom - cTop) * zoom + base,
+                  w,
+                });
+              }
+              let totalPause = 0;
+              for (const m of el.querySelectorAll<HTMLElement>('[data-pause]')) {
+                totalPause += Math.max(0, parseFloat(m.dataset['pause'] ?? '0') || 0);
+              }
+              const sung = sungDurationFor(durationSeconds!, totalPause);
+              const knots = buildKnots(entries, sung);
+              // The run must be able to REACH the stop condition
+              // (scrollTop = totalScrollable). If unusually large
+              // trailing padding leaves the last line's bottom short
+              // of that, stretch the final slice to the scroll end so
+              // the scroller can't stall just before finishing.
+              if (knots.length > 0) {
+                const lastKnot = knots[knots.length - 1]!;
+                if (lastKnot.y < totalScrollable + anchor) lastKnot.y = totalScrollable + anchor;
+              }
+              profileRef.current = { knots, sungDuration: sung, geomKey };
+            }
+            const profile = profileRef.current;
+            if (profile.knots.length > 0) {
+              if (elapsedRef.current === null) {
+                elapsedRef.current = knotsPosToTime(profile.knots, readPosRef.current);
+              }
+              elapsedRef.current = Math.min(elapsedRef.current + deltaMs / 1000, profile.sungDuration);
+              readPosRef.current = Math.min(
+                knotsTimeToPos(profile.knots, elapsedRef.current),
+                totalScrollable + anchor,
+              );
+            } else {
+              // No tagged content lines (e.g. an empty song body):
+              // fall back to the constant-velocity reading model.
+              const v = (totalScrollable + el.clientHeight) / durationSeconds!;
+              readPosRef.current = Math.min(
+                readPosRef.current + v * (deltaMs / 1000),
+                totalScrollable + anchor,
+              );
+            }
             const anchorEff = Math.min(anchor, readPosRef.current / 2);
             posRef.current = Math.min(Math.max(readPosRef.current - anchorEff, 0), totalScrollable);
           } else {
