@@ -44,6 +44,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   chordBarPosition: 'top',
   inlineChordDiagrams: false,
   showAnnotations: true,
+  // Per-view sticky-note / annotation switches. Sticky notes start
+  // OFF (panels open only via the toolbar, the pre-existing
+  // behaviour); annotation switches default to the legacy global
+  // value at the read sites, so true here is only the fresh-install
+  // default.
+  stickyNotesInPerform: false,
+  stickyNotesInSongView: false,
+  annotationsInPerform: true,
+  annotationsInSongView: true,
   customChords: {},
   customInstruments: {},
   defaultChordVariations: {},

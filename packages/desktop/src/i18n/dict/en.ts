@@ -127,6 +127,15 @@ export const en = {
   'settings.songLayout.perfZoom.hint': 'Zoom level when in performance mode',
 
   // ─── Settings page — Song List Columns section ───────────────────
+  'settings.notesAnnot.title': 'Notes & Annotations',
+  'settings.notesAnnot.stickyPerform.label': 'Sticky notes while performing set lists',
+  'settings.notesAnnot.stickyPerform.hint': 'Automatically open each song’s sticky note in the Perform page.',
+  'settings.notesAnnot.stickySongView.label': 'Sticky notes in song view',
+  'settings.notesAnnot.stickySongView.hint': 'Automatically open a song’s sticky note in the song view and its fullscreen mode.',
+  'settings.notesAnnot.annotPerform.label': 'Annotations while performing set lists',
+  'settings.notesAnnot.annotPerform.hint': 'Show your drawn annotations on every song in the Perform page.',
+  'settings.notesAnnot.annotSongView.label': 'Annotations in song view',
+  'settings.notesAnnot.annotSongView.hint': 'Show your drawn annotations on every song in the song view and its fullscreen mode.',
   'settings.songListColumns.title': 'Song List Columns',
   'settings.songListColumns.description': 'Columns to show in the Songs, Categories, and Favorites lists. Drag to reorder, uncheck to hide. Title is always shown.',
 

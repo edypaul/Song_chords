@@ -266,13 +266,16 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
   }, [activeIndex]);
 
   const [showSongNotes, setShowSongNotes] = useState(false);
+  // Settings → Display switch: auto-open each song's sticky note in
+  // this view. The toolbar StickyNote button still toggles ad hoc.
+  const stickyNotesInPerform = useSettingsStore((s) => s.settings.stickyNotesInPerform ?? false);
 
-  // Annotation toggles — same as SongViewPage: visibility persisted via
-  // the global `showAnnotations` setting so it survives across songs
-  // and sessions; editing mode is session-scoped in the annotation-edit
-  // store and shared with the toolbar + draw surface.
-  const showAnnotations = useSettingsStore((s) => s.settings.showAnnotations ?? true);
-  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
+  // Annotation visibility for THIS view (Settings → Display switch,
+  // also written by the toolbar toggle). Falls back to the legacy
+  // global `showAnnotations` so existing users keep their choice.
+  // Editing mode stays session-scoped in the annotation-edit store.
+  const showAnnotations = useSettingsStore((s) => s.settings.annotationsInPerform ?? s.settings.showAnnotations ?? true);
+  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'annotationsInPerform', v); };
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
@@ -495,7 +498,9 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     const id = isSong ? (activeSong?.id ?? null) : (currentItem?.id ?? null);
     if (lastAutoOpenedIdRef.current === id) return;
     lastAutoOpenedIdRef.current = id;
-    setShowSongNotes(false);
+    // Notes start OPEN when the "sticky notes in Perform" settings
+    // switch is on and this song has a note; CLOSED otherwise.
+    setShowSongNotes(!!(stickyNotesInPerform && isSong && activeSong?.notes?.trim()));
     if (isSong && activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
   });
 

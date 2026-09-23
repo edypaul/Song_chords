@@ -113,6 +113,15 @@ export const fr: Partial<Dict> = {
   'settings.songLayout.perfZoom.hint': 'Niveau de zoom en mode performance',
 
   // ─── Settings page — Song List Columns section ───────────────────
+  'settings.notesAnnot.title': 'Notes et annotations',
+  'settings.notesAnnot.stickyPerform.label': 'Pense-bêtes pendant les setlists',
+  'settings.notesAnnot.stickyPerform.hint': 'Ouvre automatiquement le pense-bête de chaque chanson dans la page d’interprétation.',
+  'settings.notesAnnot.stickySongView.label': 'Pense-bêtes dans la vue chanson',
+  'settings.notesAnnot.stickySongView.hint': 'Ouvre automatiquement le pense-bête de la chanson dans la vue chanson et son mode plein écran.',
+  'settings.notesAnnot.annotPerform.label': 'Annotations pendant les setlists',
+  'settings.notesAnnot.annotPerform.hint': 'Affiche vos annotations dessinées sur chaque chanson de la page d’interprétation.',
+  'settings.notesAnnot.annotSongView.label': 'Annotations dans la vue chanson',
+  'settings.notesAnnot.annotSongView.hint': 'Affiche vos annotations dessinées sur chaque chanson de la vue chanson et du plein écran.',
   'settings.songListColumns.title': 'Colonnes de la liste des chansons',
   'settings.songListColumns.description': 'Colonnes à afficher dans les listes Chansons, Catégories et Favoris. Glissez pour réordonner, décochez pour masquer. Le titre est toujours affiché.',
 

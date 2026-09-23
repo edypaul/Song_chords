@@ -114,6 +114,15 @@ export const es: Partial<Dict> = {
   'settings.songLayout.perfZoom.hint': 'Nivel de zoom en modo interpretación',
 
   // ─── Settings page — Song List Columns section ───────────────────
+  'settings.notesAnnot.title': 'Notas y anotaciones',
+  'settings.notesAnnot.stickyPerform.label': 'Notas adhesivas al tocar listas',
+  'settings.notesAnnot.stickyPerform.hint': 'Abre automáticamente la nota adhesiva de cada canción en la página de interpretación.',
+  'settings.notesAnnot.stickySongView.label': 'Notas adhesivas en la vista de canción',
+  'settings.notesAnnot.stickySongView.hint': 'Abre automáticamente la nota adhesiva de la canción en la vista de canción y su modo de pantalla completa.',
+  'settings.notesAnnot.annotPerform.label': 'Anotaciones al tocar listas',
+  'settings.notesAnnot.annotPerform.hint': 'Muestra tus anotaciones dibujadas en todas las canciones de la página de interpretación.',
+  'settings.notesAnnot.annotSongView.label': 'Anotaciones en la vista de canción',
+  'settings.notesAnnot.annotSongView.hint': 'Muestra tus anotaciones dibujadas en todas las canciones de la vista de canción y su pantalla completa.',
   'settings.songListColumns.title': 'Columnas de la lista de canciones',
   'settings.songListColumns.description': 'Columnas a mostrar en las listas de Canciones, Categorías y Favoritos. Arrastra para reordenar, desmarca para ocultar. Título siempre se muestra.',
 

@@ -195,14 +195,20 @@ export default function SongViewPage(): React.ReactElement {
   // fullscreen on close. See the effect + keepFullscreenAfterModal.
   const suppressFsExitRef = useRef(false);
   const [showNotes, setShowNotes] = useState(false);
-  // Annotation visibility (read-only layer) + editing mode. Visibility
-  // is a persisted app setting (`showAnnotations`) so a user's toggle
-  // survives across songs and sessions — a musician who's hidden the
-  // overlay for a gig doesn't want it to snap back on every song
-  // change. Editing is per-session and lives in the annotation-edit
-  // store so the toolbar + draw surface share it.
-  const showAnnotations = useSettingsStore((s) => s.settings.showAnnotations ?? true);
-  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'showAnnotations', v); };
+  // Settings → Display switch: auto-open the song's sticky note in
+  // this view (normal + fullscreen). The toolbar button still
+  // toggles it ad hoc.
+  const stickyNotesInSongView = useSettingsStore((s) => s.settings.stickyNotesInSongView ?? false);
+  // Annotation visibility (read-only layer) + editing mode.
+  // Visibility for THIS view is the `annotationsInSongView` setting
+  // (Settings → Display switch, also written by the toolbar toggle),
+  // falling back to the legacy global `showAnnotations` so existing
+  // users keep their choice — persisted, so a musician who's hidden
+  // the overlay for a gig doesn't get it snapping back per song.
+  // Editing is per-session and lives in the annotation-edit store so
+  // the toolbar + draw surface share it.
+  const showAnnotations = useSettingsStore((s) => s.settings.annotationsInSongView ?? s.settings.showAnnotations ?? true);
+  const setShowAnnotations = (v: boolean) => { void updateSetting(db, 'annotationsInSongView', v); };
   const annotationEditing = useAnnotationEditStore((s) => s.editing);
   const setAnnotationEditing = useAnnotationEditStore((s) => s.setEditing);
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
@@ -216,16 +222,16 @@ export default function SongViewPage(): React.ReactElement {
     chordBarVisible,
     inlineDiagrams,
   });
-  // Every song change starts with notes CLOSED and annotations
-  // explicitly OFF (`ANNOTATION_OFF`). Users have to pick a set
-  // from the top-toolbar Annotations menu to see them — a song
-  // opens clean by default, no shapes overlaid. Notes stay in
-  // the DB, only their visibility resets. Keyed on song id so
-  // switching songs also resets.
+  // Every song change starts with annotations explicitly OFF
+  // (`ANNOTATION_OFF`) — users pick a set from the top-toolbar
+  // Annotations menu to see them. Notes start OPEN when the "sticky
+  // notes in song view" settings switch is on and the song has a
+  // note; CLOSED otherwise (the toolbar button still toggles them
+  // within the song). Keyed on song id so switching songs re-applies.
   useEffect(() => {
-    setShowNotes(false);
+    setShowNotes(!!(stickyNotesInSongView && activeSong?.notes?.trim()));
     if (activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
-  }, [activeSong?.id, setSelectedSetId]);
+  }, [activeSong?.id, setSelectedSetId, stickyNotesInSongView]);
 
   // Song trainer eligibility: only the default chord-names-over-lyrics
   // view. Any other layout (lyrics-only, inline diagrams) hides the

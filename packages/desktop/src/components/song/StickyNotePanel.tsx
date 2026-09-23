@@ -27,10 +27,13 @@ interface Props {
 }
 
 /** Module-level cache of the first-measured position/size per `positionKey`.
+ *  `userSized` records that the size came from a MANUAL resize — only
+ *  then does a later mount keep it instead of auto-fitting to content.
  *  See the JSDoc on `Props.positionKey` for the rationale. */
 const positionCache = new Map<string, {
   pos: { x: number; y: number };
   size: { w: number; h: number };
+  userSized?: boolean;
 }>();
 
 /**
@@ -70,6 +73,13 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
    *  isn't visible at the fallback position for one frame. When the
    *  position comes from the cache it's already valid — start visible. */
   const [measured, setMeasured] = useState(!!cached);
+  // True once the USER has resized the panel by hand (this mount, or
+  // a cached earlier one). The content auto-fit below stands down
+  // only then — programmatic sizes are always allowed to re-fit.
+  const userResizedRef = useRef(!!cached?.userSized);
+  // The last size WE set (commit / auto-fit), so the ResizeObserver
+  // can tell a manual corner-drag apart from our own updates.
+  const programmaticSizeRef = useRef<{ w: number; h: number } | null>(cached?.size ?? null);
 
   // Measure the page on mount and anchor the note in the gutter
   // between the sidebar and the song body. Two layout rules apply:
@@ -97,11 +107,32 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
     if (cached) return;
     let cancelled = false;
     let attempts = 0;
+    // Natural height of the note at a given panel width, so the panel
+    // opens sized to its CONTENT — everything visible without
+    // scrolling — clamped to sane bounds (scroll only past 70 % of
+    // the viewport). Measured with an off-screen probe matching the
+    // content area's typography (text-sm + leading-relaxed + p-3).
+    const contentHeightFor = (w: number): number => {
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        `position:fixed;left:-9999px;top:0;width:${Math.max(60, w - 24)}px;` +
+        'white-space:pre-wrap;font-size:14px;line-height:1.625;visibility:hidden;';
+      probe.style.fontFamily = getComputedStyle(document.body).fontFamily;
+      probe.textContent = notes || ' ';
+      document.body.appendChild(probe);
+      const textH = probe.scrollHeight;
+      probe.remove();
+      const HEADER_H = 37; // title bar (px-3 py-2) + bottom border
+      const PAD_V = 24;    // content p-3, top + bottom
+      const natural = textH + PAD_V + HEADER_H;
+      return Math.max(140, Math.min(natural, Math.round(window.innerHeight * 0.7)));
+    };
     const commit = (nextPos: { x: number; y: number }, nextSize: { w: number; h: number }) => {
+      programmaticSizeRef.current = nextSize;
       setPos(nextPos);
       setSize(nextSize);
       setMeasured(true);
-      if (positionKey) positionCache.set(positionKey, { pos: nextPos, size: nextSize });
+      if (positionKey) positionCache.set(positionKey, { pos: nextPos, size: nextSize, userSized: userResizedRef.current });
     };
     const measure = () => {
       if (cancelled) return;
@@ -128,7 +159,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
         // content area (past the sidebar if present) and mark measured.
         const fallbackX = Math.max(margin, navRight + 20);
         const finalX = Math.min(window.innerWidth - DEFAULT_WIDTH - margin, fallbackX + 20);
-        commit({ x: Math.max(margin, finalX), y: 120 }, { w: DEFAULT_WIDTH, h: DEFAULT_HEIGHT });
+        commit({ x: Math.max(margin, finalX), y: 120 }, { w: DEFAULT_WIDTH, h: contentHeightFor(DEFAULT_WIDTH) });
         return;
       }
       // Gutter geometry with a small inset on each side so the panel
@@ -161,7 +192,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
       // the computed gutter position, clamped so it can't be pushed
       // off-screen on narrow windows.
       const finalX = Math.min(window.innerWidth - w - margin, x + 20);
-      commit({ x: finalX, y }, { w, h: DEFAULT_HEIGHT });
+      commit({ x: finalX, y }, { w, h: contentHeightFor(w) });
     };
     measure();
     return () => { cancelled = true; };
@@ -173,12 +204,58 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
     const el = panelRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver((entries) => {
-      const rect = entries[0]?.contentRect;
-      if (rect) setSize({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      const entry = entries[0];
+      if (!entry) return;
+      // BORDER-box size: the panel is sized border-box, so writing the
+      // (2px-smaller) contentRect back into `size` used to re-trigger
+      // this observer and shrink the panel ~2px per frame until it hit
+      // its min height — every sticky note quietly collapsed.
+      const bb = entry.borderBoxSize?.[0];
+      const target = entry.target as HTMLElement;
+      const w = Math.round(bb ? bb.inlineSize : target.offsetWidth);
+      const h = Math.round(bb ? bb.blockSize : target.offsetHeight);
+      // A size that differs from the one WE last set can only come
+      // from the native corner-drag — remember that so the content
+      // auto-fit stops overriding the user's choice.
+      const p = programmaticSizeRef.current;
+      if (p && (Math.abs(w - p.w) > 3 || Math.abs(h - p.h) > 3)) {
+        userResizedRef.current = true;
+      }
+      setSize((s) => (s.w === w && s.h === h ? s : { w, h }));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Fit the panel's height to the REAL rendered note content — the
+  // pre-render probe estimate can drift with fonts/wrapping, so once
+  // the content is actually laid out, grow (or shrink) so everything
+  // is visible, clamped to 70 % of the viewport (scroll past that).
+  // Cache-restored mounts skip this: a size the user set by hand (or
+  // that was already fitted) must survive close → reopen untouched.
+  useLayoutEffect(() => {
+    if (!measured || userResizedRef.current || editing) return;
+    const fit = () => {
+      const panel = panelRef.current;
+      const content = panel?.querySelector<HTMLElement>('[data-note-content]');
+      if (!panel || !content) return;
+      const chrome = panel.clientHeight - content.clientHeight; // header bar etc.
+      const borders = panel.offsetHeight - panel.clientHeight;  // style height is border-box
+      const target = Math.max(140, Math.min(content.scrollHeight + chrome + borders, Math.round(window.innerHeight * 0.7)));
+      setSize((s) => {
+        if (Math.abs(s.h - target) <= 2) return s;
+        const next = { ...s, h: target };
+        programmaticSizeRef.current = next;
+        return next;
+      });
+    };
+    fit();
+    // Text metrics can settle a beat later (style hydration, fonts,
+    // async song data) — fit again after layout has calmed down.
+    const t1 = window.setTimeout(fit, 250);
+    const t2 = window.setTimeout(fit, 700);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, [measured, notes, editing]);
 
   // Persist whatever position/size the panel currently has into the cache,
   // so a drag or resize survives close → reopen just like the initial
@@ -186,7 +263,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
   // pre-measurement pos of {margin, 280} that we never want to lock in).
   useEffect(() => {
     if (!positionKey || !measured) return;
-    positionCache.set(positionKey, { pos, size });
+    positionCache.set(positionKey, { pos, size, userSized: userResizedRef.current });
   }, [positionKey, measured, pos.x, pos.y, size.w, size.h]);
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -298,6 +375,7 @@ export default function StickyNotePanel({ title, notes, onClose, onSave, positio
         />
       ) : (
         <div
+          data-note-content
           className="flex-1 p-3 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed"
           style={{ color: notes ? 'var(--text-primary)' : 'var(--text-muted)' }}
         >

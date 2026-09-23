@@ -524,6 +524,27 @@ export default function SettingsPage(): React.ReactElement {
         </SettingRow>
       </Section>)}
 
+      {showCat('display') && (<Section title={t('settings.notesAnnot.title')}>
+        <SettingRow label={t('settings.notesAnnot.stickyPerform.label')} hint={t('settings.notesAnnot.stickyPerform.hint')}>
+          <Toggle checked={settings.stickyNotesInPerform ?? false} onChange={(v) => set('stickyNotesInPerform', v)} />
+        </SettingRow>
+        <SettingRow label={t('settings.notesAnnot.stickySongView.label')} hint={t('settings.notesAnnot.stickySongView.hint')}>
+          <Toggle checked={settings.stickyNotesInSongView ?? false} onChange={(v) => set('stickyNotesInSongView', v)} />
+        </SettingRow>
+        <SettingRow label={t('settings.notesAnnot.annotPerform.label')} hint={t('settings.notesAnnot.annotPerform.hint')}>
+          <Toggle
+            checked={settings.annotationsInPerform ?? settings.showAnnotations ?? true}
+            onChange={(v) => set('annotationsInPerform', v)}
+          />
+        </SettingRow>
+        <SettingRow label={t('settings.notesAnnot.annotSongView.label')} hint={t('settings.notesAnnot.annotSongView.hint')}>
+          <Toggle
+            checked={settings.annotationsInSongView ?? settings.showAnnotations ?? true}
+            onChange={(v) => set('annotationsInSongView', v)}
+          />
+        </SettingRow>
+      </Section>)}
+
       {showCat('display') && (<Section title={t('settings.songListColumns.title')}>
         <div className="px-4 py-3" style={{ background: 'var(--surface)' }}>
           <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>

@@ -149,8 +149,19 @@ export interface AppSettings {
    *  disk; annotations themselves live on each song, so flipping this
    *  hides the overlay everywhere without touching the data. Default
    *  true so a user who annotates a song sees the result the next
-   *  time they open it. */
+   *  time they open it.
+   *  LEGACY: superseded by the per-view `annotationsIn*` switches
+   *  below, which fall back to this value so existing users keep
+   *  their choice. */
   showAnnotations: boolean;
+  /** Per-view visibility switches (Settings → Display). Sticky-note
+   *  switches auto-open each song's note panel in that view (the
+   *  toolbar button still toggles it ad hoc); annotation switches
+   *  show/hide the drawn-annotation overlay in that view. */
+  stickyNotesInPerform?: boolean;
+  stickyNotesInSongView?: boolean;
+  annotationsInPerform?: boolean;
+  annotationsInSongView?: boolean;
   customChords: Record<string, import('../types/chord.types').ChordDiagram[]>;
   /**
    * User-defined fretted instruments, keyed by id (`custom:…`). Their

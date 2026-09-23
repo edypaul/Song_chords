@@ -113,6 +113,15 @@ export const de: Partial<Dict> = {
   'settings.songLayout.perfZoom.hint': 'Zoomstufe im Performance-Modus',
 
   // ─── Settings page — Song List Columns section ───────────────────
+  'settings.notesAnnot.title': 'Notizen & Anmerkungen',
+  'settings.notesAnnot.stickyPerform.label': 'Haftnotizen beim Aufführen von Setlists',
+  'settings.notesAnnot.stickyPerform.hint': 'Öffnet die Haftnotiz jedes Songs automatisch auf der Aufführungsseite.',
+  'settings.notesAnnot.stickySongView.label': 'Haftnotizen in der Songansicht',
+  'settings.notesAnnot.stickySongView.hint': 'Öffnet die Haftnotiz eines Songs automatisch in der Songansicht und ihrem Vollbildmodus.',
+  'settings.notesAnnot.annotPerform.label': 'Anmerkungen beim Aufführen von Setlists',
+  'settings.notesAnnot.annotPerform.hint': 'Zeigt deine gezeichneten Anmerkungen bei allen Songs auf der Aufführungsseite.',
+  'settings.notesAnnot.annotSongView.label': 'Anmerkungen in der Songansicht',
+  'settings.notesAnnot.annotSongView.hint': 'Zeigt deine gezeichneten Anmerkungen bei allen Songs in der Songansicht und im Vollbild.',
   'settings.songListColumns.title': 'Spalten der Songliste',
   'settings.songListColumns.description': 'Spalten, die in den Listen Songs, Kategorien und Favoriten angezeigt werden. Zum Sortieren ziehen, zum Ausblenden abwählen. Titel wird immer angezeigt.',
 
