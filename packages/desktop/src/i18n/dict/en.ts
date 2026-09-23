@@ -739,6 +739,8 @@ export const en = {
   'songRow.annotations.close': 'Close',
   'songRow.annotations.unnamed': '(unnamed)',
   'songRow.annotations.anyPreset': 'Any preset',
+  'songRow.annotations.modeDark': 'Dark',
+  'songRow.annotations.modeLight': 'Light',
 
   // ─── Set list picker modal ───────────────────────────────────────
   'setListPicker.addToSetList': 'Add to set list',

@@ -501,7 +501,19 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
     // Notes start OPEN when the "sticky notes in Perform" settings
     // switch is on and this song has a note; CLOSED otherwise.
     setShowSongNotes(!!(stickyNotesInPerform && isSong && activeSong?.notes?.trim()));
-    if (isSong && activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
+    // Annotations follow the per-view switch: ON → the song's DEFAULT
+    // set for the current view/preset shows automatically (`null`
+    // selection = pickActiveSet's default fallback); OFF → muted
+    // until the user picks a set from the menu. An explicit earlier
+    // pick for this song (session store) is kept as-is.
+    if (isSong && activeSong?.id) {
+      if (showAnnotations) {
+        const cur = useAnnotationEditStore.getState().selectedSetIds[activeSong.id];
+        if (cur === ANNOTATION_OFF || cur == null) setSelectedSetId(activeSong.id, null);
+      } else {
+        setSelectedSetId(activeSong.id, ANNOTATION_OFF);
+      }
+    }
   });
 
   // Load the current song (merging its overrides) when the index changes.
@@ -1042,6 +1054,7 @@ export default function PerformPage({ title, icon, items, onOverridesChange, emp
             annotationsJson={activeSong.annotations}
             viewMode={annotationMode}
             preset={svs.preset}
+            onSetPicked={() => setShowAnnotations(true)}
           />
         )}
 

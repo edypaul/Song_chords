@@ -20,6 +20,11 @@ interface Props {
   /** Currently-active style preset key. Together with `viewMode`
    *  decides which saved sets are listed in the dropdown. */
   preset: string;
+  /** Called when the user explicitly PICKS a set from the dropdown
+   *  (not "Off"). Host pages use it to force the annotation overlay
+   *  visible in their view — otherwise choosing a set while the
+   *  view's annotations switch is off silently shows nothing. */
+  onSetPicked?: () => void;
 }
 
 /**
@@ -39,7 +44,7 @@ interface Props {
  * so `useAnnotationDoc` (inside the freshly-mounted editing root)
  * knows what to do on its first render.
  */
-export default function AnnotationMenu({ songId, annotationsJson, viewMode, preset }: Props): React.ReactElement {
+export default function AnnotationMenu({ songId, annotationsJson, viewMode, preset, onSetPicked }: Props): React.ReactElement {
   const t = useT();
   const selectedSetIds = useAnnotationEditStore((s) => s.selectedSetIds);
   const setSelectedSetId = useAnnotationEditStore((s) => s.setSelectedSetId);
@@ -237,6 +242,9 @@ export default function AnnotationMenu({ songId, annotationsJson, viewMode, pres
                 <button
                   onClick={() => {
                     setSelectedSetId(songId, s.id);
+                    // An explicit pick means "show me this" — force the
+                    // host view's annotation overlay visible.
+                    onSetPicked?.();
                     setOpen(false);
                   }}
                   className="flex-1 flex items-center gap-1 text-left text-xs truncate"

@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Highlighter, X, Star } from 'lucide-react';
+import { Highlighter, X, Star, Moon, Sun } from 'lucide-react';
 import { parseSongAnnotations, viewModeLabel, SONG_STYLE_PRESETS, useSettingsStore } from '@song-chords/shared';
 import { useT } from '../../i18n';
 
@@ -49,6 +49,12 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
     if (custom) return custom.name;
     return key;
   };
+  // Dark/light mode of the preset the set was drawn under — shown so
+  // the user knows which appearance the annotation belongs to. null
+  // when the preset is unknown (deleted custom preset): the segment
+  // is simply omitted.
+  const presetMode = (key: string): 'dark' | 'light' | null =>
+    SONG_STYLE_PRESETS[key]?.mode ?? customPresets[key]?.mode ?? null;
   // Only named saved sets count for "has annotations" — a lingering
   // draft doesn't survive across sessions and isn't meaningful in a
   // list-row preview.
@@ -181,6 +187,10 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
             {sets.map((s) => {
               const vLabel = viewModeLabel(s.viewMode);
               const pLabel = presetName(s.preset);
+              const mode = presetMode(s.preset);
+              const mLabel = mode
+                ? t(mode === 'dark' ? 'songRow.annotations.modeDark' : 'songRow.annotations.modeLight')
+                : null;
               return (
                 <div
                   key={s.id}
@@ -194,7 +204,7 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
                   <span
                     className="text-[10px] whitespace-nowrap inline-flex items-center gap-1.5"
                     style={{ color: 'var(--text-muted)' }}
-                    title={`${vLabel} — ${pLabel}`}
+                    title={`${vLabel} — ${pLabel}${mLabel ? ` — ${mLabel}` : ''}`}
                   >
                     <span>{vLabel}</span>
                     <span
@@ -207,6 +217,25 @@ export default function AnnotationsLinkButton({ title, annotationsJson, size = '
                       }}
                     />
                     <span>{pLabel}</span>
+                    {mLabel && (
+                      <>
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            display: 'inline-block',
+                            width: 1,
+                            height: 10,
+                            background: 'var(--border)',
+                          }}
+                        />
+                        <span className="inline-flex items-center gap-1">
+                          {mode === 'dark'
+                            ? <Moon size={9} style={{ color: 'var(--text-muted)' }} />
+                            : <Sun size={9} style={{ color: 'var(--text-muted)' }} />}
+                          {mLabel}
+                        </span>
+                      </>
+                    )}
                   </span>
                 </div>
               );

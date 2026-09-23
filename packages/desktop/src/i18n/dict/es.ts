@@ -726,6 +726,8 @@ export const es: Partial<Dict> = {
   'songRow.annotations.close': 'Cerrar',
   'songRow.annotations.unnamed': '(sin nombre)',
   'songRow.annotations.anyPreset': 'Cualquier preset',
+  'songRow.annotations.modeDark': 'Oscuro',
+  'songRow.annotations.modeLight': 'Claro',
 
   // ─── Set list picker modal ───────────────────────────────────────
   'setListPicker.addToSetList': 'Añadir a lista',

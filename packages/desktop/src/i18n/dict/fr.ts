@@ -725,6 +725,8 @@ export const fr: Partial<Dict> = {
   'songRow.annotations.close': 'Fermer',
   'songRow.annotations.unnamed': '(sans nom)',
   'songRow.annotations.anyPreset': 'Tout préréglage',
+  'songRow.annotations.modeDark': 'Sombre',
+  'songRow.annotations.modeLight': 'Clair',
 
   // ─── Set list picker modal ───────────────────────────────────────
   'setListPicker.addToSetList': 'Ajouter à une set-list',

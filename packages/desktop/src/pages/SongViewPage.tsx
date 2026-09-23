@@ -222,16 +222,27 @@ export default function SongViewPage(): React.ReactElement {
     chordBarVisible,
     inlineDiagrams,
   });
-  // Every song change starts with annotations explicitly OFF
-  // (`ANNOTATION_OFF`) — users pick a set from the top-toolbar
-  // Annotations menu to see them. Notes start OPEN when the "sticky
-  // notes in song view" settings switch is on and the song has a
-  // note; CLOSED otherwise (the toolbar button still toggles them
-  // within the song). Keyed on song id so switching songs re-applies.
+  // Per-song entry state. Notes start OPEN when the "sticky notes in
+  // song view" settings switch is on and the song has a note; CLOSED
+  // otherwise (the toolbar button still toggles them within the
+  // song). Annotations follow the per-view switch: ON → the song's
+  // DEFAULT set for the current view/preset shows automatically
+  // (`null` selection = pickActiveSet's default fallback); OFF →
+  // explicitly muted until the user picks a set from the menu.
   useEffect(() => {
     setShowNotes(!!(stickyNotesInSongView && activeSong?.notes?.trim()));
-    if (activeSong?.id) setSelectedSetId(activeSong.id, ANNOTATION_OFF);
-  }, [activeSong?.id, setSelectedSetId, stickyNotesInSongView]);
+    if (activeSong?.id) {
+      if (showAnnotations) {
+        // Lift only an OFF/unset selection to "auto default" — an
+        // explicit pick from the menu must survive (picking a set
+        // also turns this switch on, which re-runs this effect).
+        const cur = useAnnotationEditStore.getState().selectedSetIds[activeSong.id];
+        if (cur === ANNOTATION_OFF || cur == null) setSelectedSetId(activeSong.id, null);
+      } else {
+        setSelectedSetId(activeSong.id, ANNOTATION_OFF);
+      }
+    }
+  }, [activeSong?.id, setSelectedSetId, stickyNotesInSongView, showAnnotations]);
 
   // Song trainer eligibility: only the default chord-names-over-lyrics
   // view. Any other layout (lyrics-only, inline diagrams) hides the
@@ -1275,6 +1286,7 @@ export default function SongViewPage(): React.ReactElement {
             annotationsJson={activeSong.annotations}
             viewMode={annotationMode}
             preset={svs.preset}
+            onSetPicked={() => setShowAnnotations(true)}
           />
 
           {/* Cast to receiver */}
