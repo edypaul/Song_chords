@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Settings2 } from 'lucide-react';
-import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord, isCustomInstrument } from '@song-chords/shared';
+import { useSettingsStore, getBuiltinDiagrams, ALL_KEYS, formatChord, isCustomInstrument, canonicalChordKey } from '@song-chords/shared';
 import type { ChordDiagram, InstrumentType, CustomInstrument } from '@song-chords/shared';
 import ChordDiagramSVG from '../components/chord-diagram/ChordDiagramSVG';
 import ChordForm from '../components/chord-diagram/ChordForm';
@@ -120,14 +120,25 @@ export default function ChordLibraryPage(): React.ReactElement {
 
     // 2) Custom user diagrams (filtered to the active instrument so a
     //    user-saved piano chord doesn't render in the guitar library).
+    //    Grouped by CANONICAL chord key, so a variation saved as
+    //    "G#m7" joins the "Abm7" card (and any expanded enharmonic
+    //    twin card) instead of splitting into its own group.
+    const customByCanon: Record<string, ChordDiagram[]> = {};
     for (const [name, diagrams] of Object.entries(customChords)) {
       const matched = diagrams.filter((d) => d.instrument === instrument);
       if (matched.length === 0) continue;
-      if (merged[name]) {
-        merged[name].diagrams.push(...matched);
-      } else {
-        merged[name] = { diagrams: [...matched], builtinCount: 0 };
+      const canon = canonicalChordKey(name);
+      customByCanon[canon] = [...(customByCanon[canon] ?? []), ...matched];
+    }
+    for (const [canon, diags] of Object.entries(customByCanon)) {
+      let attached = false;
+      for (const key of Object.keys(merged)) {
+        if (key === canon || canonicalChordKey(key) === canon) {
+          merged[key].diagrams.push(...diags);
+          attached = true;
+        }
       }
+      if (!attached) merged[canon] = { diagrams: [...diags], builtinCount: 0 };
     }
 
     return merged;
@@ -138,8 +149,11 @@ export default function ChordLibraryPage(): React.ReactElement {
   // Ukulele instrument is selected. `customChords[name]` mixes all
   // instruments together, so filter by `d.instrument` (same rule the
   // ★ badge uses via `hasCustom`).
-  const hasCustomForInstrument = (name: string): boolean =>
-    (customChords[name]?.some((d) => d.instrument === instrument)) ?? false;
+  const hasCustomForInstrument = (name: string): boolean => {
+    const canon = canonicalChordKey(name);
+    return Object.entries(customChords).some(([n, list]) =>
+      canonicalChordKey(n) === canon && list.some((d) => d.instrument === instrument));
+  };
 
   const filtered = useMemo(() => {
     // When a bass note is selected, search for slash chords (e.g. "Csus4/E").
@@ -201,29 +215,54 @@ export default function ChordLibraryPage(): React.ReactElement {
 
   const addCustomChord = (diagram: ChordDiagram) => {
     const existing = { ...customChords };
-    existing[diagram.name] = [...(existing[diagram.name] ?? []), diagram];
+    // Store under the CANONICAL enharmonic key so "G#m7" and "Abm7"
+    // variations live in one group.
+    const key = canonicalChordKey(diagram.name);
+    existing[key] = [...(existing[key] ?? []), diagram];
     void updateSetting(db, 'customChords', existing);
     setShowAddForm(false);
   };
 
+  // A card's custom variations can come from several stored keys
+  // (enharmonic spellings saved over time). This maps the card-level
+  // custom index back to the stored (key, index) pair — SAME order as
+  // the card merge above: customChords entry order, instrument-filtered.
+  const storedCustomEntry = (cardName: string, customIdx: number): { key: string; idx: number } | null => {
+    const canon = canonicalChordKey(cardName);
+    let seen = 0;
+    for (const [name, diagrams] of Object.entries(customChords)) {
+      if (canonicalChordKey(name) !== canon) continue;
+      for (let i = 0; i < diagrams.length; i++) {
+        if (diagrams[i]!.instrument !== instrument) continue;
+        if (seen === customIdx) return { key: name, idx: i };
+        seen++;
+      }
+    }
+    return null;
+  };
+
   const updateCustomChord = (chordName: string, customIdx: number, diagram: ChordDiagram) => {
+    const entry = storedCustomEntry(chordName, customIdx);
+    if (!entry) return;
     const existing = { ...customChords };
-    const arr = [...(existing[chordName] ?? [])];
-    arr[customIdx] = diagram;
-    existing[chordName] = arr;
+    const arr = [...(existing[entry.key] ?? [])];
+    arr[entry.idx] = diagram;
+    existing[entry.key] = arr;
     void updateSetting(db, 'customChords', existing);
   };
 
   const deleteCustomChord = (chordName: string, customIdx: number) => {
+    const entry = storedCustomEntry(chordName, customIdx);
+    if (!entry) return;
     const existing = { ...customChords };
-    const arr = [...(existing[chordName] ?? [])];
-    arr.splice(customIdx, 1);
-    if (arr.length === 0) delete existing[chordName];
-    else existing[chordName] = arr;
+    const arr = [...(existing[entry.key] ?? [])];
+    arr.splice(entry.idx, 1);
+    if (arr.length === 0) delete existing[entry.key];
+    else existing[entry.key] = arr;
     void updateSetting(db, 'customChords', existing);
   };
 
-  const hasCustom = (name: string) => (customChords[name]?.filter((d) => d.instrument === instrument).length ?? 0) > 0;
+  const hasCustom = (name: string) => hasCustomForInstrument(name);
 
   return (
     <div className="p-8 max-w-5xl mx-auto">

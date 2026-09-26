@@ -136,63 +136,69 @@ function getBuiltin(chordName: string, instrument: InstrumentType): ChordDiagram
   return [];
 }
 
-/** Filter a custom-chord map to entries matching the active instrument
- *  (custom chords are stored across all instruments in one map). */
+/** Canonical GROUPING key for a chord name: root (and slash bass)
+ *  re-spelled to the baked canonical spelling. All enharmonic
+ *  spellings of the same chord map to the SAME key, so custom
+ *  voicings saved as "G#m7" and the baked "Abm7" set form one group. */
+export function canonicalChordKey(chordName: string): string {
+  return toCanonicalChordName(chordName) ?? chordName;
+}
+const canonicalKey = canonicalChordKey;
+
+/** Filter a custom-chord map to entries matching the active
+ *  instrument, RE-KEYED by canonical chord name so enharmonic
+ *  spellings group together no matter which spelling they were
+ *  saved under (custom chords are stored across all instruments in
+ *  one map, keyed by whatever the user typed at save time). */
 function customForInstrument(custom: DiagramMap | undefined, instrument: InstrumentType): DiagramMap {
   if (!custom) return {};
   const out: DiagramMap = {};
   for (const [name, diagrams] of Object.entries(custom)) {
     const matched = diagrams.filter((d) => d.instrument === instrument);
-    if (matched.length) out[name] = matched;
+    if (!matched.length) continue;
+    const key = canonicalKey(name);
+    out[key] = [...(out[key] ?? []), ...matched];
   }
   return out;
 }
 
 function lookup(chordName: string, instrument: InstrumentType, custom?: DiagramMap): ChordDiagram[] {
   const custMap = customForInstrument(custom, instrument);
+  const canonKey = canonicalKey(chordName);
 
-  // 1) Exact match on the spelling the user wrote (custom overrides
-  //    keyed by that exact spelling are honoured here too).
-  const builtin = getBuiltin(chordName, instrument);
-  const userVariants = custMap[chordName] ?? [];
-  const exact = [...builtin, ...userVariants];
-  if (exact.length) return exact;
-
-  // 2) Enharmonic fallback: the baked tables use one spelling per
-  //    pitch class (Ab not G#, Eb not D#, …). Re-spell the root (and
-  //    slash bass) to that canonical spelling, look that up, then
-  //    re-label the result back to what the user typed so the chart
-  //    header still reads "G#m7b5", not "Abm7b5".
-  const canonical = toCanonicalChordName(chordName);
-  if (canonical) {
-    const cb = getBuiltin(canonical, instrument);
-    const cu = custMap[canonical] ?? [];
-    const enh = [...cb, ...cu];
-    if (enh.length) return relabel(enh, chordName);
+  // 1) Built-ins: prefer the entry under the exact spelling the user
+  //    wrote; otherwise the canonical enharmonic spelling's entry
+  //    (the baked tables use one spelling per pitch class — Ab not
+  //    G#, Eb not D#, …), re-labelled back to what the user typed so
+  //    the chart header still reads "G#m7b5", not "Abm7b5".
+  let builtin = getBuiltin(chordName, instrument);
+  if (!builtin.length && canonKey !== chordName) {
+    builtin = relabel(getBuiltin(canonKey, instrument), chordName);
   }
+  // Custom voicings are grouped by canonical key (see
+  // customForInstrument), so a variation saved as "G#m7" merges into
+  // an "Abm7" query and vice versa — ALWAYS appended after the
+  // built-ins, shown under the requested spelling.
+  const userVariants = relabel(custMap[canonKey] ?? [], chordName);
+  const merged = [...builtin, ...userVariants];
+  if (merged.length) return merged;
 
-  // 3) Suffix-alias fallback: re-spell `aug`/`dim`/`sus`/`(add9)`/
+  // 2) Suffix-alias fallback: re-spell `aug`/`dim`/`sus`/`(add9)`/
   //    `(sus2)`/`(sus4)` to the canonical suffix and re-look. Users
   //    importing songs from other apps frequently spell chords this
-  //    way; the engine should treat them as the same chord.
+  //    way; the engine should treat them as the same chord. The
+  //    enharmonic re-spell applies on top (e.g. "G#aug" → "G#+",
+  //    still keyed under "Ab+").
   const aliasName = toAliasCanonicalChordName(chordName);
   if (aliasName && aliasName !== chordName) {
-    const ab = getBuiltin(aliasName, instrument);
-    const au = custMap[aliasName] ?? [];
+    const aliasKey = canonicalKey(aliasName);
+    let ab = getBuiltin(aliasName, instrument);
+    if (!ab.length && aliasKey !== aliasName) {
+      ab = getBuiltin(aliasKey, instrument);
+    }
+    const au = custMap[aliasKey] ?? [];
     const alias = [...ab, ...au];
     if (alias.length) return relabel(alias, chordName);
-
-    // 3b) Combined: alias canonicalisation MAY have changed the
-    //     suffix but left a non-canonical enharmonic root (e.g.
-    //     "Dbaug" → "Db+", still keyed under "C#+"). Apply the
-    //     enharmonic re-spell on the alias-canonical name too.
-    const both = toCanonicalChordName(aliasName);
-    if (both) {
-      const bb = getBuiltin(both, instrument);
-      const bu = custMap[both] ?? [];
-      const combo = [...bb, ...bu];
-      if (combo.length) return relabel(combo, chordName);
-    }
   }
 
   return [];
@@ -238,9 +244,17 @@ export function getAllChordNames(instrument: InstrumentType, custom?: DiagramMap
 }
 
 /** Check if a chord name has any custom (user-added) variations for any
- *  instrument. The customChords map mixes instruments together. */
+ *  instrument. The customChords map mixes instruments together.
+ *  Enharmonic spellings count as the same chord (a custom "G#m7"
+ *  makes "Abm7" report custom variations too). */
 export function hasCustomVariations(chordName: string, custom?: DiagramMap): boolean {
-  return !!custom?.[chordName]?.length;
+  if (!custom) return false;
+  if (custom[chordName]?.length) return true;
+  const key = canonicalKey(chordName);
+  for (const [name, list] of Object.entries(custom)) {
+    if (list?.length && canonicalKey(name) === key) return true;
+  }
+  return false;
 }
 
 // Enharmonic alternative spelling per pitch class, used to surface

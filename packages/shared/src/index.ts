@@ -72,7 +72,7 @@ export { importFromString, importSongsFromJson } from './utils/file-importer';
 export { toLatin, fromLatin, formatChord, formatKey, normalizeContentToLetter } from './utils/chord-notation';
 
 // Chord diagrams
-export { getDiagram, getDiagramExact, getDiagramVariations, getDiagramByIndex, getAllChordNames, hasCustomVariations, getBuiltinDiagrams } from './chord-diagrams/diagram-lookup';
+export { getDiagram, getDiagramExact, getDiagramVariations, getDiagramByIndex, getAllChordNames, hasCustomVariations, getBuiltinDiagrams, canonicalChordKey } from './chord-diagrams/diagram-lookup';
 export { GUITAR_DIAGRAMS } from './chord-diagrams/guitar-diagrams';
 export { UKULELE_DIAGRAMS } from './chord-diagrams/ukulele-diagrams';
 export { GUITAR_SLASH_DIAGRAMS, UKULELE_SLASH_DIAGRAMS } from './chord-diagrams/slash-diagrams';

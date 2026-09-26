@@ -7,6 +7,7 @@ import {
   formatChord,
   resolveChordVariation,
   emptyDiagramFor,
+  canonicalChordKey,
 } from '@song-chords/shared';
 import type { ChordDiagram, SongPreferences } from '@song-chords/shared';
 import ChordDiagramSVG from './ChordDiagramSVG';
@@ -68,7 +69,10 @@ export default function ChordModal({ chord, onClose, songId, songPrefs, onKeepFu
 
   const saveCustomDiagram = (d: ChordDiagram) => {
     const existing = { ...custom };
-    existing[chord] = [...(existing[chord] ?? []), d];
+    // Group under the CANONICAL enharmonic key ("G#m7" saves join the
+    // "Abm7" group) — the lookup re-labels for display either way.
+    const key = canonicalChordKey(chord);
+    existing[key] = [...(existing[key] ?? []), d];
     void updateSetting(db, 'customChords', existing);
     setCreatingCustom(false);
     // Land on the voicing that was just created. Custom voicings are
