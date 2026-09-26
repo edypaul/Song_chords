@@ -19,12 +19,12 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-// Hard ceiling on variations per chord. Product rule (user, 2026-08):
-// ukulele gets 1–3 shapes per chord. The curated ukulele templates in
-// canonical-shapes.ts lead (open / lowest-position standard shapes
-// first); the generator only tops up when a quality has fewer than 3
-// curated shapes that fit the key.
-const VOICINGS_PER_CHORD = 3;
+// Hard ceiling on variations per chord. Product rule (user, 2026-09,
+// supersedes the earlier 1–3): ukulele keeps only the most used
+// shapes — up to 2 per chord, curated canonical templates first
+// (open / lowest-position standard shapes), generator top-up only
+// when fewer than 2 curated shapes fit the key.
+const VOICINGS_PER_CHORD = 2;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'ukulele-diagrams.ts');
 

@@ -6,601 +6,481 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'C': [
     { name:'C', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,3] },
     { name:'C', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,3,3] },
-    { name:'C', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,7] },
   ],
   'C5': [
     { name:'C5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,3,3] },
-    { name:'C5', instrument:'ukulele', baseFret:1, strings:4, frets:['x',0,3,'x'] },
     { name:'C5', instrument:'ukulele', baseFret:6, strings:4, frets:['x','x',8,10] },
   ],
   'Csus4': [
     { name:'Csus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,3] },
     { name:'Csus4', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,3,3] },
-    { name:'Csus4', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,8] },
   ],
   'Csus2': [
     { name:'Csus2', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,3] },
     { name:'Csus2', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,5] },
-    { name:'Csus2', instrument:'ukulele', baseFret:6, strings:4, frets:[7,7,8,10] },
   ],
   'Cadd9': [
     { name:'Cadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,3] },
     { name:'Cadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,3,5] },
-    { name:'Cadd9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,7] },
   ],
   'C6': [
     { name:'C6', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,0] },
     { name:'C6', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,7] },
-    { name:'C6', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,8,10] },
   ],
   'C6/9': [
     { name:'C6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,0,3] },
     { name:'C6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,0] },
-    { name:'C6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,10,12] },
   ],
   'Cmaj7': [
     { name:'Cmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,2] },
     { name:'Cmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,3] },
-    { name:'Cmaj7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,7,7] },
   ],
   'Cmaj9': [
     { name:'Cmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,2] },
     { name:'Cmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,5] },
-    { name:'Cmaj9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,10,10] },
   ],
   'Cmaj7#11': [
     { name:'Cmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,2,2] },
-    { name:'Cmaj7#11', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,7,7] },
     { name:'Cmaj7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,9] },
   ],
   'Cmaj13': [
     { name:'Cmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,0,2] },
-    { name:'Cmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,5,2] },
     { name:'Cmaj13', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,7,10] },
   ],
   'Cm': [
     { name:'Cm', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,3,3] },
     { name:'Cm', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,3,3] },
-    { name:'Cm', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,6] },
   ],
   'Cm(add9)': [
     { name:'Cm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,3,5] },
-    { name:'Cm(add9)', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,8,5] },
     { name:'Cm(add9)', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,6] },
   ],
   'Cm6': [
     { name:'Cm6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,3] },
     { name:'Cm6', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,5,3] },
-    { name:'Cm6', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
   ],
   'Cmb6': [
     { name:'Cmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,4,3] },
-    { name:'Cmb6', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,6] },
     { name:'Cmb6', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,11,11] },
   ],
   'Cm6/9': [
     { name:'Cm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,5,5] },
-    { name:'Cm6/9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
     { name:'Cm6/9', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,11,12] },
   ],
   'Cm7': [
     { name:'Cm7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,3] },
     { name:'Cm7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,6,6] },
-    { name:'Cm7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,10] },
   ],
   'Cm7b5': [
     { name:'Cm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,3] },
     { name:'Cm7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,6] },
-    { name:'Cm7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,9] },
   ],
   'Cm(maj7)': [
     { name:'Cm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,3,2] },
     { name:'Cm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,3,3] },
-    { name:'Cm(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,8,10] },
   ],
   'Cm9': [
     { name:'Cm9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,5] },
     { name:'Cm9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,3,6,5] },
-    { name:'Cm9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,10,10] },
   ],
   'Cm9b5': [
     { name:'Cm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,3] },
-    { name:'Cm9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,6] },
     { name:'Cm9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,9] },
   ],
   'Cm9(maj7)': [
     { name:'Cm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,3,5] },
-    { name:'Cm9(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,7,6] },
     { name:'Cm9(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,10,10] },
   ],
   'Cm11': [
     { name:'Cm11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,1] },
-    { name:'Cm11', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,6] },
     { name:'Cm11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,8] },
   ],
   'Cm13': [
     { name:'Cm13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,1] },
-    { name:'Cm13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,5,3] },
     { name:'Cm13', instrument:'ukulele', baseFret:8, strings:4, frets:[10,10,11,12] },
   ],
   'C7': [
     { name:'C7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,1] },
     { name:'C7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,3] },
-    { name:'C7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,6,7] },
   ],
   'C7sus4': [
     { name:'C7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,1] },
     { name:'C7sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,6,8] },
-    { name:'C7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,3] },
   ],
   'C7b5': [
     { name:'C7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,3] },
-    { name:'C7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,6,7] },
     { name:'C7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
   ],
   'C9': [
     { name:'C9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
     { name:'C9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,4,6,5] },
-    { name:'C9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,7] },
   ],
   'C9sus4': [
     { name:'C9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,1,1] },
     { name:'C9sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,5] },
-    { name:'C9sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,8] },
   ],
   'C9b5': [
     { name:'C9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,5] },
-    { name:'C9b5', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,6,7] },
     { name:'C9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
   ],
   'C7b9': [
     { name:'C7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,1] },
     { name:'C7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,4] },
-    { name:'C7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
   ],
   'C7#9': [
     { name:'C7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,0,1] },
-    { name:'C7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,4,6,6] },
     { name:'C7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,7] },
   ],
   'C7b5(#9)': [
     { name:'C7b5(#9)', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,6,7] },
-    { name:'C7b5(#9)', instrument:'ukulele', baseFret:5, strings:4, frets:[9,6,6,6] },
     { name:'C7b5(#9)', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,11,9] },
   ],
   'C11': [
     { name:'C11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,1] },
-    { name:'C11', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,5] },
     { name:'C11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,8] },
   ],
   'C7#11': [
     { name:'C7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,3] },
-    { name:'C7#11', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,6,7] },
     { name:'C7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
   ],
   'C13': [
     { name:'C13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,1] },
-    { name:'C13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,0,0] },
     { name:'C13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,12,12] },
   ],
   'C13sus4': [
     { name:'C13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,1,1] },
-    { name:'C13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,1,0] },
     { name:'C13sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[10,10,10,12] },
   ],
   'C+': [
     { name:'C+', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,3] },
     { name:'C+', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,4,3] },
-    { name:'C+', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,12,11] },
   ],
   'C+7': [
     { name:'C+7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,1] },
     { name:'C+7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,3] },
-    { name:'C+7', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,8,11] },
   ],
   'C+9': [
     { name:'C+9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
-    { name:'C+9', instrument:'ukulele', baseFret:4, strings:4, frets:[5,8,6,7] },
     { name:'C+9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,8,11] },
   ],
   'C+7b9': [
     { name:'C+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,1] },
-    { name:'C+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,4] },
     { name:'C+7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,9,11] },
   ],
   'C+7#9': [
     { name:'C+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,1] },
-    { name:'C+7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[3,4,4,6] },
     { name:'C+7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,11,11] },
   ],
   'C°': [
     { name:'C°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',3,2,3] },
-    { name:'C°', instrument:'ukulele', baseFret:4, strings:4, frets:[5,6,8,6] },
     { name:'C°', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,11,9] },
   ],
   'C°7': [
     { name:'C°7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,3] },
-    { name:'C°7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,6] },
     { name:'C°7', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
   ],
   'C#': [
     { name:'C#', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,4] },
     { name:'C#', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,4,4] },
-    { name:'C#', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,8] },
   ],
   'C#5': [
     { name:'C#5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,4,4] },
-    { name:'C#5', instrument:'ukulele', baseFret:1, strings:4, frets:['x',1,4,'x'] },
     { name:'C#5', instrument:'ukulele', baseFret:7, strings:4, frets:['x','x',9,11] },
   ],
   'C#sus4': [
     { name:'C#sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,4] },
     { name:'C#sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,4,4] },
-    { name:'C#sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,9] },
   ],
   'C#sus2': [
     { name:'C#sus2', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,4] },
     { name:'C#sus2', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,6] },
-    { name:'C#sus2', instrument:'ukulele', baseFret:7, strings:4, frets:[8,8,9,11] },
   ],
   'C#add9': [
     { name:'C#add9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,4] },
     { name:'C#add9', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,4,6] },
-    { name:'C#add9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,9,8] },
   ],
   'C#6': [
     { name:'C#6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,1] },
     { name:'C#6', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,8] },
-    { name:'C#6', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,9,11] },
   ],
   'C#6/9': [
     { name:'C#6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,1] },
     { name:'C#6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,4] },
-    { name:'C#6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,9,8] },
   ],
   'C#maj7': [
     { name:'C#maj7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,3] },
     { name:'C#maj7', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,4,4] },
-    { name:'C#maj7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,8,8] },
   ],
   'C#maj9': [
     { name:'C#maj9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,3] },
     { name:'C#maj9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,4,6] },
-    { name:'C#maj9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,11,11] },
   ],
   'C#maj7#11': [
     { name:'C#maj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,3,3] },
-    { name:'C#maj7#11', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,8,8] },
     { name:'C#maj7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,10] },
   ],
   'C#maj13': [
     { name:'C#maj13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,3] },
-    { name:'C#maj13', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,6,3] },
     { name:'C#maj13', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,8] },
   ],
   'C#m': [
     { name:'C#m', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,4,4] },
     { name:'C#m', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,4,4] },
-    { name:'C#m', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,7] },
   ],
   'C#m(add9)': [
     { name:'C#m(add9)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,4,6] },
-    { name:'C#m(add9)', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,9,6] },
     { name:'C#m(add9)', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,9,7] },
   ],
   'C#m6': [
     { name:'C#m6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,1] },
     { name:'C#m6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,4] },
-    { name:'C#m6', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,6,4] },
   ],
   'C#mb6': [
     { name:'C#mb6', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,5,4] },
-    { name:'C#mb6', instrument:'ukulele', baseFret:1, strings:4, frets:['x',1,0,0] },
     { name:'C#mb6', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,9,11] },
   ],
   'C#m6/9': [
     { name:'C#m6/9', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,6,6] },
-    { name:'C#m6/9', instrument:'ukulele', baseFret:1, strings:4, frets:['x',1,0,1] },
     { name:'C#m6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,9,7] },
   ],
   'C#m7': [
     { name:'C#m7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,2] },
     { name:'C#m7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,4,4] },
-    { name:'C#m7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,7,7] },
   ],
   'C#m7b5': [
     { name:'C#m7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,4] },
     { name:'C#m7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,7,7] },
-    { name:'C#m7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,10] },
   ],
   'C#m(maj7)': [
     { name:'C#m(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,3] },
     { name:'C#m(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,4,3] },
-    { name:'C#m(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,4,4] },
   ],
   'C#m9': [
     { name:'C#m9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,4,4,6] },
     { name:'C#m9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,4,7,6] },
-    { name:'C#m9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,11,11] },
   ],
   'C#m9b5': [
     { name:'C#m9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,2] },
-    { name:'C#m9b5', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,7,7] },
     { name:'C#m9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,10] },
   ],
   'C#m9(maj7)': [
     { name:'C#m9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,3] },
-    { name:'C#m9(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[5,4,4,6] },
     { name:'C#m9(maj7)', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,11,11] },
   ],
   'C#m11': [
     { name:'C#m11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,2] },
-    { name:'C#m11', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,7] },
     { name:'C#m11', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,9] },
   ],
   'C#m13': [
     { name:'C#m13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,2] },
-    { name:'C#m13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,0,2] },
     { name:'C#m13', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,7] },
   ],
   'C#7': [
     { name:'C#7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,2] },
     { name:'C#7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,4] },
-    { name:'C#7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,7,8] },
   ],
   'C#7sus4': [
     { name:'C#7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,2] },
     { name:'C#7sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,7,9] },
-    { name:'C#7sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,4] },
   ],
   'C#7b5': [
     { name:'C#7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
-    { name:'C#7b5', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,7,8] },
     { name:'C#7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
   ],
   'C#9': [
     { name:'C#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
     { name:'C#9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,5,7,6] },
-    { name:'C#9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,8] },
   ],
   'C#9sus4': [
     { name:'C#9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,2] },
     { name:'C#9sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,6] },
-    { name:'C#9sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,9] },
   ],
   'C#9b5': [
     { name:'C#9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,3,6] },
-    { name:'C#9b5', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,7,8] },
     { name:'C#9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
   ],
   'C#7b9': [
     { name:'C#7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
     { name:'C#7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,5] },
-    { name:'C#7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
   ],
   'C#7#9': [
     { name:'C#7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,1,2] },
-    { name:'C#7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,5,7,7] },
     { name:'C#7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,8] },
   ],
   'C#7b5(#9)': [
     { name:'C#7b5(#9)', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,7,8] },
     { name:'C#7b5(#9)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,7,7,7] },
-    { name:'C#7b5(#9)', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,12,10] },
   ],
   'C#11': [
     { name:'C#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,2] },
-    { name:'C#11', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,6] },
     { name:'C#11', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,9] },
   ],
   'C#7#11': [
     { name:'C#7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
-    { name:'C#7#11', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,7,8] },
     { name:'C#7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
   ],
   'C#13': [
     { name:'C#13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,1,2] },
-    { name:'C#13', instrument:'ukulele', baseFret:1, strings:4, frets:[4,1,1,1] },
     { name:'C#13', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,8] },
   ],
   'C#13sus4': [
     { name:'C#13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,2,2] },
-    { name:'C#13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,1,2,1] },
     { name:'C#13sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,9] },
   ],
   'C#+': [
     { name:'C#+', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,1,4] },
     { name:'C#+', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,5,4] },
-    { name:'C#+', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,8] },
   ],
   'C#+7': [
     { name:'C#+7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,1,2] },
     { name:'C#+7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,5,4] },
-    { name:'C#+7', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,9,12] },
   ],
   'C#+9': [
     { name:'C#+9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
-    { name:'C#+9', instrument:'ukulele', baseFret:5, strings:4, frets:[6,9,7,8] },
     { name:'C#+9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,9,12] },
   ],
   'C#+7b9': [
     { name:'C#+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,2] },
-    { name:'C#+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,5,5] },
     { name:'C#+7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,10,12] },
   ],
   'C#+7#9': [
     { name:'C#+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,1,2] },
-    { name:'C#+7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[4,5,5,7] },
     { name:'C#+7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,7,7] },
   ],
   'C#°': [
     { name:'C#°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,3,4] },
-    { name:'C#°', instrument:'ukulele', baseFret:5, strings:4, frets:[6,7,9,7] },
     { name:'C#°', instrument:'ukulele', baseFret:6, strings:4, frets:[9,7,9,10] },
   ],
   'C#°7': [
     { name:'C#°7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,4] },
-    { name:'C#°7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,6,7] },
     { name:'C#°7', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
   ],
   'D': [
     { name:'D', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,0] },
     { name:'D', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,5] },
-    { name:'D', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,5,5] },
   ],
   'D5': [
     { name:'D5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,5,5] },
-    { name:'D5', instrument:'ukulele', baseFret:1, strings:4, frets:['x',2,'x',0] },
     { name:'D5', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,10,'x'] },
   ],
   'Dsus4': [
     { name:'Dsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,0] },
     { name:'Dsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,5] },
-    { name:'Dsus4', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,5,5] },
   ],
   'Dsus2': [
     { name:'Dsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,0,0] },
     { name:'Dsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,5] },
-    { name:'Dsus2', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,10,7] },
   ],
   'Dadd9': [
     { name:'Dadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,5] },
     { name:'Dadd9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,5,7] },
-    { name:'Dadd9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,9] },
   ],
   'D6': [
     { name:'D6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,2] },
     { name:'D6', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,9] },
-    { name:'D6', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,10,12] },
   ],
   'D6/9': [
     { name:'D6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,2] },
     { name:'D6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,5] },
-    { name:'D6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,10,9] },
   ],
   'Dmaj7': [
     { name:'Dmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,4] },
     { name:'Dmaj7', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,5] },
-    { name:'Dmaj7', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,9,9] },
   ],
   'Dmaj9': [
     { name:'Dmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,4] },
     { name:'Dmaj9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,5,7] },
-    { name:'Dmaj9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,6,9,7] },
   ],
   'Dmaj7#11': [
     { name:'Dmaj7#11', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,4,4] },
-    { name:'Dmaj7#11', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,9,9] },
     { name:'Dmaj7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,9,11] },
   ],
   'Dmaj13': [
     { name:'Dmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,4] },
-    { name:'Dmaj13', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,7,4] },
     { name:'Dmaj13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,9] },
   ],
   'Dm': [
     { name:'Dm', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,0] },
     { name:'Dm', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,5,5] },
-    { name:'Dm', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,5,5] },
   ],
   'Dm(add9)': [
     { name:'Dm(add9)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,5,7] },
-    { name:'Dm(add9)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,10,7] },
     { name:'Dm(add9)', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,8] },
   ],
   'Dm6': [
     { name:'Dm6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,2] },
     { name:'Dm6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,5,5] },
-    { name:'Dm6', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,7,5] },
   ],
   'Dmb6': [
     { name:'Dmb6', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,6,5] },
-    { name:'Dmb6', instrument:'ukulele', baseFret:1, strings:4, frets:['x',2,1,1] },
     { name:'Dmb6', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,10,8] },
   ],
   'Dm6/9': [
     { name:'Dm6/9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,7,7] },
-    { name:'Dm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:['x',2,1,2] },
     { name:'Dm6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,10,8] },
   ],
   'Dm7': [
     { name:'Dm7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,3] },
     { name:'Dm7', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,5,5] },
-    { name:'Dm7', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,8,8] },
   ],
   'Dm7b5': [
     { name:'Dm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,4,5] },
     { name:'Dm7b5', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,8,8] },
-    { name:'Dm7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,11] },
   ],
   'Dm(maj7)': [
     { name:'Dm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,4] },
     { name:'Dm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,5,4] },
-    { name:'Dm(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,5,5] },
   ],
   'Dm9': [
     { name:'Dm9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,5,5,7] },
     { name:'Dm9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,5,8,7] },
-    { name:'Dm9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,8,7] },
   ],
   'Dm9b5': [
     { name:'Dm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,3] },
-    { name:'Dm9b5', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,8,8] },
     { name:'Dm9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,11] },
   ],
   'Dm9(maj7)': [
     { name:'Dm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,1,4] },
-    { name:'Dm9(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[6,5,5,7] },
     { name:'Dm9(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,7] },
   ],
   'Dm11': [
     { name:'Dm11', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,3,3] },
-    { name:'Dm11', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,8] },
     { name:'Dm11', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,10] },
   ],
   'Dm13': [
     { name:'Dm13', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,3] },
-    { name:'Dm13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,2] },
     { name:'Dm13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,8] },
   ],
   'D7': [
     { name:'D7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,3] },
     { name:'D7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,2,0] },
-    { name:'D7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,5] },
   ],
   'D7sus4': [
     { name:'D7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,3] },
     { name:'D7sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,8,10] },
-    { name:'D7sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,5] },
   ],
   'D7b5': [
     { name:'D7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
-    { name:'D7b5', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,8,9] },
     { name:'D7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
   ],
   'D9': [
     { name:'D9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,3] },
     { name:'D9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,6,8,7] },
-    { name:'D9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,10,9] },
   ],
   'D9sus4': [
     { name:'D9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,3] },
     { name:'D9sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,7] },
-    { name:'D9sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,8,10] },
   ],
   'D9b5': [
     { name:'D9b5', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,4,7] },
-    { name:'D9b5', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,8,9] },
     { name:'D9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
   ],
   'D7b9': [
     { name:'D7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,3] },
     { name:'D7b9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,6] },
-    { name:'D7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
   ],
   'D7#9': [
     { name:'D7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,2,3] },
-    { name:'D7#9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,6,8,8] },
     { name:'D7#9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,9] },
   ],
   'D7b5(#9)': [
@@ -610,436 +490,349 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'D11': [
     { name:'D11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,3] },
     { name:'D11', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,8,10] },
-    { name:'D11', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,7] },
   ],
   'D7#11': [
     { name:'D7#11', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
-    { name:'D7#11', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,8,9] },
     { name:'D7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
   ],
   'D13': [
     { name:'D13', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,2,3] },
-    { name:'D13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,2,2] },
     { name:'D13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,9] },
   ],
   'D13sus4': [
     { name:'D13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,3,3] },
-    { name:'D13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,2] },
     { name:'D13sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,10] },
   ],
   'D+': [
     { name:'D+', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,5] },
     { name:'D+', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,6,5] },
-    { name:'D+', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,10,9] },
   ],
   'D+7': [
     { name:'D+7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,3] },
     { name:'D+7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,5] },
-    { name:'D+7', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,9] },
   ],
   'D+9': [
     { name:'D+9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,3] },
-    { name:'D+9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,5] },
     { name:'D+9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,9] },
   ],
   'D+7b9': [
     { name:'D+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,3] },
-    { name:'D+7b9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,6] },
     { name:'D+7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,9] },
   ],
   'D+7#9': [
     { name:'D+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,3] },
-    { name:'D+7#9', instrument:'ukulele', baseFret:4, strings:4, frets:[5,6,6,8] },
     { name:'D+7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,8,9] },
   ],
   'D°': [
     { name:'D°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,4,5] },
-    { name:'D°', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,4,'x'] },
     { name:'D°', instrument:'ukulele', baseFret:6, strings:4, frets:[7,8,10,8] },
   ],
   'D°7': [
     { name:'D°7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,5] },
-    { name:'D°7', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,7,8] },
     { name:'D°7', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
   ],
   'Eb': [
     { name:'Eb', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,1] },
     { name:'Eb', instrument:'ukulele', baseFret:2, strings:4, frets:[3,3,3,6] },
-    { name:'Eb', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,6,6] },
   ],
   'Eb5': [
     { name:'Eb5', instrument:'ukulele', baseFret:2, strings:4, frets:[3,3,6,6] },
-    { name:'Eb5', instrument:'ukulele', baseFret:2, strings:4, frets:['x',3,6,'x'] },
     { name:'Eb5', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,11,'x'] },
   ],
   'Ebsus4': [
     { name:'Ebsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,1] },
     { name:'Ebsus4', instrument:'ukulele', baseFret:2, strings:4, frets:[3,3,4,6] },
-    { name:'Ebsus4', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,6,6] },
   ],
   'Ebsus2': [
     { name:'Ebsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,1] },
     { name:'Ebsus2', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,6] },
-    { name:'Ebsus2', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,11,8] },
   ],
   'Ebadd9': [
     { name:'Ebadd9', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,3,6] },
     { name:'Ebadd9', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,6,8] },
-    { name:'Ebadd9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,10] },
   ],
   'Eb6': [
     { name:'Eb6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,3] },
     { name:'Eb6', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,10] },
-    { name:'Eb6', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,8,6] },
   ],
   'Eb6/9': [
     { name:'Eb6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,3] },
     { name:'Eb6/9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,3,6] },
-    { name:'Eb6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,11,10] },
   ],
   'Ebmaj7': [
     { name:'Ebmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,5] },
     { name:'Ebmaj7', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,6,6] },
-    { name:'Ebmaj7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,10,10] },
   ],
   'Ebmaj9': [
     { name:'Ebmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,5] },
     { name:'Ebmaj9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,6,8] },
-    { name:'Ebmaj9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,7,10,8] },
   ],
   'Ebmaj7#11': [
     { name:'Ebmaj7#11', instrument:'ukulele', baseFret:3, strings:4, frets:['x',7,5,5] },
-    { name:'Ebmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,0] },
     { name:'Ebmaj7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,10,10] },
   ],
   'Ebmaj13': [
     { name:'Ebmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,3,5] },
-    { name:'Ebmaj13', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,8,5] },
     { name:'Ebmaj13', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,10] },
   ],
   'Ebm': [
     { name:'Ebm', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,1] },
     { name:'Ebm', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,6,6] },
-    { name:'Ebm', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,6,6] },
   ],
   'Ebm(add9)': [
     { name:'Ebm(add9)', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,6,8] },
-    { name:'Ebm(add9)', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,11,8] },
     { name:'Ebm(add9)', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,9] },
   ],
   'Ebm6': [
     { name:'Ebm6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,3] },
     { name:'Ebm6', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,6,6] },
-    { name:'Ebm6', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,8,6] },
   ],
   'Ebmb6': [
     { name:'Ebmb6', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,7,6] },
-    { name:'Ebmb6', instrument:'ukulele', baseFret:1, strings:4, frets:['x',3,2,2] },
     { name:'Ebmb6', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,9] },
   ],
   'Ebm6/9': [
     { name:'Ebm6/9', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,8,8] },
-    { name:'Ebm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:['x',3,2,3] },
     { name:'Ebm6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,9] },
   ],
   'Ebm7': [
     { name:'Ebm7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,4] },
     { name:'Ebm7', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,6,6] },
-    { name:'Ebm7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,9,9] },
   ],
   'Ebm7b5': [
     { name:'Ebm7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,6] },
     { name:'Ebm7b5', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,9,9] },
-    { name:'Ebm7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,9,9,12] },
   ],
   'Ebm(maj7)': [
     { name:'Ebm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,5] },
     { name:'Ebm(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,6,5] },
-    { name:'Ebm(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,6,6] },
   ],
   'Ebm9': [
     { name:'Ebm9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,6,6,8] },
     { name:'Ebm9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,6,9,8] },
-    { name:'Ebm9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,9] },
   ],
   'Ebm9b5': [
     { name:'Ebm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,4] },
-    { name:'Ebm9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,6] },
     { name:'Ebm9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,9] },
   ],
   'Ebm9(maj7)': [
     { name:'Ebm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,5] },
-    { name:'Ebm9(maj7)', instrument:'ukulele', baseFret:4, strings:4, frets:[7,6,6,8] },
     { name:'Ebm9(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,10,9] },
   ],
   'Ebm11': [
     { name:'Ebm11', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,4,4] },
-    { name:'Ebm11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,4] },
     { name:'Ebm11', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,9,9] },
   ],
   'Ebm13': [
     { name:'Ebm13', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,4] },
-    { name:'Ebm13', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,2,4] },
     { name:'Ebm13', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,9] },
   ],
   'Eb7': [
     { name:'Eb7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,3,1] },
     { name:'Eb7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,4] },
-    { name:'Eb7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,6,6] },
   ],
   'Eb7sus4': [
     { name:'Eb7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,4] },
     { name:'Eb7sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,9,11] },
-    { name:'Eb7sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,6] },
   ],
   'Eb7b5': [
     { name:'Eb7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
-    { name:'Eb7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,4] },
     { name:'Eb7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'Eb9': [
     { name:'Eb9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
     { name:'Eb9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,7,9,8] },
-    { name:'Eb9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,10] },
   ],
   'Eb9sus4': [
     { name:'Eb9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,4,4] },
     { name:'Eb9sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,9,8] },
-    { name:'Eb9sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,9,11] },
   ],
   'Eb9b5': [
     { name:'Eb9b5', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,5,8] },
-    { name:'Eb9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,0] },
     { name:'Eb9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'Eb7b9': [
     { name:'Eb7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,4] },
     { name:'Eb7b9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,6,7] },
-    { name:'Eb7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
   ],
   'Eb7#9': [
     { name:'Eb7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,3,4] },
-    { name:'Eb7#9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,7,9,9] },
     { name:'Eb7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,9,10] },
   ],
   'Eb7b5(#9)': [
     { name:'Eb7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,2,0] },
     { name:'Eb7b5(#9)', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,9,10] },
-    { name:'Eb7b5(#9)', instrument:'ukulele', baseFret:8, strings:4, frets:[12,9,9,9] },
   ],
   'Eb11': [
     { name:'Eb11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,4] },
     { name:'Eb11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,8,9,10] },
-    { name:'Eb11', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,9,11] },
   ],
   'Eb7#11': [
     { name:'Eb7#11', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
-    { name:'Eb7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,4] },
     { name:'Eb7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'Eb13': [
     { name:'Eb13', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,3,4] },
-    { name:'Eb13', instrument:'ukulele', baseFret:2, strings:4, frets:[6,3,3,3] },
     { name:'Eb13', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,10] },
   ],
   'Eb13sus4': [
     { name:'Eb13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,4,4] },
-    { name:'Eb13sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[6,3,4,3] },
     { name:'Eb13sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,11] },
   ],
   'Eb+': [
     { name:'Eb+', instrument:'ukulele', baseFret:2, strings:4, frets:[4,3,3,6] },
     { name:'Eb+', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,7,6] },
-    { name:'Eb+', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,11,10] },
   ],
   'Eb+7': [
     { name:'Eb+7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,3,4] },
     { name:'Eb+7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,7,6] },
-    { name:'Eb+7', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,10] },
   ],
   'Eb+9': [
     { name:'Eb+9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
-    { name:'Eb+9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,2] },
     { name:'Eb+9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,10] },
   ],
   'Eb+7b9': [
     { name:'Eb+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,4] },
-    { name:'Eb+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,2] },
     { name:'Eb+7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,10] },
   ],
   'Eb+7#9': [
     { name:'Eb+7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,3,4] },
-    { name:'Eb+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,2,2] },
     { name:'Eb+7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,9,10] },
   ],
   'Eb°': [
     { name:'Eb°', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,5,6] },
-    { name:'Eb°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',3,2,0] },
     { name:'Eb°', instrument:'ukulele', baseFret:7, strings:4, frets:[8,9,11,9] },
   ],
   'Eb°7': [
     { name:'Eb°7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,6] },
-    { name:'Eb°7', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,8,9] },
     { name:'Eb°7', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
   ],
   'E': [
     { name:'E', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,4,2] },
     { name:'E', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,0,2] },
-    { name:'E', instrument:'ukulele', baseFret:3, strings:4, frets:[4,4,4,7] },
   ],
   'E5': [
     { name:'E5', instrument:'ukulele', baseFret:3, strings:4, frets:[4,4,7,7] },
-    { name:'E5', instrument:'ukulele', baseFret:1, strings:4, frets:['x','x',0,2] },
     { name:'E5', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,12,'x'] },
   ],
   'Esus4': [
     { name:'Esus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,2] },
     { name:'Esus4', instrument:'ukulele', baseFret:3, strings:4, frets:[4,4,5,7] },
-    { name:'Esus4', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,7,7] },
   ],
   'Esus2': [
     { name:'Esus2', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,2] },
     { name:'Esus2', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,7] },
-    { name:'Esus2', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,12,9] },
   ],
   'Eadd9': [
     { name:'Eadd9', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,4,7] },
     { name:'Eadd9', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,7,9] },
-    { name:'Eadd9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,11] },
   ],
   'E6': [
     { name:'E6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,2] },
     { name:'E6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,4,4] },
-    { name:'E6', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,11] },
   ],
   'E6/9': [
     { name:'E6/9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,4] },
     { name:'E6/9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,4,7] },
-    { name:'E6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,9,11] },
   ],
   'Emaj7': [
     { name:'Emaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,2] },
     { name:'Emaj7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,4,4,6] },
-    { name:'Emaj7', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,7,7] },
   ],
   'Emaj9': [
     { name:'Emaj9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,6] },
     { name:'Emaj9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,7,9] },
-    { name:'Emaj9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,8,11,9] },
   ],
   'Emaj7#11': [
     { name:'Emaj7#11', instrument:'ukulele', baseFret:4, strings:4, frets:['x',8,6,6] },
-    { name:'Emaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,1] },
     { name:'Emaj7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,11,11] },
   ],
   'Emaj13': [
     { name:'Emaj13', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,4,6] },
-    { name:'Emaj13', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,9,6] },
     { name:'Emaj13', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,11] },
   ],
   'Em': [
     { name:'Em', instrument:'ukulele', baseFret:1, strings:4, frets:[0,4,3,2] },
     { name:'Em', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,2] },
-    { name:'Em', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,7,7] },
   ],
   'Em(add9)': [
     { name:'Em(add9)', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,7,9] },
-    { name:'Em(add9)', instrument:'ukulele', baseFret:8, strings:4, frets:[12,11,12,9] },
     { name:'Em(add9)', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,10] },
   ],
   'Em6': [
     { name:'Em6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,4] },
     { name:'Em6', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,7,7] },
-    { name:'Em6', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,9,7] },
   ],
   'Emb6': [
     { name:'Emb6', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,8,7] },
-    { name:'Emb6', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,3,3] },
     { name:'Emb6', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,10] },
   ],
   'Em6/9': [
     { name:'Em6/9', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,9,9] },
-    { name:'Em6/9', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,3,4] },
     { name:'Em6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,10] },
   ],
   'Em7': [
     { name:'Em7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,2] },
     { name:'Em7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,5] },
-    { name:'Em7', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,7,7] },
   ],
   'Em7b5': [
     { name:'Em7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,6,7] },
     { name:'Em7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,10] },
-    { name:'Em7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
   ],
   'Em(maj7)': [
     { name:'Em(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[4,4,3,6] },
     { name:'Em(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,7,6] },
-    { name:'Em(maj7)', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,7,7] },
   ],
   'Em9': [
     { name:'Em9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,7,7,9] },
     { name:'Em9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,7,10,9] },
-    { name:'Em9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,2,2] },
   ],
   'Em9b5': [
     { name:'Em9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
-    { name:'Em9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,5] },
     { name:'Em9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,10] },
   ],
   'Em9(maj7)': [
     { name:'Em9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,2,2] },
-    { name:'Em9(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,3,6] },
     { name:'Em9(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,11,10] },
   ],
   'Em11': [
     { name:'Em11', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,5,5] },
-    { name:'Em11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,0] },
     { name:'Em11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,10] },
   ],
   'Em13': [
     { name:'Em13', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,5] },
-    { name:'Em13', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,3,5] },
     { name:'Em13', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,9,10] },
   ],
   'E7': [
     { name:'E7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,2] },
     { name:'E7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,4,2] },
-    { name:'E7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,4,5] },
   ],
   'E7sus4': [
     { name:'E7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,5] },
     { name:'E7sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,10,12] },
-    { name:'E7sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,7] },
   ],
   'E7b5': [
     { name:'E7b5', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,6,7] },
-    { name:'E7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
     { name:'E7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'E9': [
     { name:'E9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
     { name:'E9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,8,10,9] },
-    { name:'E9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,4,7] },
   ],
   'E9sus4': [
     { name:'E9sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,5,5] },
     { name:'E9sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,9] },
-    { name:'E9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,5,5] },
   ],
   'E9b5': [
     { name:'E9b5', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,6,9] },
-    { name:'E9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
     { name:'E9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'E7b9': [
     { name:'E7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,5] },
     { name:'E7b9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,7,8] },
-    { name:'E7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,8,10,8] },
   ],
   'E7#9': [
     { name:'E7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,4,5] },
-    { name:'E7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,4,7] },
     { name:'E7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,8,10,10] },
   ],
   'E7b5(#9)': [
@@ -1049,117 +842,94 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'E11': [
     { name:'E11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,5] },
     { name:'E11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,9] },
-    { name:'E11', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,10,12] },
   ],
   'E7#11': [
     { name:'E7#11', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,6,7] },
-    { name:'E7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
     { name:'E7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'E13': [
     { name:'E13', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,4,5] },
     { name:'E13', instrument:'ukulele', baseFret:3, strings:4, frets:[7,4,4,4] },
-    { name:'E13', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,9,7] },
   ],
   'E13sus4': [
     { name:'E13sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,5,5] },
     { name:'E13sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[7,4,5,4] },
-    { name:'E13sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,9,7] },
   ],
   'E+': [
     { name:'E+', instrument:'ukulele', baseFret:3, strings:4, frets:[5,4,4,7] },
     { name:'E+', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,8,7] },
-    { name:'E+', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,12,11] },
   ],
   'E+7': [
     { name:'E+7', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,4,5] },
     { name:'E+7', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,8,7] },
-    { name:'E+7', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,10,11] },
   ],
   'E+9': [
     { name:'E+9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
-    { name:'E+9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,3] },
     { name:'E+9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,10,11] },
   ],
   'E+7b9': [
     { name:'E+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,4,5] },
-    { name:'E+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,3] },
     { name:'E+7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,11] },
   ],
   'E+7#9': [
     { name:'E+7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,5] },
-    { name:'E+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,3,3] },
     { name:'E+7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,8,8,10] },
   ],
   'E°': [
     { name:'E°', instrument:'ukulele', baseFret:3, strings:4, frets:['x',7,6,7] },
-    { name:'E°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',4,3,1] },
     { name:'E°', instrument:'ukulele', baseFret:8, strings:4, frets:[9,10,12,10] },
   ],
   'E°7': [
     { name:'E°7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,6,7] },
-    { name:'E°7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,1] },
     { name:'E°7', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
   ],
   'F': [
     { name:'F', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,1,0] },
     { name:'F', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,5,3] },
-    { name:'F', instrument:'ukulele', baseFret:4, strings:4, frets:[5,5,5,8] },
   ],
   'F5': [
     { name:'F5', instrument:'ukulele', baseFret:4, strings:4, frets:[5,5,8,8] },
-    { name:'F5', instrument:'ukulele', baseFret:1, strings:4, frets:['x','x',1,3] },
     { name:'F5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,'x','x'] },
   ],
   'Fsus4': [
     { name:'Fsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,1,1] },
     { name:'Fsus4', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,3] },
-    { name:'Fsus4', instrument:'ukulele', baseFret:4, strings:4, frets:[5,5,6,8] },
   ],
   'Fsus2': [
     { name:'Fsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,3] },
     { name:'Fsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,3,3] },
-    { name:'Fsus2', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,8] },
   ],
   'Fadd9': [
     { name:'Fadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,0] },
     { name:'Fadd9', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,5,8] },
-    { name:'Fadd9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,8,10] },
   ],
   'F6': [
     { name:'F6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,3] },
     { name:'F6', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,5,5] },
-    { name:'F6', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,12] },
   ],
   'F6/9': [
     { name:'F6/9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,5] },
     { name:'F6/9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,5,8] },
-    { name:'F6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,10,10] },
   ],
   'Fmaj7': [
     { name:'Fmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,1,3] },
     { name:'Fmaj7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,5,5,7] },
-    { name:'Fmaj7', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,8,8] },
   ],
   'Fmaj9': [
     { name:'Fmaj9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,7] },
     { name:'Fmaj9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,8,10] },
-    { name:'Fmaj9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,9,12,10] },
   ],
   'Fmaj7#11': [
     { name:'Fmaj7#11', instrument:'ukulele', baseFret:5, strings:4, frets:['x',9,7,7] },
-    { name:'Fmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,2] },
     { name:'Fmaj7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,12,12] },
   ],
   'Fmaj13': [
     { name:'Fmaj13', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,5,7] },
-    { name:'Fmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,0] },
     { name:'Fmaj13', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,10,7] },
   ],
   'Fm': [
     { name:'Fm', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,1,3] },
     { name:'Fm', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,4,3] },
-    { name:'Fm', instrument:'ukulele', baseFret:4, strings:4, frets:[5,8,8,8] },
   ],
   'Fm(add9)': [
     { name:'Fm(add9)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,8,10] },
@@ -1167,96 +937,77 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'Fm6': [
     { name:'Fm6', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,4,5] },
     { name:'Fm6', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,8,8] },
-    { name:'Fm6', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,10,8] },
   ],
   'Fmb6': [
     { name:'Fmb6', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,9,8] },
     { name:'Fmb6', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,4,4] },
-    { name:'Fmb6', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,11] },
   ],
   'Fm6/9': [
     { name:'Fm6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,10,10] },
     { name:'Fm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,4,5] },
-    { name:'Fm6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,11] },
   ],
   'Fm7': [
     { name:'Fm7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,3] },
     { name:'Fm7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,4,6] },
-    { name:'Fm7', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,8,8] },
   ],
   'Fm7b5': [
     { name:'Fm7b5', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,7,8] },
     { name:'Fm7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,11] },
-    { name:'Fm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
   ],
   'Fm(maj7)': [
     { name:'Fm(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[5,5,4,7] },
     { name:'Fm(maj7)', instrument:'ukulele', baseFret:4, strings:4, frets:[5,8,8,7] },
-    { name:'Fm(maj7)', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,8,8] },
   ],
   'Fm9': [
     { name:'Fm9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,8,8,10] },
     { name:'Fm9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,8,11,10] },
-    { name:'Fm9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,3,3] },
   ],
   'Fm9b5': [
     { name:'Fm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
-    { name:'Fm9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,4,6] },
     { name:'Fm9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,11] },
   ],
   'Fm9(maj7)': [
     { name:'Fm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,3,3] },
-    { name:'Fm9(maj7)', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,7] },
     { name:'Fm9(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[9,8,8,10] },
   ],
   'Fm11': [
     { name:'Fm11', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,6,6] },
-    { name:'Fm11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,1] },
     { name:'Fm11', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,11] },
   ],
   'Fm13': [
     { name:'Fm13', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,6,6] },
-    { name:'Fm13', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,4,6] },
     { name:'Fm13', instrument:'ukulele', baseFret:6, strings:4, frets:[8,8,10,8] },
   ],
   'F7': [
     { name:'F7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,3] },
     { name:'F7', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,5,3] },
-    { name:'F7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,5,6] },
   ],
   'F7sus4': [
     { name:'F7sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,6] },
     { name:'F7sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,8] },
-    { name:'F7sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,8] },
   ],
   'F7b5': [
     { name:'F7b5', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,7,8] },
-    { name:'F7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
     { name:'F7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'F9': [
     { name:'F9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
     { name:'F9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,9,11,10] },
-    { name:'F9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,1,0] },
   ],
   'F9sus4': [
     { name:'F9sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,6,6] },
     { name:'F9sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,10] },
-    { name:'F9sus4', instrument:'ukulele', baseFret:2, strings:4, frets:['x',5,6,6] },
   ],
   'F9b5': [
     { name:'F9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,7,10] },
     { name:'F9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
-    { name:'F9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'F7b9': [
     { name:'F7b9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,6] },
     { name:'F7b9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,8,9] },
-    { name:'F7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,9,11,9] },
   ],
   'F7#9': [
     { name:'F7#9', instrument:'ukulele', baseFret:4, strings:4, frets:[5,8,5,6] },
-    { name:'F7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,0] },
     { name:'F7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,9,11,11] },
   ],
   'F7b5(#9)': [
@@ -1264,118 +1015,95 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   ],
   'F11': [
     { name:'F11', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,6] },
-    { name:'F11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,1,1] },
     { name:'F11', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,10] },
   ],
   'F7#11': [
     { name:'F7#11', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,7,8] },
-    { name:'F7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
     { name:'F7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'F13': [
     { name:'F13', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,5,6] },
-    { name:'F13', instrument:'ukulele', baseFret:4, strings:4, frets:[8,5,5,5] },
     { name:'F13', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,10,8] },
   ],
   'F13sus4': [
     { name:'F13sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,6,6] },
-    { name:'F13sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[8,5,6,5] },
     { name:'F13sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,10,8] },
   ],
   'F+': [
     { name:'F+', instrument:'ukulele', baseFret:4, strings:4, frets:[6,5,5,8] },
     { name:'F+', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,8] },
-    { name:'F+', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,5,4] },
   ],
   'F+7': [
     { name:'F+7', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,5,6] },
     { name:'F+7', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,9,8] },
-    { name:'F+7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,4] },
   ],
   'F+9': [
     { name:'F+9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
-    { name:'F+9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,4] },
     { name:'F+9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'F+7b9': [
     { name:'F+7b9', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,6] },
     { name:'F+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,4] },
-    { name:'F+7b9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,9,9] },
   ],
   'F+7#9': [
     { name:'F+7#9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,5,6] },
-    { name:'F+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,4,4] },
     { name:'F+7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,9,9,11] },
   ],
   'F°': [
     { name:'F°', instrument:'ukulele', baseFret:4, strings:4, frets:['x',8,7,8] },
-    { name:'F°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',5,4,2] },
     { name:'F°', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,7,'x'] },
   ],
   'F°7': [
     { name:'F°7', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,7,8] },
-    { name:'F°7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
     { name:'F°7', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
   ],
   'F#': [
     { name:'F#', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,2,1] },
     { name:'F#', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,6,4] },
-    { name:'F#', instrument:'ukulele', baseFret:5, strings:4, frets:[6,6,6,9] },
   ],
   'F#5': [
     { name:'F#5', instrument:'ukulele', baseFret:5, strings:4, frets:[6,6,9,9] },
-    { name:'F#5', instrument:'ukulele', baseFret:1, strings:4, frets:['x','x',2,4] },
     { name:'F#5', instrument:'ukulele', baseFret:7, strings:4, frets:[11,'x',9,9] },
   ],
   'F#sus4': [
     { name:'F#sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,1,2,2] },
     { name:'F#sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,4] },
-    { name:'F#sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[6,6,7,9] },
   ],
   'F#sus2': [
     { name:'F#sus2', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,4] },
     { name:'F#sus2', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,4,4] },
-    { name:'F#sus2', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,9] },
   ],
   'F#add9': [
     { name:'F#add9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,1] },
     { name:'F#add9', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,6,9] },
-    { name:'F#add9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,9,11] },
   ],
   'F#6': [
     { name:'F#6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,4] },
     { name:'F#6', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,6,6] },
-    { name:'F#6', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,11,9] },
   ],
   'F#6/9': [
     { name:'F#6/9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,6] },
     { name:'F#6/9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,6,9] },
-    { name:'F#6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,11,11] },
   ],
   'F#maj7': [
     { name:'F#maj7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,4] },
     { name:'F#maj7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,6,6,8] },
-    { name:'F#maj7', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,9] },
   ],
   'F#maj9': [
     { name:'F#maj9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,8] },
     { name:'F#maj9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,9,11] },
-    { name:'F#maj9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,1] },
   ],
   'F#maj7#11': [
     { name:'F#maj7#11', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,8,8] },
     { name:'F#maj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,3] },
-    { name:'F#maj7#11', instrument:'ukulele', baseFret:4, strings:4, frets:[5,6,6,8] },
   ],
   'F#maj13': [
     { name:'F#maj13', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,6,8] },
-    { name:'F#maj13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,1] },
     { name:'F#maj13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,11,8] },
   ],
   'F#m': [
     { name:'F#m', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,2,4] },
     { name:'F#m', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,4] },
-    { name:'F#m', instrument:'ukulele', baseFret:5, strings:4, frets:[6,9,9,9] },
   ],
   'F#m(add9)': [
     { name:'F#m(add9)', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,9,11] },
@@ -1384,437 +1112,350 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'F#m6': [
     { name:'F#m6', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,6] },
     { name:'F#m6', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,9,9] },
-    { name:'F#m6', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,11,9] },
   ],
   'F#mb6': [
     { name:'F#mb6', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,10,9] },
-    { name:'F#mb6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,0] },
     { name:'F#mb6', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,5,5] },
   ],
   'F#m6/9': [
     { name:'F#m6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,11,11] },
-    { name:'F#m6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,0] },
     { name:'F#m6/9', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,5,6] },
   ],
   'F#m7': [
     { name:'F#m7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,4] },
     { name:'F#m7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,5,7] },
-    { name:'F#m7', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,9,9] },
   ],
   'F#m7b5': [
     { name:'F#m7b5', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,8,9] },
     { name:'F#m7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,12,12] },
-    { name:'F#m7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,0] },
   ],
   'F#m(maj7)': [
     { name:'F#m(maj7)', instrument:'ukulele', baseFret:4, strings:4, frets:[6,6,5,8] },
     { name:'F#m(maj7)', instrument:'ukulele', baseFret:5, strings:4, frets:[6,9,9,8] },
-    { name:'F#m(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,9] },
   ],
   'F#m9': [
     { name:'F#m9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,9,11] },
     { name:'F#m9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,9,12,11] },
-    { name:'F#m9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,0] },
   ],
   'F#m9b5': [
     { name:'F#m9b5', instrument:'ukulele', baseFret:1, strings:4, frets:['x',0,0,0] },
-    { name:'F#m9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,3] },
     { name:'F#m9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,12,12] },
   ],
   'F#m9(maj7)': [
     { name:'F#m9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,0] },
-    { name:'F#m9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,4,4] },
     { name:'F#m9(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[10,9,9,11] },
   ],
   'F#m11': [
     { name:'F#m11', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,7,7] },
-    { name:'F#m11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,2] },
     { name:'F#m11', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,12] },
   ],
   'F#m13': [
     { name:'F#m13', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,7,7] },
-    { name:'F#m13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,0] },
     { name:'F#m13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,11,9] },
   ],
   'F#7': [
     { name:'F#7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,4] },
     { name:'F#7', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,6,4] },
-    { name:'F#7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,6,7] },
   ],
   'F#7sus4': [
     { name:'F#7sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,7] },
     { name:'F#7sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,9] },
-    { name:'F#7sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,9] },
   ],
   'F#7b5': [
     { name:'F#7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
     { name:'F#7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,0,3] },
-    { name:'F#7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,3] },
   ],
   'F#9': [
     { name:'F#9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,7] },
     { name:'F#9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,10,12,11] },
-    { name:'F#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,1] },
   ],
   'F#9sus4': [
     { name:'F#9sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,7,7] },
     { name:'F#9sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,11] },
-    { name:'F#9sus4', instrument:'ukulele', baseFret:3, strings:4, frets:['x',6,7,7] },
   ],
   'F#9b5': [
     { name:'F#9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,8,11] },
     { name:'F#9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,1] },
-    { name:'F#9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,0,3] },
   ],
   'F#7b9': [
     { name:'F#7b9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,6,7] },
     { name:'F#7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
-    { name:'F#7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,10,12,10] },
   ],
   'F#7#9': [
     { name:'F#7#9', instrument:'ukulele', baseFret:5, strings:4, frets:[6,9,6,7] },
-    { name:'F#7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,0,0] },
     { name:'F#7#9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,10,12,12] },
   ],
   'F#7b5(#9)': [
     { name:'F#7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,1] },
     { name:'F#7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,0,0] },
-    { name:'F#7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,5,3] },
   ],
   'F#11': [
     { name:'F#11', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,7] },
-    { name:'F#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,2] },
     { name:'F#11', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,11] },
   ],
   'F#7#11': [
     { name:'F#7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
     { name:'F#7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,0,3] },
-    { name:'F#7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,3] },
   ],
   'F#13': [
     { name:'F#13', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,6,7] },
-    { name:'F#13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,1] },
     { name:'F#13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,11,9] },
   ],
   'F#13sus4': [
     { name:'F#13sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,7,7] },
-    { name:'F#13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,2] },
     { name:'F#13sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,11,9] },
   ],
   'F#+': [
     { name:'F#+', instrument:'ukulele', baseFret:5, strings:4, frets:[7,6,6,9] },
     { name:'F#+', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,10,9] },
-    { name:'F#+', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,6,5] },
   ],
   'F#+7': [
     { name:'F#+7', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,6,7] },
     { name:'F#+7', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,9] },
-    { name:'F#+7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,2,5] },
   ],
   'F#+9': [
     { name:'F#+9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,6,7] },
-    { name:'F#+9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
     { name:'F#+9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,9] },
   ],
   'F#+7b9': [
     { name:'F#+7b9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,6,7] },
-    { name:'F#+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
     { name:'F#+7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,10] },
   ],
   'F#+7#9': [
     { name:'F#+7#9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,6,7] },
-    { name:'F#+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,0,0] },
     { name:'F#+7#9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,10,10,12] },
   ],
   'F#°': [
     { name:'F#°', instrument:'ukulele', baseFret:5, strings:4, frets:['x',9,8,9] },
-    { name:'F#°', instrument:'ukulele', baseFret:2, strings:4, frets:['x',6,5,3] },
     { name:'F#°', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,8,'x'] },
   ],
   'F#°7': [
     { name:'F#°7', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,8,9] },
-    { name:'F#°7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,3] },
     { name:'F#°7', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
   ],
   'G': [
     { name:'G', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,2] },
     { name:'G', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,3,2] },
-    { name:'G', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,7,5] },
   ],
   'G5': [
     { name:'G5', instrument:'ukulele', baseFret:6, strings:4, frets:[7,7,10,10] },
     { name:'G5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,'x'] },
-    { name:'G5', instrument:'ukulele', baseFret:1, strings:4, frets:['x','x',3,5] },
   ],
   'Gsus4': [
     { name:'Gsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,3] },
     { name:'Gsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[5,2,3,3] },
-    { name:'Gsus4', instrument:'ukulele', baseFret:4, strings:4, frets:[5,7,8,5] },
   ],
   'Gsus2': [
     { name:'Gsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,0] },
     { name:'Gsus2', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,5] },
-    { name:'Gsus2', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,5,5] },
   ],
   'Gadd9': [
     { name:'Gadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,2] },
     { name:'Gadd9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,9,7,10] },
-    { name:'Gadd9', instrument:'ukulele', baseFret:8, strings:4, frets:[12,11,10,12] },
   ],
   'G6': [
     { name:'G6', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,2] },
     { name:'G6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,3,5] },
-    { name:'G6', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,7,7] },
   ],
   'G6/9': [
     { name:'G6/9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,7] },
     { name:'G6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,7,10] },
-    { name:'G6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[12,11,12,12] },
   ],
   'Gmaj7': [
     { name:'Gmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,2,2] },
     { name:'Gmaj7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,3,5] },
-    { name:'Gmaj7', instrument:'ukulele', baseFret:5, strings:4, frets:[7,7,7,9] },
   ],
   'Gmaj9': [
     { name:'Gmaj9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,9] },
     { name:'Gmaj9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,10,12] },
-    { name:'Gmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,2] },
   ],
   'Gmaj7#11': [
     { name:'Gmaj7#11', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,9,9] },
     { name:'Gmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,2,2] },
-    { name:'Gmaj7#11', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,3,4] },
   ],
   'Gmaj13': [
     { name:'Gmaj13', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,7,9] },
-    { name:'Gmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,2] },
     { name:'Gmaj13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,11,12,9] },
   ],
   'Gm': [
     { name:'Gm', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,3,1] },
     { name:'Gm', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,3,5] },
-    { name:'Gm', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,6,5] },
   ],
   'Gm(add9)': [
     { name:'Gm(add9)', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,10,12] },
     { name:'Gm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,3,0] },
-    { name:'Gm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,1] },
   ],
   'Gm6': [
     { name:'Gm6', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
     { name:'Gm6', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,6,7] },
-    { name:'Gm6', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,10,10] },
   ],
   'Gmb6': [
     { name:'Gmb6', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,11,10] },
     { name:'Gmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,3,1] },
-    { name:'Gmb6', instrument:'ukulele', baseFret:3, strings:4, frets:['x',7,6,6] },
   ],
   'Gm6/9': [
     { name:'Gm6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,12,12] },
     { name:'Gm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,1] },
-    { name:'Gm6/9', instrument:'ukulele', baseFret:3, strings:4, frets:['x',7,6,7] },
   ],
   'Gm7': [
     { name:'Gm7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,1,1] },
     { name:'Gm7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,5] },
-    { name:'Gm7', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,6,8] },
   ],
   'Gm7b5': [
     { name:'Gm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,1] },
     { name:'Gm7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,10] },
-    { name:'Gm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
   ],
   'Gm(maj7)': [
     { name:'Gm(maj7)', instrument:'ukulele', baseFret:5, strings:4, frets:[7,7,6,9] },
     { name:'Gm(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,10,9] },
-    { name:'Gm(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,10,10] },
   ],
   'Gm9': [
     { name:'Gm9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,10,10,12] },
     { name:'Gm9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,1,0] },
-    { name:'Gm9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,1] },
   ],
   'Gm9b5': [
     { name:'Gm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,1] },
-    { name:'Gm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
     { name:'Gm9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,10] },
   ],
   'Gm9(maj7)': [
     { name:'Gm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,0] },
-    { name:'Gm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,1] },
     { name:'Gm9(maj7)', instrument:'ukulele', baseFret:8, strings:4, frets:[11,10,10,12] },
   ],
   'Gm11': [
     { name:'Gm11', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,8,8] },
     { name:'Gm11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,1] },
-    { name:'Gm11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,1,0] },
   ],
   'Gm13': [
     { name:'Gm13', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,8] },
     { name:'Gm13', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,6,8] },
-    { name:'Gm13', instrument:'ukulele', baseFret:8, strings:4, frets:[10,10,12,10] },
   ],
   'G7': [
     { name:'G7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,1,2] },
     { name:'G7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,5] },
-    { name:'G7', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,7,5] },
   ],
   'G7sus4': [
     { name:'G7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,1,3] },
     { name:'G7sus4', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,8] },
-    { name:'G7sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,10] },
   ],
   'G7b5': [
     { name:'G7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
     { name:'G7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,2] },
-    { name:'G7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
   ],
   'G9': [
     { name:'G9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,8] },
-    { name:'G9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,3,2] },
     { name:'G9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,7,10] },
   ],
   'G9sus4': [
     { name:'G9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,0] },
     { name:'G9sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,8,8] },
-    { name:'G9sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,8,10] },
   ],
   'G9b5': [
     { name:'G9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,9,12] },
     { name:'G9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,2] },
-    { name:'G9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
   ],
   'G7b9': [
     { name:'G7b9', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,7,8] },
     { name:'G7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
-    { name:'G7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
   ],
   'G7#9': [
     { name:'G7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,7,8] },
-    { name:'G7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,1,2] },
     { name:'G7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,2] },
   ],
   'G7b5(#9)': [
     { name:'G7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,1,2] },
     { name:'G7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,1,1,1] },
-    { name:'G7b5(#9)', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,6,4] },
   ],
   'G11': [
     { name:'G11', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,8,8] },
-    { name:'G11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,0] },
     { name:'G11', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,8,10] },
   ],
   'G7#11': [
     { name:'G7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
     { name:'G7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,2] },
-    { name:'G7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,3,4] },
   ],
   'G13': [
     { name:'G13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,4,1,2] },
     { name:'G13', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,7,8] },
-    { name:'G13', instrument:'ukulele', baseFret:6, strings:4, frets:[10,7,7,7] },
   ],
   'G13sus4': [
     { name:'G13sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[9,7,8,8] },
     { name:'G13sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[10,7,8,7] },
-    { name:'G13sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,12,10] },
   ],
   'G+': [
     { name:'G+', instrument:'ukulele', baseFret:6, strings:4, frets:[8,7,7,10] },
     { name:'G+', instrument:'ukulele', baseFret:8, strings:4, frets:[12,11,11,10] },
-    { name:'G+', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,3,2] },
   ],
   'G+7': [
     { name:'G+7', instrument:'ukulele', baseFret:4, strings:4, frets:[8,7,7,8] },
     { name:'G+7', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,10] },
-    { name:'G+7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,1,2] },
   ],
   'G+9': [
     { name:'G+9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,7,8] },
-    { name:'G+9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,1,2] },
     { name:'G+9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,10] },
   ],
   'G+7b9': [
     { name:'G+7b9', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,7,8] },
-    { name:'G+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
     { name:'G+7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,11] },
   ],
   'G+7#9': [
     { name:'G+7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,8] },
     { name:'G+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,2] },
-    { name:'G+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,1,1] },
   ],
   'G°': [
     { name:'G°', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,9,10] },
     { name:'G°', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,3,1] },
-    { name:'G°', instrument:'ukulele', baseFret:3, strings:4, frets:['x',7,6,4] },
   ],
   'G°7': [
     { name:'G°7', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
     { name:'G°7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,1] },
-    { name:'G°7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,4] },
   ],
   'Ab': [
     { name:'Ab', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,3] },
     { name:'Ab', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,4,3] },
-    { name:'Ab', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,8,6] },
   ],
   'Ab5': [
     { name:'Ab5', instrument:'ukulele', baseFret:7, strings:4, frets:[8,8,11,11] },
     { name:'Ab5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,'x'] },
-    { name:'Ab5', instrument:'ukulele', baseFret:2, strings:4, frets:['x','x',4,6] },
   ],
   'Absus4': [
     { name:'Absus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,4] },
     { name:'Absus4', instrument:'ukulele', baseFret:2, strings:4, frets:[6,3,4,4] },
-    { name:'Absus4', instrument:'ukulele', baseFret:5, strings:4, frets:[6,8,9,6] },
   ],
   'Absus2': [
     { name:'Absus2', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,1] },
     { name:'Absus2', instrument:'ukulele', baseFret:2, strings:4, frets:[3,3,4,6] },
-    { name:'Absus2', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,6,6] },
   ],
   'Abadd9': [
     { name:'Abadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,3] },
     { name:'Abadd9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,8,11] },
-    { name:'Abadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,'x',1] },
   ],
   'Ab6': [
     { name:'Ab6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,3] },
     { name:'Ab6', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,4,6] },
-    { name:'Ab6', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,8,8] },
   ],
   'Ab6/9': [
     { name:'Ab6/9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,8] },
     { name:'Ab6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,8,11] },
-    { name:'Ab6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,1,1] },
   ],
   'Abmaj7': [
     { name:'Abmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,3,3] },
     { name:'Abmaj7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,6] },
-    { name:'Abmaj7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,8,8,10] },
   ],
   'Abmaj9': [
     { name:'Abmaj9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,10] },
     { name:'Abmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,3,1] },
-    { name:'Abmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,0,3,3] },
   ],
   'Abmaj7#11': [
     { name:'Abmaj7#11', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,10,10] },
     { name:'Abmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,3,3] },
-    { name:'Abmaj7#11', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,5] },
   ],
   'Abmaj13': [
     { name:'Abmaj13', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,8,10] },
     { name:'Abmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,1,1] },
-    { name:'Abmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,1,3] },
   ],
   'Abm': [
     { name:'Abm', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,4,2] },
     { name:'Abm', instrument:'ukulele', baseFret:2, strings:4, frets:[4,3,4,6] },
-    { name:'Abm', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,7,6] },
   ],
   'Abm(add9)': [
     { name:'Abm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,4,1] },
@@ -1823,816 +1464,653 @@ export const UKULELE_DIAGRAMS: Record<string, ChordDiagram[]> = {
   'Abm6': [
     { name:'Abm6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
     { name:'Abm6', instrument:'ukulele', baseFret:4, strings:4, frets:[8,8,7,8] },
-    { name:'Abm6', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,11] },
   ],
   'Abmb6': [
     { name:'Abmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,0,2] },
-    { name:'Abmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,4,2] },
     { name:'Abmb6', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,11,11] },
   ],
   'Abm6/9': [
     { name:'Abm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,2] },
-    { name:'Abm6/9', instrument:'ukulele', baseFret:4, strings:4, frets:['x',8,7,8] },
     { name:'Abm6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,11,11] },
   ],
   'Abm7': [
     { name:'Abm7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,2] },
     { name:'Abm7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,6] },
-    { name:'Abm7', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,7,9] },
   ],
   'Abm7b5': [
     { name:'Abm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,2] },
     { name:'Abm7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,10,11] },
-    { name:'Abm7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
   ],
   'Abm(maj7)': [
     { name:'Abm(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[8,8,7,10] },
     { name:'Abm(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,11,10] },
-    { name:'Abm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,3,2] },
   ],
   'Abm9': [
     { name:'Abm9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,2,1] },
-    { name:'Abm9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,2] },
     { name:'Abm9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,9] },
   ],
   'Abm9b5': [
     { name:'Abm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,2] },
-    { name:'Abm9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
     { name:'Abm9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,10,11] },
   ],
   'Abm9(maj7)': [
     { name:'Abm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,3,1] },
-    { name:'Abm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,3,2] },
     { name:'Abm9(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,10] },
   ],
   'Abm11': [
     { name:'Abm11', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,9,9] },
     { name:'Abm11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,2] },
-    { name:'Abm11', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,4] },
   ],
   'Abm13': [
     { name:'Abm13', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,9] },
     { name:'Abm13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,2] },
-    { name:'Abm13', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,7,9] },
   ],
   'Ab7': [
     { name:'Ab7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,3] },
     { name:'Ab7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,6] },
-    { name:'Ab7', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,8,6] },
   ],
   'Ab7sus4': [
     { name:'Ab7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,4] },
     { name:'Ab7sus4', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,9,9] },
-    { name:'Ab7sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[11,8,9,11] },
   ],
   'Ab7b5': [
     { name:'Ab7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
     { name:'Ab7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,3] },
-    { name:'Ab7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
   ],
   'Ab9': [
     { name:'Ab9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,2,1] },
     { name:'Ab9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,8,9] },
-    { name:'Ab9', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,4,3] },
   ],
   'Ab9sus4': [
     { name:'Ab9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,1] },
     { name:'Ab9sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,9,9] },
-    { name:'Ab9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,4] },
   ],
   'Ab9b5': [
     { name:'Ab9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,3] },
-    { name:'Ab9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
     { name:'Ab9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
   ],
   'Ab7b9': [
     { name:'Ab7b9', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,8,9] },
-    { name:'Ab7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,2,0] },
     { name:'Ab7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,8,11] },
   ],
   'Ab7#9': [
     { name:'Ab7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,8,9] },
     { name:'Ab7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,2,2] },
-    { name:'Ab7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,3] },
   ],
   'Ab7b5(#9)': [
     { name:'Ab7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,2,3] },
     { name:'Ab7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,2,2,2] },
-    { name:'Ab7b5(#9)', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,7,5] },
   ],
   'Ab11': [
     { name:'Ab11', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,9,9] },
-    { name:'Ab11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,1] },
     { name:'Ab11', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,9,11] },
   ],
   'Ab7#11': [
     { name:'Ab7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,11] },
     { name:'Ab7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,3] },
-    { name:'Ab7#11', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,4,5] },
   ],
   'Ab13': [
     { name:'Ab13', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,8,9] },
     { name:'Ab13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,3] },
-    { name:'Ab13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,8,8,8] },
   ],
   'Ab13sus4': [
     { name:'Ab13sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[10,8,9,9] },
     { name:'Ab13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,4] },
-    { name:'Ab13sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[11,8,9,8] },
   ],
   'Ab+': [
     { name:'Ab+', instrument:'ukulele', baseFret:7, strings:4, frets:[9,8,8,11] },
     { name:'Ab+', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,'x'] },
-    { name:'Ab+', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,4,3] },
   ],
   'Ab+7': [
     { name:'Ab+7', instrument:'ukulele', baseFret:5, strings:4, frets:[9,8,8,9] },
-    { name:'Ab+7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,2,3] },
     { name:'Ab+7', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,12,11] },
   ],
   'Ab+9': [
     { name:'Ab+9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,8,9] },
     { name:'Ab+9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,2,3] },
-    { name:'Ab+9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,6,4,7] },
   ],
   'Ab+7b9': [
     { name:'Ab+7b9', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,8,9] },
-    { name:'Ab+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,3] },
     { name:'Ab+7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,12,12] },
   ],
   'Ab+7#9': [
     { name:'Ab+7#9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,9] },
     { name:'Ab+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,3] },
-    { name:'Ab+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,2,2] },
   ],
   'Ab°': [
     { name:'Ab°', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,10,11] },
     { name:'Ab°', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,4,2] },
-    { name:'Ab°', instrument:'ukulele', baseFret:4, strings:4, frets:['x',8,7,5] },
   ],
   'Ab°7': [
     { name:'Ab°7', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
     { name:'Ab°7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
-    { name:'Ab°7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,5] },
   ],
   'A': [
     { name:'A', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,0,0] },
     { name:'A', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,4] },
-    { name:'A', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,5,4] },
   ],
   'A5': [
     { name:'A5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,0,0] },
     { name:'A5', instrument:'ukulele', baseFret:8, strings:4, frets:[9,9,12,12] },
-    { name:'A5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,'x'] },
   ],
   'Asus4': [
     { name:'Asus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,0,0] },
     { name:'Asus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,5] },
-    { name:'Asus4', instrument:'ukulele', baseFret:3, strings:4, frets:[7,4,5,5] },
   ],
   'Asus2': [
     { name:'Asus2', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,0,2] },
     { name:'Asus2', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,2] },
-    { name:'Asus2', instrument:'ukulele', baseFret:3, strings:4, frets:[4,4,5,7] },
   ],
   'Aadd9': [
     { name:'Aadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,0,2] },
     { name:'Aadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,4] },
-    { name:'Aadd9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,9,12] },
   ],
   'A6': [
     { name:'A6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,4] },
     { name:'A6', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,5,7] },
-    { name:'A6', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,9,9] },
   ],
   'A6/9': [
     { name:'A6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,9] },
     { name:'A6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,9,12] },
-    { name:'A6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,2,2] },
   ],
   'Amaj7': [
     { name:'Amaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,0] },
     { name:'Amaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,4,4] },
-    { name:'Amaj7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,5,7] },
   ],
   'Amaj9': [
     { name:'Amaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,2] },
     { name:'Amaj9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,11] },
-    { name:'Amaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,4,2] },
   ],
   'Amaj7#11': [
     { name:'Amaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,4,4] },
-    { name:'Amaj7#11', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,5,6] },
     { name:'Amaj7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[8,9,9,11] },
   ],
   'Amaj13': [
     { name:'Amaj13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,9,11] },
     { name:'Amaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,2,0] },
-    { name:'Amaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,4,2,4] },
   ],
   'Am': [
     { name:'Am', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,0] },
     { name:'Am', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,5,3] },
-    { name:'Am', instrument:'ukulele', baseFret:3, strings:4, frets:[5,4,5,7] },
   ],
   'Am(add9)': [
     { name:'Am(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,0,2] },
-    { name:'Am(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,4,5,2] },
     { name:'Am(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,3] },
   ],
   'Am6': [
     { name:'Am6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,2,0] },
     { name:'Am6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,3] },
-    { name:'Am6', instrument:'ukulele', baseFret:5, strings:4, frets:[9,9,8,9] },
   ],
   'Amb6': [
     { name:'Amb6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,1,0] },
-    { name:'Amb6', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,1,3] },
     { name:'Amb6', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,8,7] },
   ],
   'Am6/9': [
     { name:'Am6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,2,2] },
-    { name:'Am6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,3] },
     { name:'Am6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,12,12] },
   ],
   'Am7': [
     { name:'Am7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,0] },
     { name:'Am7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,3] },
-    { name:'Am7', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,7] },
   ],
   'Am7b5': [
     { name:'Am7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,3] },
     { name:'Am7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[12,12,11,12] },
-    { name:'Am7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
   ],
   'Am(maj7)': [
     { name:'Am(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,0] },
     { name:'Am(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,8,11] },
-    { name:'Am(maj7)', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,12,11] },
   ],
   'Am9': [
     { name:'Am9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,0,3,2] },
     { name:'Am9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,0,2] },
-    { name:'Am9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,10] },
   ],
   'Am9b5': [
     { name:'Am9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,3] },
-    { name:'Am9b5', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
     { name:'Am9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,8,10] },
   ],
   'Am9(maj7)': [
     { name:'Am9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[1,0,0,2] },
-    { name:'Am9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,4,3] },
     { name:'Am9(maj7)', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,8,11] },
   ],
   'Am11': [
     { name:'Am11', instrument:'ukulele', baseFret:8, strings:4, frets:[12,12,10,10] },
-    { name:'Am11', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,3] },
     { name:'Am11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,3] },
   ],
   'Am13': [
     { name:'Am13', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,10,10] },
     { name:'Am13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,0,2,0] },
-    { name:'Am13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,2,3] },
   ],
   'A7': [
     { name:'A7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,0] },
     { name:'A7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,4] },
-    { name:'A7', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,7] },
   ],
   'A7sus4': [
     { name:'A7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,0,0] },
     { name:'A7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,5] },
-    { name:'A7sus4', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,10] },
   ],
   'A7b5': [
     { name:'A7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,4] },
-    { name:'A7b5', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
     { name:'A7b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'A9': [
     { name:'A9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,3,2] },
     { name:'A9', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,9,10] },
-    { name:'A9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,2] },
   ],
   'A9sus4': [
     { name:'A9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,2] },
     { name:'A9sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[9,11,10,10] },
-    { name:'A9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,5] },
   ],
   'A9b5': [
     { name:'A9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,4] },
-    { name:'A9b5', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
     { name:'A9b5', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'A7b9': [
     { name:'A7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,1] },
     { name:'A7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
-    { name:'A7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,3,1] },
   ],
   'A7#9': [
     { name:'A7#9', instrument:'ukulele', baseFret:8, strings:4, frets:[9,12,9,10] },
-    { name:'A7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,3] },
     { name:'A7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,3,3] },
   ],
   'A7b5(#9)': [
     { name:'A7b5(#9)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,3,3,4] },
     { name:'A7b5(#9)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,3,3,3] },
-    { name:'A7b5(#9)', instrument:'ukulele', baseFret:4, strings:4, frets:[6,7,8,6] },
   ],
   'A11': [
     { name:'A11', instrument:'ukulele', baseFret:6, strings:4, frets:[9,9,10,10] },
     { name:'A11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,3,0] },
-    { name:'A11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,3,5] },
   ],
   'A7#11': [
     { name:'A7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,4] },
-    { name:'A7#11', instrument:'ukulele', baseFret:3, strings:4, frets:[6,7,5,6] },
     { name:'A7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,9,10] },
   ],
   'A13': [
     { name:'A13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,9,10] },
     { name:'A13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,2,0] },
-    { name:'A13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,9,9,9] },
   ],
   'A13sus4': [
     { name:'A13sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,10,10] },
     { name:'A13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,2,0] },
-    { name:'A13sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[12,9,10,9] },
   ],
   'A+': [
     { name:'A+', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,1,0] },
     { name:'A+', instrument:'ukulele', baseFret:8, strings:4, frets:[10,9,9,12] },
-    { name:'A+', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,5,4] },
   ],
   'A+7': [
     { name:'A+7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,0] },
     { name:'A+7', instrument:'ukulele', baseFret:6, strings:4, frets:[10,9,9,10] },
-    { name:'A+7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,3,4] },
   ],
   'A+9': [
     { name:'A+9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,9,10] },
-    { name:'A+9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,0] },
     { name:'A+9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,5,3,4] },
   ],
   'A+7b9': [
     { name:'A+7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,9,10] },
     { name:'A+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,1] },
-    { name:'A+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
   ],
   'A+7#9': [
     { name:'A+7#9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,10] },
     { name:'A+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,3] },
-    { name:'A+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,3,4] },
   ],
   'A°': [
     { name:'A°', instrument:'ukulele', baseFret:8, strings:4, frets:['x',12,11,12] },
     { name:'A°', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,5,3] },
-    { name:'A°', instrument:'ukulele', baseFret:5, strings:4, frets:['x',9,8,6] },
   ],
   'A°7': [
     { name:'A°7', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
     { name:'A°7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,3] },
-    { name:'A°7', instrument:'ukulele', baseFret:2, strings:4, frets:[5,6,5,6] },
   ],
   'Bb': [
     { name:'Bb', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,1,1] },
     { name:'Bb', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,5] },
-    { name:'Bb', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,6,5] },
   ],
   'Bb5': [
     { name:'Bb5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,'x',1,1] },
-    { name:'Bb5', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,'x'] },
     { name:'Bb5', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,'x',8] },
   ],
   'Bbsus4': [
     { name:'Bbsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,1,1] },
     { name:'Bbsus4', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,6] },
-    { name:'Bbsus4', instrument:'ukulele', baseFret:4, strings:4, frets:[8,5,6,6] },
   ],
   'Bbsus2': [
     { name:'Bbsus2', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,3] },
     { name:'Bbsus2', instrument:'ukulele', baseFret:4, strings:4, frets:[5,5,6,8] },
-    { name:'Bbsus2', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,8,8] },
   ],
   'Bbadd9': [
     { name:'Bbadd9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,1,3] },
     { name:'Bbadd9', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,5] },
-    { name:'Bbadd9', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,8,8] },
   ],
   'Bb6': [
     { name:'Bb6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,5] },
     { name:'Bb6', instrument:'ukulele', baseFret:4, strings:4, frets:[7,7,6,8] },
-    { name:'Bb6', instrument:'ukulele', baseFret:6, strings:4, frets:[10,10,10,10] },
   ],
   'Bb6/9': [
     { name:'Bb6/9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,10] },
     { name:'Bb6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,3,3] },
-    { name:'Bb6/9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,6,5] },
   ],
   'Bbmaj7': [
     { name:'Bbmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,1] },
     { name:'Bbmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,5,5] },
-    { name:'Bbmaj7', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,6,8] },
   ],
   'Bbmaj9': [
     { name:'Bbmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,3] },
-    { name:'Bbmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,5,3] },
     { name:'Bbmaj9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,12] },
   ],
   'Bbmaj7#11': [
     { name:'Bbmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:['x',2,0,0] },
-    { name:'Bbmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,5,5] },
     { name:'Bbmaj7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[9,10,10,12] },
   ],
   'Bbmaj13': [
-    { name:'Bbmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[0,2,1,0] },
     { name:'Bbmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,3,0] },
     { name:'Bbmaj13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,10,12] },
   ],
   'Bbm': [
     { name:'Bbm', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,1,1] },
     { name:'Bbm', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,6,4] },
-    { name:'Bbm', instrument:'ukulele', baseFret:4, strings:4, frets:[6,5,6,8] },
   ],
   'Bbm(add9)': [
     { name:'Bbm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,1,3] },
-    { name:'Bbm(add9)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,5,6,3] },
     { name:'Bbm(add9)', instrument:'ukulele', baseFret:2, strings:4, frets:[5,5,6,4] },
   ],
   'Bbm6': [
     { name:'Bbm6', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,1,1] },
     { name:'Bbm6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,3,1] },
-    { name:'Bbm6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
   ],
   'Bbmb6': [
     { name:'Bbmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,2,1] },
-    { name:'Bbmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,2,4] },
     { name:'Bbmb6', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,9,9] },
   ],
   'Bbm6/9': [
     { name:'Bbm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,3,3] },
-    { name:'Bbm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,3,4] },
     { name:'Bbm6/9', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,9,10] },
   ],
   'Bbm7': [
     { name:'Bbm7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,1] },
     { name:'Bbm7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,4,4] },
-    { name:'Bbm7', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,8] },
   ],
   'Bbm7b5': [
     { name:'Bbm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,1] },
     { name:'Bbm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,4] },
-    { name:'Bbm7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,9,11] },
   ],
   'Bbm(maj7)': [
     { name:'Bbm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,1,1] },
     { name:'Bbm(maj7)', instrument:'ukulele', baseFret:8, strings:4, frets:[10,10,9,12] },
-    { name:'Bbm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,1,0] },
   ],
   'Bbm9': [
     { name:'Bbm9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,1,3] },
     { name:'Bbm9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,4,3] },
-    { name:'Bbm9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,11] },
   ],
   'Bbm9b5': [
     { name:'Bbm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,1] },
-    { name:'Bbm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,4] },
     { name:'Bbm9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,9,11] },
   ],
   'Bbm9(maj7)': [
     { name:'Bbm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,1,3] },
-    { name:'Bbm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[5,5,5,4] },
     { name:'Bbm9(maj7)', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,9,12] },
   ],
   'Bbm11': [
     { name:'Bbm11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,4] },
-    { name:'Bbm11', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,6] },
     { name:'Bbm11', instrument:'ukulele', baseFret:7, strings:4, frets:[8,10,9,11] },
   ],
   'Bbm13': [
     { name:'Bbm13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,3,1] },
-    { name:'Bbm13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,3,4] },
     { name:'Bbm13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,9,11] },
   ],
   'Bb7': [
     { name:'Bb7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,1] },
     { name:'Bb7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,5,4,5] },
-    { name:'Bb7', instrument:'ukulele', baseFret:4, strings:4, frets:[7,8,6,8] },
   ],
   'Bb7sus4': [
     { name:'Bb7sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,4,6] },
     { name:'Bb7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,1,1] },
-    { name:'Bb7sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[10,10,11,11] },
   ],
   'Bb7b5': [
     { name:'Bb7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
-    { name:'Bb7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,5] },
     { name:'Bb7b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'Bb9': [
     { name:'Bb9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,4,3] },
     { name:'Bb9', instrument:'ukulele', baseFret:8, strings:4, frets:[10,12,10,11] },
-    { name:'Bb9', instrument:'ukulele', baseFret:4, strings:4, frets:[5,8,6,5] },
   ],
   'Bb9sus4': [
     { name:'Bb9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,3] },
-    { name:'Bb9sus4', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,4,6] },
     { name:'Bb9sus4', instrument:'ukulele', baseFret:7, strings:4, frets:['x',10,11,11] },
   ],
   'Bb9b5': [
     { name:'Bb9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,3] },
-    { name:'Bb9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,5] },
     { name:'Bb9b5', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'Bb7b9': [
     { name:'Bb7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
-    { name:'Bb7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,4,2] },
     { name:'Bb7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
   ],
   'Bb7#9': [
-    { name:'Bb7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,4] },
     { name:'Bb7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,4,4] },
     { name:'Bb7#9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,6,5] },
   ],
   'Bb7b5(#9)': [
     { name:'Bb7b5(#9)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,4,4,5] },
     { name:'Bb7b5(#9)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,4,4,4] },
-    { name:'Bb7b5(#9)', instrument:'ukulele', baseFret:5, strings:4, frets:[7,8,9,7] },
   ],
   'Bb11': [
     { name:'Bb11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,1] },
-    { name:'Bb11', instrument:'ukulele', baseFret:2, strings:4, frets:[3,5,4,6] },
     { name:'Bb11', instrument:'ukulele', baseFret:7, strings:4, frets:['x',10,11,11] },
   ],
   'Bb7#11': [
     { name:'Bb7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,1] },
-    { name:'Bb7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,4,5] },
     { name:'Bb7#11', instrument:'ukulele', baseFret:7, strings:4, frets:[9,10,10,11] },
   ],
   'Bb13': [
     { name:'Bb13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,3,1] },
-    { name:'Bb13', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,5] },
     { name:'Bb13', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,10,11] },
   ],
   'Bb13sus4': [
     { name:'Bb13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,3,1] },
-    { name:'Bb13sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,4,6] },
     { name:'Bb13sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[12,10,11,11] },
   ],
   'Bb+': [
     { name:'Bb+', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,1] },
-    { name:'Bb+', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,6,5] },
     { name:'Bb+', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,10,9] },
   ],
   'Bb+7': [
     { name:'Bb+7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,1] },
-    { name:'Bb+7', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,4,5] },
     { name:'Bb+7', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,10,11] },
   ],
   'Bb+9': [
     { name:'Bb+9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,1] },
-    { name:'Bb+9', instrument:'ukulele', baseFret:2, strings:4, frets:[3,6,4,5] },
     { name:'Bb+9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,10,11] },
   ],
   'Bb+7b9': [
     { name:'Bb+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,2] },
-    { name:'Bb+7b9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
     { name:'Bb+7b9', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,10,11] },
   ],
   'Bb+7#9': [
     { name:'Bb+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,4] },
     { name:'Bb+7#9', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,4,5] },
-    { name:'Bb+7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,4,4] },
   ],
   'Bb°': [
     { name:'Bb°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',1,0,1] },
-    { name:'Bb°', instrument:'ukulele', baseFret:1, strings:4, frets:[3,1,0,'x'] },
     { name:'Bb°', instrument:'ukulele', baseFret:6, strings:4, frets:['x',10,9,7] },
   ],
   'Bb°7': [
     { name:'Bb°7', instrument:'ukulele', baseFret:1, strings:4, frets:[0,1,0,1] },
-    { name:'Bb°7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,4,3,4] },
     { name:'Bb°7', instrument:'ukulele', baseFret:6, strings:4, frets:[9,10,9,10] },
   ],
   'B': [
     { name:'B', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,2,2] },
     { name:'B', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,6] },
-    { name:'B', instrument:'ukulele', baseFret:4, strings:4, frets:[8,6,7,6] },
   ],
   'B5': [
     { name:'B5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,'x',2,2] },
-    { name:'B5', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,'x'] },
     { name:'B5', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,'x',9] },
   ],
   'Bsus4': [
     { name:'Bsus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,2,2] },
     { name:'Bsus4', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,7] },
-    { name:'Bsus4', instrument:'ukulele', baseFret:5, strings:4, frets:[9,6,7,7] },
   ],
   'Bsus2': [
     { name:'Bsus2', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,4] },
     { name:'Bsus2', instrument:'ukulele', baseFret:5, strings:4, frets:[6,6,7,9] },
-    { name:'Bsus2', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,9,9] },
   ],
   'Badd9': [
     { name:'Badd9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,2,4] },
     { name:'Badd9', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,6] },
-    { name:'Badd9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,9] },
   ],
   'B6': [
     { name:'B6', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,6] },
     { name:'B6', instrument:'ukulele', baseFret:5, strings:4, frets:[8,8,7,9] },
-    { name:'B6', instrument:'ukulele', baseFret:7, strings:4, frets:[11,11,11,11] },
   ],
   'B6/9': [
     { name:'B6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,4,4] },
-    { name:'B6/9', instrument:'ukulele', baseFret:4, strings:4, frets:[6,8,7,6] },
     { name:'B6/9', instrument:'ukulele', baseFret:7, strings:4, frets:[8,11,9,11] },
   ],
   'Bmaj7': [
     { name:'Bmaj7', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,2] },
     { name:'Bmaj7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,6,6] },
-    { name:'Bmaj7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,9] },
   ],
   'Bmaj9': [
     { name:'Bmaj9', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,2,4] },
-    { name:'Bmaj9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,3,6,4] },
     { name:'Bmaj9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,9,9] },
   ],
   'Bmaj7#11': [
     { name:'Bmaj7#11', instrument:'ukulele', baseFret:1, strings:4, frets:['x',3,1,1] },
-    { name:'Bmaj7#11', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,6,6] },
     { name:'Bmaj7#11', instrument:'ukulele', baseFret:6, strings:4, frets:[8,10,7,8] },
   ],
   'Bmaj13': [
     { name:'Bmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,4,1] },
-    { name:'Bmaj13', instrument:'ukulele', baseFret:1, strings:4, frets:[3,3,4,2] },
     { name:'Bmaj13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,10,11,11] },
   ],
   'Bm': [
     { name:'Bm', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,2,2] },
     { name:'Bm', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,7,5] },
-    { name:'Bm', instrument:'ukulele', baseFret:5, strings:4, frets:[7,6,7,9] },
   ],
   'Bm(add9)': [
     { name:'Bm(add9)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,2,4] },
-    { name:'Bm(add9)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,6,7,4] },
     { name:'Bm(add9)', instrument:'ukulele', baseFret:3, strings:4, frets:[6,6,7,5] },
   ],
   'Bm6': [
     { name:'Bm6', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,2,2] },
     { name:'Bm6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,4,2] },
-    { name:'Bm6', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
   ],
   'Bmb6': [
     { name:'Bmb6', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,3,2] },
-    { name:'Bmb6', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,3,5] },
     { name:'Bmb6', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,10,10] },
   ],
   'Bm6/9': [
     { name:'Bm6/9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,4,4] },
-    { name:'Bm6/9', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,4,5] },
     { name:'Bm6/9', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,10,11] },
   ],
   'Bm7': [
     { name:'Bm7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,2] },
     { name:'Bm7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,5,5] },
-    { name:'Bm7', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,9] },
   ],
   'Bm7b5': [
     { name:'Bm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,2] },
     { name:'Bm7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,5,5] },
-    { name:'Bm7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,10,12] },
   ],
   'Bm(maj7)': [
     { name:'Bm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,2] },
-    { name:'Bm(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,2,1] },
     { name:'Bm(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,7,9] },
   ],
   'Bm9': [
     { name:'Bm9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,2,4] },
     { name:'Bm9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,2,5,4] },
-    { name:'Bm9', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,5,5] },
   ],
   'Bm9b5': [
     { name:'Bm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,1,2] },
-    { name:'Bm9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,5,5] },
     { name:'Bm9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,10,12] },
   ],
   'Bm9(maj7)': [
     { name:'Bm9(maj7)', instrument:'ukulele', baseFret:1, strings:4, frets:[3,2,2,4] },
-    { name:'Bm9(maj7)', instrument:'ukulele', baseFret:2, strings:4, frets:[6,6,6,5] },
     { name:'Bm9(maj7)', instrument:'ukulele', baseFret:6, strings:4, frets:[7,10,9,9] },
   ],
   'Bm11': [
     { name:'Bm11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,0,0] },
-    { name:'Bm11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,5] },
     { name:'Bm11', instrument:'ukulele', baseFret:8, strings:4, frets:[9,11,10,12] },
   ],
   'Bm13': [
     { name:'Bm13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,0,0] },
-    { name:'Bm13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,2,4,2] },
     { name:'Bm13', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,10,11] },
   ],
   'B7': [
     { name:'B7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,2] },
     { name:'B7', instrument:'ukulele', baseFret:2, strings:4, frets:[4,6,5,6] },
-    { name:'B7', instrument:'ukulele', baseFret:5, strings:4, frets:[8,9,7,9] },
   ],
   'B7sus4': [
     { name:'B7sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,5,7] },
     { name:'B7sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,2,2] },
-    { name:'B7sus4', instrument:'ukulele', baseFret:8, strings:4, frets:[11,11,12,12] },
   ],
   'B7b5': [
     { name:'B7b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
-    { name:'B7b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,5,6] },
     { name:'B7b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'B9': [
     { name:'B9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,5,4] },
-    { name:'B9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,4] },
     { name:'B9', instrument:'ukulele', baseFret:5, strings:4, frets:[6,9,7,6] },
   ],
   'B9sus4': [
     { name:'B9sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,4] },
-    { name:'B9sus4', instrument:'ukulele', baseFret:3, strings:4, frets:[4,6,5,7] },
     { name:'B9sus4', instrument:'ukulele', baseFret:8, strings:4, frets:['x',11,12,12] },
   ],
   'B9b5': [
     { name:'B9b5', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,4] },
-    { name:'B9b5', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,5,6] },
     { name:'B9b5', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'B7b9': [
     { name:'B7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,2,3] },
-    { name:'B7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,5,3] },
     { name:'B7b9', instrument:'ukulele', baseFret:8, strings:4, frets:[11,12,11,12] },
   ],
   'B7#9': [
     { name:'B7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,5,5] },
-    { name:'B7#9', instrument:'ukulele', baseFret:5, strings:4, frets:[7,9,7,6] },
     { name:'B7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,10,9] },
   ],
   'B7b5(#9)': [
     { name:'B7b5(#9)', instrument:'ukulele', baseFret:3, strings:4, frets:[7,5,5,6] },
-    { name:'B7b5(#9)', instrument:'ukulele', baseFret:4, strings:4, frets:[8,5,5,5] },
     { name:'B7b5(#9)', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,10,8] },
   ],
   'B11': [
     { name:'B11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,1,0,2] },
-    { name:'B11', instrument:'ukulele', baseFret:1, strings:4, frets:[4,4,5,4] },
     { name:'B11', instrument:'ukulele', baseFret:8, strings:4, frets:['x',11,12,12] },
   ],
   'B7#11': [
     { name:'B7#11', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,1,2] },
-    { name:'B7#11', instrument:'ukulele', baseFret:2, strings:4, frets:[4,5,5,6] },
     { name:'B7#11', instrument:'ukulele', baseFret:8, strings:4, frets:[10,11,11,12] },
   ],
   'B13': [
     { name:'B13', instrument:'ukulele', baseFret:1, strings:4, frets:[1,3,2,0] },
-    { name:'B13', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,4,2] },
     { name:'B13', instrument:'ukulele', baseFret:7, strings:4, frets:[11,9,11,11] },
   ],
   'B13sus4': [
     { name:'B13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[1,1,0,0] },
-    { name:'B13sus4', instrument:'ukulele', baseFret:1, strings:4, frets:[2,4,4,2] },
     { name:'B13sus4', instrument:'ukulele', baseFret:7, strings:4, frets:[9,9,9,11] },
   ],
   'B+': [
     { name:'B+', instrument:'ukulele', baseFret:1, strings:4, frets:[4,3,3,2] },
-    { name:'B+', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,7,6] },
     { name:'B+', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,11,10] },
   ],
   'B+7': [
     { name:'B+7', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,2] },
-    { name:'B+7', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,5,6] },
     { name:'B+7', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,7,10] },
   ],
   'B+9': [
     { name:'B+9', instrument:'ukulele', baseFret:1, strings:4, frets:[0,3,3,0] },
-    { name:'B+9', instrument:'ukulele', baseFret:3, strings:4, frets:[4,7,5,6] },
     { name:'B+9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,7,10] },
   ],
   'B+7b9': [
     { name:'B+7b9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,3] },
-    { name:'B+7b9', instrument:'ukulele', baseFret:3, strings:4, frets:[5,7,5,6] },
     { name:'B+7b9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,8,10] },
   ],
   'B+7#9': [
     { name:'B+7#9', instrument:'ukulele', baseFret:1, strings:4, frets:[2,3,3,5] },
-    { name:'B+7#9', instrument:'ukulele', baseFret:3, strings:4, frets:[7,7,5,6] },
     { name:'B+7#9', instrument:'ukulele', baseFret:6, strings:4, frets:[8,9,10,10] },
   ],
   'B°': [
     { name:'B°', instrument:'ukulele', baseFret:1, strings:4, frets:['x',2,1,2] },
-    { name:'B°', instrument:'ukulele', baseFret:3, strings:4, frets:[4,5,7,5] },
     { name:'B°', instrument:'ukulele', baseFret:7, strings:4, frets:['x',11,10,8] },
   ],
   'B°7': [
     { name:'B°7', instrument:'ukulele', baseFret:1, strings:4, frets:[1,2,1,2] },
-    { name:'B°7', instrument:'ukulele', baseFret:1, strings:4, frets:[4,5,4,5] },
     { name:'B°7', instrument:'ukulele', baseFret:7, strings:4, frets:[10,11,10,11] },
   ],
 };

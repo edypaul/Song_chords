@@ -10,16 +10,19 @@
 
 import { CHORD_FORMULAS } from '../packages/shared/src/chord-engine/formulas';
 import { generateGuitarVoicings, drainCanonicalWarnings } from '../packages/shared/src/chord-engine/voicing-generator';
+import { GUITAR_KEEP_VOICINGS } from './keep-voicings';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
-// Upper bound on variations per chord. Product goal: as MANY common /
-// practical guitar voicings as possible (open + the standard moveable
-// barre shapes + positional alternates across frets 1–12), never
-// dropping characteristic notes. The selector still returns fewer when
-// a chord genuinely has fewer good shapes — this is just the ceiling.
-const VOICINGS_PER_CHORD = 10;
+// Product rule (user, 2026-09): guitar = ONLY the most used / useful
+// shapes, CAGED first. Ceiling 5 (the five CAGED forms); the curated
+// canonical shapes fill the list and generator extras only top up to
+// MIN_FILL when a quality has fewer than 3 curated shapes in that key
+// — so every chord keeps at least 2–3 variations without the old
+// positional-alternate padding.
+const VOICINGS_PER_CHORD = 5;
+const MIN_FILL = 3;
 
 const outFile = path.join(__dirname, '..', 'packages', 'shared', 'src', 'chord-diagrams', 'guitar-diagrams.ts');
 
@@ -35,7 +38,19 @@ let emptyChords: string[] = [];
 for (const root of ROOTS) {
   for (const formula of CHORD_FORMULAS) {
     const chordName = root + formula.suffix;
-    const voicings = generateGuitarVoicings(chordName, VOICINGS_PER_CHORD);
+    const voicings = generateGuitarVoicings(chordName, VOICINGS_PER_CHORD, MIN_FILL);
+
+    // Append user-pinned shapes the selector no longer emits (see
+    // keep-voicings.ts) — at the END so canonical ordering holds.
+    for (const keep of GUITAR_KEEP_VOICINGS[chordName] ?? []) {
+      const sigOf = (frets: Array<number | 'x'>) => frets.join(',');
+      if (voicings.some((v) => sigOf(v.frets as Array<number | 'x'>) === sigOf(keep.frets))) continue;
+      voicings.push({
+        name: chordName, instrument: 'guitar', strings: 6,
+        baseFret: keep.baseFret, frets: keep.frets,
+        ...(keep.barre ? { barre: keep.barre } : {}),
+      } as (typeof voicings)[number]);
+    }
 
     totalChords++;
     totalVoicings += voicings.length;

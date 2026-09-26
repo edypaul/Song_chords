@@ -1083,7 +1083,7 @@ function buildCanonicalVoicings(
   return out;
 }
 
-function generateVoicings(chordName: string, count: number): ChordDiagram[] {
+function generateVoicings(chordName: string, count: number, minFill: number = count): ChordDiagram[] {
   const parsed = parseChordName(chordName);
   if (!parsed) return [];
 
@@ -1111,8 +1111,19 @@ function generateVoicings(chordName: string, count: number): ChordDiagram[] {
   // order — open chord, then the standard barres by position. The
   // generator's distinct extras follow, open-position ones first then
   // by fret, so the tail reads like the rest of a chord book page.
-  const canonical = buildCanonicalVoicings(chordName, rootSemitone, formula);
-  const selected = selectDiverseVoicings(candidates, count, canonical);
+  const canonical = buildCanonicalVoicings(chordName, rootSemitone, formula).slice(0, count);
+
+  // `count` is the hard ceiling; `minFill` is how far generator extras
+  // may top the list up when the curated CAGED templates alone don't
+  // reach it. With minFill < count (the bake scripts pass 3 for
+  // guitar), a quality with enough canonical shapes emits ONLY those —
+  // "the shapes guitarists actually use" — while a rare quality with
+  // 0–2 templates still gets filled to minFill so every chord keeps a
+  // real choice of variations. minFill = count (the default) is the
+  // old fill-to-ceiling behavior, which the slash pipeline relies on
+  // for its wide candidate pool.
+  const target = Math.min(count, Math.max(canonical.length, minFill));
+  const selected = selectDiverseVoicings(candidates, target, canonical);
 
   const extras = selected.filter((v) => !canonical.includes(v));
   extras.sort((a, b) => {
@@ -1121,16 +1132,12 @@ function generateVoicings(chordName: string, count: number): ChordDiagram[] {
     return a.lowestFret - b.lowestFret;
   });
 
-  // `count` is a hard ceiling. On guitar it's generous (10) and the
-  // curated list never reaches it; on ukulele it's the product rule
-  // "1–3 shapes per chord", so a quality with five templates still
-  // emits only its three best-positioned ones.
-  return [...canonical, ...extras].slice(0, count).map((v) => toChordDiagram(v, chordName));
+  return [...canonical, ...extras].slice(0, target).map((v) => toChordDiagram(v, chordName));
 }
 
-export function generateGuitarVoicings(chordName: string, count: number = 5): ChordDiagram[] {
+export function generateGuitarVoicings(chordName: string, count: number = 5, minFill: number = count): ChordDiagram[] {
   setActiveInstrument('guitar');
-  return generateVoicings(chordName, count);
+  return generateVoicings(chordName, count, minFill);
 }
 
 /** Generate ukulele (GCEA, 4 strings) voicings using the exact same

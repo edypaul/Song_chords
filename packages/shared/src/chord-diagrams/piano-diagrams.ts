@@ -274,25 +274,26 @@ function ensurePiano(name: string): ChordDiagram[] {
     return [];
   }
 
-  // Collect 1–3 voicings: root position first, then inversions.
+  // Collect voicings: root position first, then inversions.
   //
-  // Count rule (product spec — "1 to 3 voicings of each chord type"):
+  // Count rule (product spec 2026-09 — "only the most used and useful
+  // inversions"):
   //   - Slash chords keep ONLY root position: the explicit bass note
   //     is the entire point, inverting it would contradict the name.
-  //   - Triads AND four-note chords (6ths / 7ths / add9) → root + 1st
-  //     + 2nd inversion: the close-position inversions every keyboard
-  //     method teaches for both triads and seventh chords.
-  //   - 5+ tone chords (9ths / 11ths / 13ths) → root + 1st inversion
-  //     only; deeper inversions of dense chords get muddy, and the
-  //     stack usually won't fit two octaves anyway (then root only —
-  //     fine, one clean shape beats a forced one).
+  //   - Triads (3 distinct tones) → root + 1st + 2nd inversion: all
+  //     three close positions are everyday keyboard vocabulary.
+  //   - Four-note chords (6ths / 7ths / add9) → root + 1st inversion;
+  //     the deeper inversions of sevenths are far rarer in practice.
+  //   - 5+ tone chords (9ths / 11ths / 13ths) → root position only;
+  //     inverting dense chords gets muddy and the stack usually won't
+  //     fit two octaves anyway.
   const voicingNotes: number[][] = [root];
   if (!parts.bass) {
     const formula = getFormula(parts.suffix);
     const distinctTones = formula
       ? new Set(formula.intervals.map((iv) => (rootIndex(parts.root) + iv) % 12)).size
       : 3;
-    const maxInversions = distinctTones <= 4 ? 2 : 1; // → up to 3 / 2 total
+    const maxInversions = distinctTones <= 3 ? 2 : distinctTones === 4 ? 1 : 0;
     const seenKeys = new Set<string>([root.join(',')]);
     for (let inv = 1; inv <= maxInversions; inv++) {
       const v = buildInversion(parts.root, parts.suffix, inv);
