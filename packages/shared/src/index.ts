@@ -45,7 +45,7 @@ export type { SongStylePreset } from './constants/song-view-presets';
 export { parseChordPro, parsePlainText } from './parser/chordpro-parser';
 
 // Transpose
-export { transposeChord, transposeNote, transposeKey, transposeSong, getSoundingKey, getPlayingKey, computeSectionFlats } from './transpose/transposer';
+export { transposeChord, transposeNote, transposeKey, transposeSong, getSoundingKey, getPlayingKey, computeSectionFlats, transposeChordProContent } from './transpose/transposer';
 
 // Database
 export type { IDatabase, Migration } from './db/db-interface';

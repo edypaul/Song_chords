@@ -29,21 +29,29 @@ const CANONICAL_ROOT_BY_PC = [
 const LEADING_NOTE_RE = /^([A-G](?:#|b)?)/;
 
 // The note spellings `noteToSemitone` actually maps. Anything else
-// (Cb, E#, double accidentals…) is NOT in its table and would silently
-// fall back to 0 (= C), which would MIS-map Cb→C instead of B. Guard
-// with this allow-list so an unrecognized spelling is left as-is
-// rather than wrongly re-spelled.
+// (double accidentals…) is NOT in its table and would silently fall
+// back to 0 (= C), which would MIS-map Cb→C instead of B. Guard with
+// this allow-list so an unrecognized spelling is left as-is rather
+// than wrongly re-spelled.
 const KNOWN_NOTES = new Set([
   'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F',
   'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
 ]);
 
+// The four white-key enharmonics `noteToSemitone` does NOT know.
+// They're rare but perfectly valid spellings (Cb major exists!) and
+// used to resolve to NO diagram at all.
+const WHITE_KEY_ENHARMONICS: Record<string, string> = {
+  'Cb': 'B', 'Fb': 'E', 'E#': 'F', 'B#': 'C',
+};
+
 /** Re-spell a single note to the table's canonical spelling for its
  *  pitch class. Notes outside the known-spelling set are returned
  *  unchanged (no guessing). */
 function canonicalNote(note: string): string {
-  if (!KNOWN_NOTES.has(note)) return note;
-  const pc = ((noteToSemitone(note) % 12) + 12) % 12;
+  const mapped = WHITE_KEY_ENHARMONICS[note] ?? note;
+  if (!KNOWN_NOTES.has(mapped)) return note;
+  const pc = ((noteToSemitone(mapped) % 12) + 12) % 12;
   return CANONICAL_ROOT_BY_PC[pc] ?? note;
 }
 

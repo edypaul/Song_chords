@@ -250,3 +250,55 @@ describe('getSoundingKey / getPlayingKey', () => {
     expect(getPlayingKey('A', 0)).toBe('A');
   });
 });
+
+describe('transposeChordProContent', () => {
+  const { transposeChordProContent } = require('./transposer');
+
+  it('transposes inline chord markers and preserves formatting', () => {
+    const src = '{title: X}\n\n[C]Hola  [G/B]mundo [Am7]ya\nsin acordes';
+    expect(transposeChordProContent(src, 2, false)).toBe(
+      '{title: X}\n\n[D]Hola  [A/C#]mundo [Bm7]ya\nsin acordes');
+  });
+
+  it('transposes the {key:} directive', () => {
+    expect(transposeChordProContent('{key: Eb}\n[Eb]la', 1, false)).toBe('{key: E}\n[E]la');
+  });
+
+  it('transposes chord-grid rows and leaves dots/repeats alone', () => {
+    const src = '{sog}\n|: C . . | G7 . :| x3\n{eog}\n[C]after';
+    expect(transposeChordProContent(src, 2, false)).toBe(
+      '{sog}\n|: D . . | A7 . :| x3\n{eog}\n[D]after');
+  });
+
+  it('leaves non-chord bracket tokens and directives untouched', () => {
+    const src = '{pause: 3}\n# comment [C]\n[??]odd [C]ok';
+    expect(transposeChordProContent(src, 2, false)).toBe(
+      '{pause: 3}\n# comment [C]\n[??]odd [D]ok');
+  });
+
+  it('uses flat spelling when asked', () => {
+    expect(transposeChordProContent('[A]x', 1, true)).toBe('[Bb]x');
+  });
+});
+
+describe('slash-chord accidental respelling (Auto mode)', () => {
+  const { transposeChord: tc } = require('./transposer');
+
+  it('respells the bass to match the key side at 0 semitones', () => {
+    expect(tc('D/Gb', 0, false)).toBe('D/F#');
+    expect(tc('A/Db', 0, false)).toBe('A/C#');
+    expect(tc('F/A#', 0, true)).toBe('F/Bb');
+  });
+
+  it('normalizes white-key enharmonic basses and roots', () => {
+    expect(tc('D/Cb', 0, false)).toBe('D/B');
+    expect(tc('Cb', 0, false)).toBe('B');
+    expect(tc('E#m', 0, false)).toBe('Fm');
+    expect(tc('G/B#', 0, true)).toBe('G/C');
+  });
+
+  it('transposes such spellings correctly too', () => {
+    expect(tc('Cb', 2, false)).toBe('C#');
+    expect(tc('D/E#', 2, false)).toBe('E/G');
+  });
+});

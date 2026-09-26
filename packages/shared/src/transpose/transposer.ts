@@ -3,10 +3,18 @@ import type { ParsedSong, ChordToken, ChordGridToken, DirectiveToken } from '../
 
 const CHORD_ROOT_RE = /^([A-G][#b]?)(.*)/;
 
+// White-key enharmonics missing from the SHARPS/FLATS tables. Rare
+// but valid spellings (Cb major exists); without this, a note like
+// the Cb in "D/Cb" would bypass respelling/transposition entirely.
+const WHITE_KEY_ENHARMONICS: Record<string, string> = {
+  'Cb': 'B', 'Fb': 'E', 'E#': 'F', 'B#': 'C',
+};
+
 function noteIndex(note: string): number {
-  const si = SHARPS.indexOf(note as (typeof SHARPS)[number]);
+  const n = WHITE_KEY_ENHARMONICS[note] ?? note;
+  const si = SHARPS.indexOf(n as (typeof SHARPS)[number]);
   if (si !== -1) return si;
-  const fi = FLATS.indexOf(note as (typeof FLATS)[number]);
+  const fi = FLATS.indexOf(n as (typeof FLATS)[number]);
   return fi;
 }
 
@@ -201,4 +209,45 @@ export function getSoundingKey(playingKey: string, capo: number): string {
 
 export function getPlayingKey(soundingKey: string, capo: number): string {
   return transposeKey(soundingKey, -capo);
+}
+
+/**
+ * Transpose a song's RAW ChordPro content by `semitones`, preserving
+ * every byte of formatting except the musical tokens themselves:
+ *
+ *   • `[Chord]` markers in lyric lines,
+ *   • bare chord names inside `{sog}…{eog}` chord-grid rows,
+ *   • the `{key: X}` / `{k: X}` metadata directive.
+ *
+ * Everything else — directives, comments, whitespace, lyrics — is
+ * untouched. Used by "save transposed version": the current transpose
+ * offset gets baked into the stored content so it becomes the song's
+ * real key.
+ */
+export function transposeChordProContent(content: string, semitones: number, preferFlats: boolean): string {
+  const KEY_DIRECTIVE_RE = /^(\s*\{(?:key|k)\s*:\s*)([^}]*?)(\s*\}\s*)$/i;
+  const lines = content.split('\n');
+  let inGrid = false;
+  const out = lines.map((line) => {
+    const trimmed = line.trim();
+    // Chord-grid block tracking ({sog} … {eog}).
+    if (/^\{sog\s*\}$/i.test(trimmed)) { inGrid = true; return line; }
+    if (/^\{eog\s*\}$/i.test(trimmed)) { inGrid = false; return line; }
+    if (inGrid) {
+      // Grid rows: `| C . . | Am7 . |` — transpose tokens that start
+      // with a note letter; dots, barlines and `xN` repeats pass through.
+      return line.replace(/[A-G][#b]?[^\s|]*/g, (tok) => transposeChord(tok, semitones, preferFlats));
+    }
+    // {key:} directive.
+    const keyMatch = KEY_DIRECTIVE_RE.exec(line);
+    if (keyMatch) {
+      return keyMatch[1]! + transposeChord(keyMatch[2]!.trim(), semitones, preferFlats) + keyMatch[3]!;
+    }
+    // Other directives and # comments carry no chords.
+    if (trimmed.startsWith('{') || trimmed.startsWith('#')) return line;
+    // Lyric lines: transpose inline [Chord] markers only.
+    return line.replace(/\[([^\]\n]+)\]/g, (whole, inner: string) =>
+      /^[A-G]/.test(inner.trim()) ? `[${transposeChord(inner.trim(), semitones, preferFlats)}]` : whole);
+  });
+  return out.join('\n');
 }

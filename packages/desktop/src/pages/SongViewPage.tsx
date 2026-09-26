@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown } from 'lucide-react';
-import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles, ANNOTATION_OFF } from '@song-chords/shared';
+import { Edit2, ArrowLeft, X, Play, Square, Pause, Timer, Guitar, LayoutGrid, FileText, Maximize, Minimize, StickyNote, ListMusic, Star, Download, ArrowUp, ChevronUp, ChevronDown, Save } from 'lucide-react';
+import { useSongStore, usePlayerStore, useSettingsStore, useSetListStore, SONG_STYLE_PRESETS, formatKey, annotationModeFromToggles, ANNOTATION_OFF, transposeChordProContent, transposeKey, FLAT_KEYS } from '@song-chords/shared';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import SongRenderer from '../components/song/SongRenderer';
 import SongDetails from '../components/song/SongDetails';
 import AutoScrollControl from '../components/controls/AutoScrollControl';
@@ -272,6 +273,29 @@ export default function SongViewPage(): React.ReactElement {
       ? t('songView.trainerOffInlineOn')
       : t('songView.trainerOffOnlyDefault');
   const [showExport, setShowExport] = useState(false);
+  // "Save transposed version" confirmation (toolbar Save icon next to
+  // the transpose controls).
+  const [confirmSaveTranspose, setConfirmSaveTranspose] = useState(false);
+  // Bake the current transpose offset into the stored song: rewrite
+  // the content's chords (and key) in the new key and zero the saved
+  // transpose preference. The store update re-loads the song, whose
+  // baked content at transpose 0 renders IDENTICALLY to what was on
+  // screen — no visual jump.
+  const handleSaveTranspose = async () => {
+    const steps = usePlayerStore.getState().transposeSteps;
+    if (!activeSong || steps === 0) { setConfirmSaveTranspose(false); return; }
+    const newKey = activeSong.key ? transposeKey(activeSong.key, steps) : undefined;
+    // Spell the rewritten chords to suit the DESTINATION key, the same
+    // rule the live transposed view uses.
+    const preferFlats = newKey ? FLAT_KEYS.has(newKey) : false;
+    const newContent = transposeChordProContent(activeSong.content, steps, preferFlats);
+    await updateSongInStore(db, activeSong.id, {
+      content: newContent,
+      ...(newKey ? { key: newKey } : {}),
+      preferences: { ...(activeSong.preferences ?? {}), transposeSteps: 0 },
+    });
+    setConfirmSaveTranspose(false);
+  };
   const [showSetListPicker, setShowSetListPicker] = useState(false);
   // Collapse the whole toolbar to give the song content more vertical
   // room. When hidden, a slim "show toolbar" tab stays visible so the
@@ -1073,6 +1097,17 @@ export default function SongViewPage(): React.ReactElement {
           {transposeSteps !== 0 && (
             <button onClick={resetTranspose} className="px-1 py-1 text-xs rounded hover:bg-[var(--surface-elevated)]" style={{ color: 'var(--text-muted)' }} title={`${t('songView.resetTranspose')}${hint('resetTranspose')}`}>↺</button>
           )}
+          {transposeSteps !== 0 && (
+            <button
+              onClick={() => setConfirmSaveTranspose(true)}
+              className="px-1 py-1 rounded hover:bg-[var(--surface-elevated)]"
+              style={{ color: 'var(--accent)' }}
+              title={t('songView.saveTranspose.button')}
+              aria-label={t('songView.saveTranspose.button')}
+            >
+              <Save size={13} />
+            </button>
+          )}
         </div>
 
         {/* Capo */}
@@ -1507,6 +1542,17 @@ export default function SongViewPage(): React.ReactElement {
       {/* Export modal */}
       {showExport && activeSong && (
         <SongExportModal songs={[activeSong]} onClose={() => setShowExport(false)} />
+      )}
+
+      {/* Save-transposed-version confirmation */}
+      {confirmSaveTranspose && activeSong && (
+        <ConfirmDialog
+          title={t('songView.saveTranspose.title')}
+          message={<>{t('songView.saveTranspose.message')}</>}
+          confirmLabel={t('songView.saveTranspose.confirm')}
+          onCancel={() => setConfirmSaveTranspose(false)}
+          onConfirm={() => void handleSaveTranspose()}
+        />
       )}
 
       {/* Set list picker */}
