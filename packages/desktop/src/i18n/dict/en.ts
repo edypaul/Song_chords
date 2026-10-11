@@ -113,6 +113,17 @@ export const en = {
   // ─── Settings page — Auto-Scroll section ─────────────────────────
   'settings.autoScroll.title': 'Auto-Scroll',
   'settings.autoScroll.speed.label': 'Default Scroll Speed',
+  'settings.metronome.title': 'Metronome',
+  'settings.metronome.sound.label': 'Click sound',
+  'settings.metronome.sound.hint': 'The timbre of the metronome click. Changing it plays a one-bar preview.',
+  'settings.metronome.sound.beep': 'Digital beep',
+  'settings.metronome.sound.wood': 'Woodblock',
+  'settings.metronome.sound.tick': 'Click (mechanical)',
+  'settings.metronome.sound.clave': 'Clave',
+  'settings.metronome.volume.label': 'Volume',
+  'settings.metronome.accent.label': 'Accent the first beat',
+  'settings.metronome.accent.hint': 'Beat 1 of each bar sounds louder and higher-pitched. Turn off to make every beat identical.',
+  'settings.metronome.preview': 'Preview',
 
   // ─── Settings page — Song Layout section ─────────────────────────
   'settings.songLayout.title': 'Song Layout',

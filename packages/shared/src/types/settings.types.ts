@@ -3,6 +3,11 @@ import type { InstrumentType } from './chord.types';
 export type ThemeType = 'light' | 'dark' | 'system';
 export type ViewMode = 'chords' | 'lyrics-only' | 'chords-only';
 
+/** Metronome click timbres (synthesized — see the desktop
+ *  metronome-sounds util for the recipes). A legacy stored 'cowbell'
+ *  value is normalized to 'clave' at read time. */
+export type MetronomeSound = 'beep' | 'wood' | 'tick' | 'clave';
+
 /** Supported UI languages. `en` is the source-of-truth dictionary
  *  every other locale falls back to when a key is missing. Add a new
  *  language by extending this union AND providing a dictionary in
@@ -188,6 +193,13 @@ export interface AppSettings {
   >>;
   perfMetroEnabled: boolean;
   perfScrollEnabled: boolean;
+  /** Metronome click timbre. Default 'beep'. */
+  metronomeSound?: MetronomeSound;
+  /** Metronome master volume, 0–1. Default 0.7. */
+  metronomeVolume?: number;
+  /** Accent beat 1 of every bar (louder + higher-pitched). When off,
+   *  every beat uses the identical soft click. Default true. */
+  metronomeAccent?: boolean;
   perfZoom: number;
   /** Show the section navigator panel in song views. Persists across sessions. */
   sectionPanelOpen: boolean;

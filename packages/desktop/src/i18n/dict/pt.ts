@@ -100,6 +100,17 @@ export const pt: Partial<Dict> = {
   // ─── Settings page — Auto-Scroll section ─────────────────────────
   'settings.autoScroll.title': 'Rolagem automática',
   'settings.autoScroll.speed.label': 'Velocidade de rolagem padrão',
+  'settings.metronome.title': 'MetrÃ´nomo',
+  'settings.metronome.sound.label': 'Som do clique',
+  'settings.metronome.sound.hint': 'O timbre do clique do metrÃ´nomo. Ao alterar, toca um compasso de amostra.',
+  'settings.metronome.sound.beep': 'Bipe digital',
+  'settings.metronome.sound.wood': 'Bloco de madeira',
+  'settings.metronome.sound.tick': 'Clique (mecânico)',
+  'settings.metronome.sound.clave': 'Clave',
+  'settings.metronome.volume.label': 'Volume',
+  'settings.metronome.accent.label': 'Acentuar o primeiro tempo',
+  'settings.metronome.accent.hint': 'O tempo 1 de cada compasso soa mais forte e agudo. Desative para que todos os tempos soem iguais.',
+  'settings.metronome.preview': 'Testar',
 
   // ─── Settings page — Song Layout section ─────────────────────────
   'settings.songLayout.title': 'Layout da música',

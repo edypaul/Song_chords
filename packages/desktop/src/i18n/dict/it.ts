@@ -99,6 +99,17 @@ export const it: Partial<Dict> = {
   // ─── Settings page — Auto-Scroll section ─────────────────────────
   'settings.autoScroll.title': 'Scorrimento automatico',
   'settings.autoScroll.speed.label': 'Velocità di scorrimento predefinita',
+  'settings.metronome.title': 'Metronomo',
+  'settings.metronome.sound.label': 'Suono del clic',
+  'settings.metronome.sound.hint': 'Il timbro del clic del metronomo. Cambiandolo viene riprodotta una battuta di anteprima.',
+  'settings.metronome.sound.beep': 'Bip digitale',
+  'settings.metronome.sound.wood': 'Blocco di legno',
+  'settings.metronome.sound.tick': 'Clic (meccanico)',
+  'settings.metronome.sound.clave': 'Clave',
+  'settings.metronome.volume.label': 'Volume',
+  'settings.metronome.accent.label': 'Accenta il primo battito',
+  'settings.metronome.accent.hint': 'Il battito 1 di ogni battuta suona piÃ¹ forte e acuto. Disattiva per rendere tutti i battiti identici.',
+  'settings.metronome.preview': 'Anteprima',
 
   // ─── Settings page — Song Layout section ─────────────────────────
   'settings.songLayout.title': 'Layout della canzone',

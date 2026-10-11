@@ -1,19 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSettingsStore } from '@song-chords/shared';
+import { scheduleMetronomeClick, normalizeMetronomeSound } from '../utils/metronome-sounds';
 
 const SCHEDULE_AHEAD = 0.1; // seconds to schedule ahead
 const TICK_MS = 25;         // scheduler poll interval
-
-function click(ctx: AudioContext, time: number, downbeat: boolean) {
-  const osc  = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.frequency.value = downbeat ? 1000 : 700;
-  gain.gain.setValueAtTime(downbeat ? 0.55 : 0.4, time);
-  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
-  osc.start(time);
-  osc.stop(time + 0.05);
-}
 
 export function useMetronome(bpm: number, timeSig: string) {
   const [isPlaying, setIsPlaying]   = useState(false);
@@ -30,11 +20,25 @@ export function useMetronome(bpm: number, timeSig: string) {
   bpmRef.current  = bpm;
   beatsRef.current = parseInt(timeSig?.split('/')[0] ?? '4') || 4;
 
+  // Sound options from settings, readable inside the scheduler closure
+  // without restarting the beat — changing the timbre/volume mid-bar
+  // just affects the next scheduled click.
+  const sound  = useSettingsStore((s) => normalizeMetronomeSound(s.settings.metronomeSound));
+  const volume = useSettingsStore((s) => s.settings.metronomeVolume ?? 0.7);
+  const accent = useSettingsStore((s) => s.settings.metronomeAccent ?? true);
+  const optsRef = useRef({ sound, volume, accent });
+  optsRef.current = { sound, volume, accent };
+
   const scheduler = () => {
     const ctx = ctxRef.current!;
     while (nextTimeRef.current < ctx.currentTime + SCHEDULE_AHEAD) {
       const beat = beatRef.current;
-      click(ctx, nextTimeRef.current, beat === 0);
+      const { sound: snd, volume: vol, accent: acc } = optsRef.current;
+      scheduleMetronomeClick(ctx, nextTimeRef.current, {
+        sound: snd,
+        volume: vol,
+        accent: beat === 0 && acc,
+      });
       // Visual update fired at the right moment
       const delayMs = Math.max(0, (nextTimeRef.current - ctx.currentTime) * 1000);
       const captured = beat;
@@ -52,7 +56,7 @@ export function useMetronome(bpm: number, timeSig: string) {
 
   const start = () => {
     if (!ctxRef.current) ctxRef.current = new AudioContext();
-    if (ctxRef.current.state === 'suspended') ctxRef.current.resume();
+    if (ctxRef.current.state === 'suspended') void ctxRef.current.resume();
     beatRef.current    = 0;
     nextTimeRef.current = ctxRef.current.currentTime + 0.05;
     timerRef.current   = setInterval(scheduler, TICK_MS);

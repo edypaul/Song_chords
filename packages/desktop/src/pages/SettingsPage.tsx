@@ -16,6 +16,7 @@ import {
   type LibraryBackup, type CustomChordsBackup, type CustomPresetsBackup, type SettingsBackup,
 } from '../utils/backup';
 import { useEffectiveTheme } from '../hooks/useEffectiveTheme';
+import { previewMetronome, normalizeMetronomeSound } from '../utils/metronome-sounds';
 
 export default function SettingsPage(): React.ReactElement {
   const { settings, updateSetting } = useSettingsStore();
@@ -23,6 +24,31 @@ export default function SettingsPage(): React.ReactElement {
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     void updateSetting(db, key, value);
+  };
+
+  // One lazy AudioContext for the metronome preview bar. Overrides let
+  // a change handler audition the value it just saved without waiting
+  // for the async settings round-trip. Only ONE preview plays at a
+  // time: while it runs the button is disabled and every preview
+  // trigger (button, sound change, accent toggle) is ignored, so
+  // previews can't stack on top of each other.
+  const previewCtxRef = React.useRef<AudioContext | null>(null);
+  const previewBusyRef = React.useRef(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const playMetronomePreview = (over: { sound?: NonNullable<AppSettings['metronomeSound']>; volume?: number; accentFirst?: boolean }) => {
+    if (previewBusyRef.current) return;
+    if (!previewCtxRef.current) previewCtxRef.current = new AudioContext();
+    const duration = previewMetronome(previewCtxRef.current, {
+      sound: over.sound ?? normalizeMetronomeSound(settings.metronomeSound),
+      volume: over.volume ?? settings.metronomeVolume ?? 0.7,
+      accentFirst: over.accentFirst ?? settings.metronomeAccent ?? true,
+    });
+    previewBusyRef.current = true;
+    setPreviewBusy(true);
+    window.setTimeout(() => {
+      previewBusyRef.current = false;
+      setPreviewBusy(false);
+    }, Math.ceil(duration * 1000));
   };
 
   // Keep the active song-view style in sync with the effective theme.
@@ -485,6 +511,56 @@ export default function SettingsPage(): React.ReactElement {
             />
             <span className="w-8 text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{settings.scrollSpeed}</span>
           </div>
+        </SettingRow>
+      </Section>)}
+
+      {showCat('playback') && (<Section title={t('settings.metronome.title')}>
+        <SettingRow label={t('settings.metronome.sound.label')} hint={t('settings.metronome.sound.hint')}>
+          <div className="flex items-center gap-2">
+            <select
+              value={normalizeMetronomeSound(settings.metronomeSound)}
+              onChange={(e) => { set('metronomeSound', e.target.value as AppSettings['metronomeSound']); playMetronomePreview({ sound: e.target.value as NonNullable<AppSettings['metronomeSound']> }); }}
+              className="setting-select"
+            >
+              <option value="beep">{t('settings.metronome.sound.beep')}</option>
+              <option value="wood">{t('settings.metronome.sound.wood')}</option>
+              <option value="tick">{t('settings.metronome.sound.tick')}</option>
+              <option value="clave">{t('settings.metronome.sound.clave')}</option>
+            </select>
+            <button
+              onClick={() => playMetronomePreview({})}
+              disabled={previewBusy}
+              className="text-xs px-2.5 py-1.5 rounded-md transition-colors hover:opacity-80"
+              style={{
+                background: 'var(--surface-elevated)',
+                color: previewBusy ? 'var(--text-muted)' : 'var(--text-secondary)',
+                border: '1px solid var(--border)',
+                opacity: previewBusy ? 0.55 : 1,
+                cursor: previewBusy ? 'not-allowed' : undefined,
+              }}
+              title={t('settings.metronome.preview')}
+            >
+              ▶ {t('settings.metronome.preview')}
+            </button>
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings.metronome.volume.label')}>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round((settings.metronomeVolume ?? 0.7) * 100)}
+              onChange={(e) => set('metronomeVolume', Number(e.target.value) / 100)}
+              onMouseUp={(e) => playMetronomePreview({ volume: Number((e.target as HTMLInputElement).value) / 100 })}
+              className="w-32 accent-[var(--accent)]"
+            />
+            <span className="w-10 text-sm font-mono" style={{ color: 'var(--text-primary)' }}>{Math.round((settings.metronomeVolume ?? 0.7) * 100)}%</span>
+          </div>
+        </SettingRow>
+        <SettingRow label={t('settings.metronome.accent.label')} hint={t('settings.metronome.accent.hint')}>
+          <Toggle checked={settings.metronomeAccent ?? true} onChange={(v) => { set('metronomeAccent', v); playMetronomePreview({ accentFirst: v }); }} />
         </SettingRow>
       </Section>)}
 

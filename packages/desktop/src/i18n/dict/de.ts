@@ -99,6 +99,17 @@ export const de: Partial<Dict> = {
   // ─── Settings page — Auto-Scroll section ─────────────────────────
   'settings.autoScroll.title': 'Auto-Scroll',
   'settings.autoScroll.speed.label': 'Standard-Scrollgeschwindigkeit',
+  'settings.metronome.title': 'Metronom',
+  'settings.metronome.sound.label': 'Klick-Sound',
+  'settings.metronome.sound.hint': 'Die Klangfarbe des Metronom-Klicks. Beim Ãndern wird ein Probetakt abgespielt.',
+  'settings.metronome.sound.beep': 'Digitaler Piep',
+  'settings.metronome.sound.wood': 'Holzblock',
+  'settings.metronome.sound.tick': 'Klick (mechanisch)',
+  'settings.metronome.sound.clave': 'Clave',
+  'settings.metronome.volume.label': 'LautstÃ¤rke',
+  'settings.metronome.accent.label': 'Ersten Schlag betonen',
+  'settings.metronome.accent.hint': 'Schlag 1 jedes Takts klingt lauter und hÃ¶her. Ausschalten, damit alle SchlÃ¤ge identisch klingen.',
+  'settings.metronome.preview': 'VorhÃ¶ren',
 
   // ─── Settings page — Song Layout section ─────────────────────────
   'settings.songLayout.title': 'Song-Layout',
